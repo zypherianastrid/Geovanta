@@ -6,6 +6,8 @@ import { lerp, uid, P, rd, cl } from './vectorPrimitives.jsx';
 import { mapGrad } from './gradientEngine.jsx';
 import { TBB } from './spatialIndexAndHitTest.jsx';
 import { GEOMETRY_CACHE } from '../renderer/geometryCache.jsx';
+import { parsePath } from './svgPathParser.jsx';
+import { serializePath } from './svgPathSerializer.jsx';
 
 /* ---- splitSeg: Subdivisi De Casteljau & Kolinier (Node baru SELALU punya handle Bézier tanpa mengubah bentuk) ---- */
 function splitSeg(a, b, t) {
@@ -161,8 +163,36 @@ function translate(o, dx, dy) {
       nodes: nNs
     };
   }
+  let nextClipPathD = o.clipPathD;
+  if (o.clipPathD) {
+    try {
+      const cSubs = parsePath(o.clipPathD);
+      const tSubs = cSubs.map(sp => ({
+        ...sp,
+        nodes: sp.nodes.map(n => ({
+          ...n,
+          x: n.x + dx,
+          y: n.y + dy,
+          handleIn: n.handleIn ? {
+            x: n.handleIn.x + dx,
+            y: n.handleIn.y + dy
+          } : null,
+          handleOut: n.handleOut ? {
+            x: n.handleOut.x + dx,
+            y: n.handleOut.y + dy
+          } : null
+        }))
+      }));
+      nextClipPathD = serializePath({
+        subs: tSubs
+      });
+    } catch (e) {}
+  }
   const nextObj = {
     ...o,
+    ...(nextClipPathD !== o.clipPathD ? {
+      clipPathD: nextClipPathD
+    } : {}),
     ...(o.text ? {
       text: {
         ...o.text,

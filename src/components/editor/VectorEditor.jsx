@@ -3343,9 +3343,12 @@ const VectorEditor = ({
     for (let i = 0; i < dg.domEls.length; i++) {
       const {
         el,
-        baseTf
+        baseTf,
+        clipGroupEl,
+        baseClip
       } = dg.domEls[i];
       if (baseTf) el.setAttribute('transform', baseTf);else el.removeAttribute('transform');
+      if (clipGroupEl && baseClip) clipGroupEl.setAttribute('clip-path', baseClip);
     }
   };
   const flushFastObjDrag = dg => {
@@ -3367,17 +3370,28 @@ const VectorEditor = ({
     const els = [];
     boxRef.current.querySelectorAll('[data-drag-id]').forEach(el => {
       if (dg.ids.has(el.getAttribute('data-drag-id'))) {
+        const p = el.parentElement;
+        const pClip = p && p.tagName === 'g' ? p.getAttribute('clip-path') : null;
+        const ownClip = el.getAttribute('clip-path');
         els.push({
           el,
-          baseTf: el.getAttribute('data-base-tf') || ''
+          baseTf: el.getAttribute('data-base-tf') || '',
+          clipGroupEl: pClip && /^url\(#ved-clip-/.test(pClip) ? p : ownClip ? el : null,
+          baseClip: pClip && /^url\(#ved-clip-/.test(pClip) ? pClip : ownClip || ''
         });
       }
     });
     boxRef.current.querySelectorAll('[data-drag-batch]').forEach(el => {
+      const p = el.parentElement;
+      const pClip = p && p.tagName === 'g' ? p.getAttribute('clip-path') : null;
+      const clipGroupEl = pClip && /^url\(#ved-clip-/.test(pClip) ? p : null;
+      const baseClip = clipGroupEl ? pClip : '';
       if (dg.allObjsSelected) {
         els.push({
           el,
-          baseTf: el.getAttribute('data-base-tf') || ''
+          baseTf: el.getAttribute('data-base-tf') || '',
+          clipGroupEl,
+          baseClip
         });
         return;
       }
@@ -3386,7 +3400,9 @@ const VectorEditor = ({
       if (hitCount === ids.length && ids.length > 0) {
         els.push({
           el,
-          baseTf: el.getAttribute('data-base-tf') || ''
+          baseTf: el.getAttribute('data-base-tf') || '',
+          clipGroupEl,
+          baseClip
         });
       } else if (hitCount > 0) {
         partialBatch = true;
@@ -3487,9 +3503,11 @@ const VectorEditor = ({
         for (let i = 0; i < dg.domEls.length; i++) {
           const {
             el,
-            baseTf
+            baseTf,
+            clipGroupEl
           } = dg.domEls[i];
           el.setAttribute('transform', baseTf ? tr + ' ' + baseTf : tr);
+          if (clipGroupEl) clipGroupEl.removeAttribute('clip-path');
         }
       }
     }
@@ -3504,9 +3522,11 @@ const VectorEditor = ({
       for (let i = 0; i < dg.domEls.length; i++) {
         const {
           el,
-          baseTf
+          baseTf,
+          clipGroupEl
         } = dg.domEls[i];
         el.setAttribute('transform', baseTf ? tr + ' ' + baseTf : tr);
+        if (clipGroupEl) clipGroupEl.removeAttribute('clip-path');
       }
     }
   }, [doc, sel.objs]);
@@ -6835,11 +6855,12 @@ const VectorEditor = ({
                   return <React.Fragment key="sel-batch-frag">{groupBoxEl}<path key="sel-batch-outline" data-drag-batch={idsSelStr} data-sel-heavy="1" d={dSelCombined} fill="none" stroke="var(--acc)" strokeOpacity={isMovingObj ? '1' : '0.75'} strokeWidth={isMovingObj ? '1.5' : '1'} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" /></React.Fragment>;
                 }
                 return <React.Fragment key="sel-indiv-frag">{groupBoxEl}{visSel.map(o => <path key={'s' + o.id} data-drag-id={o.id} data-sel-heavy="1" d={vinfo(o).d} fill="none" stroke="var(--acc)" strokeOpacity="0.65" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />)}</React.Fragment>;
-              }, [selObjs, selObjs.length > 64 ? cullBounds : null, allSelBBox, activeBox])}{selObjs.length === 1 && !pen && (tool === 'select' || tool === 'node') && !selObjs[0].img && VE.gradOn(selObjs[0]) && <GradientCanvasGizmo obj={selObjs[0]} zoom={zoom} toDoc={toDoc} commitObjs={commitObjs} live={live} docRef={docRef} push={push} activeStopId={activeStopId} setActiveStopId={setActiveStopId} />}{activeBox && !isMovingObj && (() => {
+              }, [selObjs, selObjs.length > 64 ? cullBounds : null, allSelBBox, activeBox])}{selObjs.length === 1 && !pen && (tool === 'select' || tool === 'node') && !selObjs[0].img && VE.gradOn(selObjs[0]) && <GradientCanvasGizmo obj={selObjs[0]} zoom={zoomRef.current || zoom || 1} toDoc={toDoc} commitObjs={commitObjs} live={live} docRef={docRef} push={push} activeStopId={activeStopId} setActiveStopId={setActiveStopId} />}{activeBox && !isMovingObj && (() => {
+                const zNow = Math.max(1e-4, zoomRef.current || zoom || 1);
                 const corners = activeBox.corners();
                 const polyPts = corners.map(p => p.x + ',' + p.y).join(' ');
-                const hs = 6 / zoom,
-                  hHalf = 3 / zoom;
+                const hs = 6 / zNow,
+                  hHalf = 3 / zNow;
                 return <g className="vc-bbox-overlay" pointerEvents="none"><polygon points={polyPts} fill="none" stroke="var(--acc)" strokeWidth="1" vectorEffect="non-scaling-stroke" />{VE.VC_HANDLES.map(h => {
                     const p = activeBox.toDocPt(h.pos(activeBox.rect));
                     return <rect key={'vch-' + h.idx} data-hx={p.x} data-hy={p.y} x={p.x - hHalf} y={p.y - hHalf} width={hs} height={hs} fill="#ffffff" stroke="var(--acc)" strokeWidth="1" vectorEffect="non-scaling-stroke" />;

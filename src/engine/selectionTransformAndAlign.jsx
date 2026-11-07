@@ -8,6 +8,8 @@ import { mapGrad } from './gradientEngine.jsx';
 import { rd } from './vectorPrimitives.jsx';
 import { syncTextTransformFromSubs } from './textAndImageEngine.jsx';
 import { affineMul, affineTranslate, affineRotate, transformObject, affineScale } from './affineAndOrientedBox.jsx';
+import { parsePath } from './svgPathParser.jsx';
+import { serializePath } from './svgPathSerializer.jsx';
 
 /* =========================================================================
    TRANSFORM, ALIGNMENT, AUTO LAYOUT & PADDING ALA FIGMA (v4.4)
@@ -227,8 +229,30 @@ function scaleObjXY(o, px, py, sx, sy, scaleStroke) {
     y: py + (q.y - py) * sy
   };
   const kStroke = Math.sqrt((sx * sx + sy * sy) * 0.5);
+  let nextClipPathD = o.clipPathD;
+  if (o.clipPathD) {
+    try {
+      const cSubs = parsePath(o.clipPathD);
+      const tSubs = cSubs.map(sp => ({
+        ...sp,
+        nodes: sp.nodes.map(n => ({
+          ...n,
+          x: px + (n.x - px) * sx,
+          y: py + (n.y - py) * sy,
+          handleIn: tr(n.handleIn),
+          handleOut: tr(n.handleOut)
+        }))
+      }));
+      nextClipPathD = serializePath({
+        subs: tSubs
+      });
+    } catch (e) {}
+  }
   const next = {
     ...o,
+    ...(nextClipPathD !== o.clipPathD ? {
+      clipPathD: nextClipPathD
+    } : {}),
     grad: mapGrad(o.grad, tr, kStroke),
     ...(o.strokeGrad ? {
       strokeGrad: mapGrad(o.strokeGrad, tr, kStroke)

@@ -1252,10 +1252,10 @@ class SceneRenderer {
         gl.disable(gl.SCISSOR_TEST);
       }
     };
-    const drawObjectWebGL = (o, odx, ody, frameStencilActive) => {
+    const drawObjectWebGL = (o, odx, ody, frameStencilActive, isDragged = false) => {
       /* Dukungan clipPathD per objek di WebGL2 (kontrak kualitas identik dengan Canvas2D & SVG DOM) */
       let objStencilClip = false;
-      if (o.clipPathD && !frameStencilActive) {
+      if (!isDragged && o.clipPathD && !frameStencilActive) {
         if (!o._cachedClipObj || o._cachedClipD !== o.clipPathD) {
           o._cachedClipD = o.clipPathD;
           o._cachedClipObj = {
@@ -1529,7 +1529,7 @@ class SceneRenderer {
       visCount++;
       const fid = !isDragged && this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null; /* FIX: objek yang sedang diseret tidak di-clip ke frame lamanya */
       if (fid !== activeClipFid) openFrameClipWebGL(fid);
-      drawObjectWebGL(o, odx, ody, activeClipMode === 'stencil');
+      drawObjectWebGL(o, odx, ody, activeClipMode === 'stencil', isDragged);
     };
     if (drag && drag.ids && drag.ids.size > 0) {
       /* Pass 1: Render seluruh objek yang TIDAK sedang diseret */
@@ -1745,7 +1745,7 @@ class SceneRenderer {
       tctx.save();
       if (odx || ody) tctx.translate(odx, ody);
       tctx.globalAlpha = o.opacity ?? 1;
-      if (o.clipPathD) {
+      if (!isDragged && o.clipPathD) {
         try {
           tctx.clip(new Path2D(o.clipPathD));
         } catch (e) {}
@@ -1955,7 +1955,7 @@ class SceneRenderer {
         tctx.save();
         if (odx || ody) tctx.translate(odx, ody);
         tctx.globalAlpha = (o.opacity ?? 1) * (o.groupOpacity ?? 1);
-        if (o.clipPathD) {
+        if (!isDragged && o.clipPathD) {
           try {
             tctx.clip(new Path2D(o.clipPathD));
           } catch (e) {}
@@ -2312,7 +2312,7 @@ class SceneRenderer {
       ctx.save();
       if (odx || ody) ctx.translate(odx, ody);
       ctx.globalAlpha = (o.opacity ?? 1) * (o.groupOpacity ?? 1);
-      if (o.clipPathD) {
+      if (!isDragged && o.clipPathD) {
         try {
           ctx.clip(new Path2D(o.clipPathD), o.clipRule === 'evenodd' ? 'evenodd' : 'nonzero');
         } catch (e) {}
