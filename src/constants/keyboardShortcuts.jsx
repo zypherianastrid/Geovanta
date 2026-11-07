@@ -1,0 +1,8 @@
+/**
+ * @file src/constants/keyboardShortcuts.jsx
+ * @description Daftar pintasan papan ketik (Keyboard Shortcuts)
+ */
+const SC = [['Berkas', [['Ctrl + S', 'Unduh SVG'], ['Ctrl + C', 'Salin objek terpilih'], ['Ctrl + V', 'Tempel objek / gambar dari clipboard']]], ['Alat', [['V', 'Pilih (Select)'], ['A | N', 'Edit Node'], ['H | Spasi', 'Geser kanvas (Hand)'], ['I', 'Inspeksi Geometri'], ['S', 'Simplify'], ['P', 'Pen'], ['B', 'Auto Handle']]], ['Objek', [['Ctrl + Z | Ctrl + Y', 'Undo / Redo'], ['Del | Backspace', 'Hapus seleksi'], ['Esc', 'Batalkan seleksi'], ['Ctrl + A', 'Pilih semua objek'], ['Ctrl + D', 'Duplikat'], ['Ctrl + G | Ctrl + Shift + G', 'Group / Ungroup'], ['Ctrl + E', 'Flatten'], ['Ctrl + Alt + G', 'Buat frame dari seleksi'], ['Shift + A', 'Frame auto-layout'], ['Enter', 'Masuk mode edit node'], ['0 … 9', 'Atur opacity 10% … 100%']]], ['Susunan & Layer', [['] | [', 'Naik / turun satu layer'], ['Ctrl + ] | Ctrl + [', 'Paling depan / paling belakang'], ['Shift + H | Shift + V', 'Flip horizontal / vertikal'], ['Alt + W | A | S | D | H | V', 'Ratakan (atas, kiri, bawah, kanan, tengah)'], ['Ctrl + Shift + H', 'Tampilkan / sembunyikan layer'], ['Ctrl + Shift + L', 'Kunci / buka kunci layer'], ['R | Shift + R', 'Resize / rotate interaktif']]], ['Tampilan', [['+ | -', 'Perbesar / perkecil'], ['0', 'Zoom pas kanvas'], ['2 | Shift + 2', 'Zoom ke seleksi'], ['Shift + 1', 'Zoom pas'], ['Scroll', 'Zoom ke arah kursor'], ['Seret', 'Geser kanvas'], ['Klik 2×', 'Zoom / pas'], ['Cubit', 'Pinch di layar sentuh'], ['← | ↑ | ↓ | →', 'Geser seleksi (Shift = 10px)']]], ['Bantuan', [['?', 'Buka / tutup panel ini'], [',', 'Buka / tutup pengaturan'], ['Esc', 'Tutup panel atau menu']]]];
+
+export { SC };
+export default SC;
