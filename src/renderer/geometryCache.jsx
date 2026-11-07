@@ -83,7 +83,7 @@ const GEOMETRY_CACHE = (() => {
     totalGeometryBytes = Math.max(0, totalGeometryBytes + sign * b);
   };
   const enforceByteBudget = () => {
-    const maxBytes = Math.max(96 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxGeometryCacheBytes || 96 * 1024 * 1024);
+    const maxBytes = Math.max(16 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxGeometryCacheBytes || 96 * 1024 * 1024);
     while ((store.size > MAX_CACHED_OBJECTS || totalGeometryBytes > maxBytes) && store.size > 1) {
       const oldestId = store.keys().next().value;
       const oldEntry = store.get(oldestId);

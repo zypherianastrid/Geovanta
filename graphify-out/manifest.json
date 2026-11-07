@@ -1,0 +1,536 @@
+{
+  "src/App.jsx": {
+    "mtime": 1793983348.0,
+    "seen": 1794024665.7628732,
+    "ast_hash": "3910308c6d015ab733b098e3de3b75ce",
+    "semantic_hash": "3910308c6d015ab733b098e3de3b75ce"
+  },
+  "src/components/editor/CanvasVectorObjects.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.762882,
+    "ast_hash": "39741b6658e5249e9fa76edc416a4187",
+    "semantic_hash": "39741b6658e5249e9fa76edc416a4187"
+  },
+  "src/components/editor/EditorActionRail.jsx": {
+    "mtime": 1793983348.0,
+    "seen": 1794024665.7628856,
+    "ast_hash": "1fcba8d1363dff5ecaabe89e1adf2229",
+    "semantic_hash": "1fcba8d1363dff5ecaabe89e1adf2229"
+  },
+  "src/components/editor/EditorFloatingToolbar.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7628875,
+    "ast_hash": "2b477b7e8f1d59e6f6ad7ab53fb78910",
+    "semantic_hash": "2b477b7e8f1d59e6f6ad7ab53fb78910"
+  },
+  "src/components/editor/EditorLeftSidebar.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7628891,
+    "ast_hash": "b998e4ad731f6722f69dd63387c37839",
+    "semantic_hash": "b998e4ad731f6722f69dd63387c37839"
+  },
+  "src/components/editor/EditorRightInspector.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.762891,
+    "ast_hash": "907b5b9d7e9e0ce77791b45a9436494e",
+    "semantic_hash": "907b5b9d7e9e0ce77791b45a9436494e"
+  },
+  "src/components/editor/EditorSimplifyStrip.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7628927,
+    "ast_hash": "f46a1f6daed48c79b91f5715b06a188b",
+    "semantic_hash": "f46a1f6daed48c79b91f5715b06a188b"
+  },
+  "src/components/editor/GradientCanvasGizmo.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7628944,
+    "ast_hash": "c79486bf749c74c6dd8751421c2f9fd0",
+    "semantic_hash": "c79486bf749c74c6dd8751421c2f9fd0"
+  },
+  "src/components/editor/GradientEditorPanel.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7628958,
+    "ast_hash": "93a00c80294913019a09035c1ea65ad8",
+    "semantic_hash": "93a00c80294913019a09035c1ea65ad8"
+  },
+  "src/components/editor/LayerTreeViewport.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7628973,
+    "ast_hash": "90cadc07fb7935f6799e4100dd99a2c5",
+    "semantic_hash": "90cadc07fb7935f6799e4100dd99a2c5"
+  },
+  "src/components/editor/RenderDebugCanvasOverlay.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7628987,
+    "ast_hash": "b4d2827c604460140d7f27796769d387",
+    "semantic_hash": "b4d2827c604460140d7f27796769d387"
+  },
+  "src/components/editor/SelectionRotationAndRedlines.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629006,
+    "ast_hash": "aee97df05578e727c6ae69f689abc94f",
+    "semantic_hash": "aee97df05578e727c6ae69f689abc94f"
+  },
+  "src/components/editor/VectorEditor.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7629023,
+    "ast_hash": "f318ab5484c4845b71d190b296552478",
+    "semantic_hash": "f318ab5484c4845b71d190b296552478"
+  },
+  "src/components/modals/HelpShortcutsModal.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629037,
+    "ast_hash": "051b836668bfd9216a0c0e249cc5c010",
+    "semantic_hash": "051b836668bfd9216a0c0e249cc5c010"
+  },
+  "src/components/modals/SettingsModal.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629054,
+    "ast_hash": "aaca0f5485d18e0c8b8c087fecf95c66",
+    "semantic_hash": "aaca0f5485d18e0c8b8c087fecf95c66"
+  },
+  "src/components/modals/TooltipHost.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629068,
+    "ast_hash": "42a2cf3fd670d6cb2c5fb9da29cbdc5d",
+    "semantic_hash": "42a2cf3fd670d6cb2c5fb9da29cbdc5d"
+  },
+  "src/components/ui/ColorHexInput.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629085,
+    "ast_hash": "025cf09a1cf85bc387394451040a64ae",
+    "semantic_hash": "025cf09a1cf85bc387394451040a64ae"
+  },
+  "src/components/ui/ColorPickerField.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629097,
+    "ast_hash": "a1616df6a3dd3e89815254df06b02099",
+    "semantic_hash": "a1616df6a3dd3e89815254df06b02099"
+  },
+  "src/components/ui/ContextMenu.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629113,
+    "ast_hash": "348e56d05c0a23d6c116d11a54c94bca",
+    "semantic_hash": "348e56d05c0a23d6c116d11a54c94bca"
+  },
+  "src/components/ui/CustomTextBox.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7629125,
+    "ast_hash": "6727d998be821814c883f46eabbb67c5",
+    "semantic_hash": "6727d998be821814c883f46eabbb67c5"
+  },
+  "src/components/ui/FloatPopover.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629144,
+    "ast_hash": "dd6669533d9b87f1d29a12901d9fe199",
+    "semantic_hash": "dd6669533d9b87f1d29a12901d9fe199"
+  },
+  "src/components/ui/IconGlyphs.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629156,
+    "ast_hash": "656c913bbd16c477a473512b83c03fb6",
+    "semantic_hash": "656c913bbd16c477a473512b83c03fb6"
+  },
+  "src/components/ui/PinGridSelector.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629175,
+    "ast_hash": "4ee6b17f23511276e7e9dd40d938a562",
+    "semantic_hash": "4ee6b17f23511276e7e9dd40d938a562"
+  },
+  "src/components/ui/RangeField.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.762919,
+    "ast_hash": "4d383d9f0e21a2221006b99a9400c179",
+    "semantic_hash": "4d383d9f0e21a2221006b99a9400c179"
+  },
+  "src/components/ui/SegmentedControl.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629204,
+    "ast_hash": "9111627237f06287999eb1051b9c9c39",
+    "semantic_hash": "9111627237f06287999eb1051b9c9c39"
+  },
+  "src/components/ui/SelectDropdown.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.762922,
+    "ast_hash": "c7faba17fe1688e64c121774884f9ad8",
+    "semantic_hash": "c7faba17fe1688e64c121774884f9ad8"
+  },
+  "src/components/ui/Slider.jsx": {
+    "mtime": 1793983350.0,
+    "seen": 1794024665.7629235,
+    "ast_hash": "2a3be90c83d4095ac5c5805efd1ecbf3",
+    "semantic_hash": "2a3be90c83d4095ac5c5805efd1ecbf3"
+  },
+  "src/components/ui/TransformField.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.762925,
+    "ast_hash": "7552518af1ad2c48c126db092b124e40",
+    "semantic_hash": "7552518af1ad2c48c126db092b124e40"
+  },
+  "src/components/workspace/WorkspaceHome.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629263,
+    "ast_hash": "0e6cfa3efbba12674351eee5c373311c",
+    "semantic_hash": "0e6cfa3efbba12674351eee5c373311c"
+  },
+  "src/components/workspace/WorkspaceProjectThumb.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629278,
+    "ast_hash": "b25dd3da70861113079b79bfdf5e65b7",
+    "semantic_hash": "b25dd3da70861113079b79bfdf5e65b7"
+  },
+  "src/constants/brandAndIcons.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629292,
+    "ast_hash": "91b23834a4b4404f8bce47ec6da4015c",
+    "semantic_hash": "91b23834a4b4404f8bce47ec6da4015c"
+  },
+  "src/constants/editorToolsAndShapes.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629306,
+    "ast_hash": "acc3ff33be20098620a3fd0221902e27",
+    "semantic_hash": "acc3ff33be20098620a3fd0221902e27"
+  },
+  "src/constants/fontCatalog.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629323,
+    "ast_hash": "f2a71810b4e68ead412a42446ebf89ef",
+    "semantic_hash": "f2a71810b4e68ead412a42446ebf89ef"
+  },
+  "src/constants/keyboardShortcuts.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629335,
+    "ast_hash": "c8de5ad6ea62db0dba3cf7add473e58f",
+    "semantic_hash": "c8de5ad6ea62db0dba3cf7add473e58f"
+  },
+  "src/constants/themeAndPrefsConstants.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.762935,
+    "ast_hash": "4018c69eed78cacae7393461277b5c02",
+    "semantic_hash": "4018c69eed78cacae7393461277b5c02"
+  },
+  "src/constants/tooltipsCatalog.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629364,
+    "ast_hash": "aecf45dbc4e38ca9f13d8fd0c4093e5a",
+    "semantic_hash": "aecf45dbc4e38ca9f13d8fd0c4093e5a"
+  },
+  "src/constants/workspaceConstants.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629378,
+    "ast_hash": "69718d86e671a29c9a81a75a902ea473",
+    "semantic_hash": "69718d86e671a29c9a81a75a902ea473"
+  },
+  "src/engine/affineAndOrientedBox.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629392,
+    "ast_hash": "1d9843a7f011d7e424f8a00a42d291da",
+    "semantic_hash": "1d9843a7f011d7e424f8a00a42d291da"
+  },
+  "src/engine/arcToBezier.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629406,
+    "ast_hash": "deae951b0be59472c3359e9dcb6f7276",
+    "semantic_hash": "deae951b0be59472c3359e9dcb6f7276"
+  },
+  "src/engine/autoRefineGeometry.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629423,
+    "ast_hash": "e32f44deb820d92bd94f9ed71aac1048",
+    "semantic_hash": "e32f44deb820d92bd94f9ed71aac1048"
+  },
+  "src/engine/bezierSubdivisionAndMove.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629435,
+    "ast_hash": "694e54c871fdeb18c6a2be88ec055481",
+    "semantic_hash": "694e54c871fdeb18c6a2be88ec055481"
+  },
+  "src/engine/cornerFilletEngine.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.762945,
+    "ast_hash": "98cc6d3fa17ba6cb07708fffeb93230b",
+    "semantic_hash": "98cc6d3fa17ba6cb07708fffeb93230b"
+  },
+  "src/engine/curveFittingAndAnomalies.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629464,
+    "ast_hash": "ea1f1521de6000ff55ea4587d47c598f",
+    "semantic_hash": "ea1f1521de6000ff55ea4587d47c598f"
+  },
+  "src/engine/figmaAutoLayoutAndFrames.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629483,
+    "ast_hash": "49aaa3ddc248a5ba825a7256f4bf14a5",
+    "semantic_hash": "49aaa3ddc248a5ba825a7256f4bf14a5"
+  },
+  "src/engine/gradientEngine.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.76295,
+    "ast_hash": "60a85a7a7af963ff71541c4d8ed9805f",
+    "semantic_hash": "60a85a7a7af963ff71541c4d8ed9805f"
+  },
+  "src/engine/multiSnapSolver.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7629511,
+    "ast_hash": "251e04467261a240177f33439a505a08",
+    "semantic_hash": "251e04467261a240177f33439a505a08"
+  },
+  "src/engine/nodeEditingAndHandles.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629528,
+    "ast_hash": "a481e2b4708fbacc158ded35dff6c7a7",
+    "semantic_hash": "a481e2b4708fbacc158ded35dff6c7a7"
+  },
+  "src/engine/postscriptAiRasterIo.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629542,
+    "ast_hash": "d4797ec549aa702652615c2609872fd1",
+    "semantic_hash": "d4797ec549aa702652615c2609872fd1"
+  },
+  "src/engine/selectionTransformAndAlign.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629554,
+    "ast_hash": "f27ffe844927f3493546f12444ce2d35",
+    "semantic_hash": "f27ffe844927f3493546f12444ce2d35"
+  },
+  "src/engine/spatialIndexAndHitTest.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.762957,
+    "ast_hash": "48a25f61232634464b108f40b8d7297b",
+    "semantic_hash": "48a25f61232634464b108f40b8d7297b"
+  },
+  "src/engine/straightenAndAlignNodes.jsx": {
+    "mtime": 1793983352.0,
+    "seen": 1794024665.7629585,
+    "ast_hash": "d617a9d8ff283abab789b4a2958091cc",
+    "semantic_hash": "d617a9d8ff283abab789b4a2958091cc"
+  },
+  "src/engine/svgDocumentParser.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.76296,
+    "ast_hash": "58f152988aa476ddef927f27637c54e3",
+    "semantic_hash": "58f152988aa476ddef927f27637c54e3"
+  },
+  "src/engine/svgDocumentSerializer.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629616,
+    "ast_hash": "ea0e73b5533f05f75638d198070eaad3",
+    "semantic_hash": "ea0e73b5533f05f75638d198070eaad3"
+  },
+  "src/engine/svgPathParser.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629633,
+    "ast_hash": "37740f365dda9541b54cdb595841f8ff",
+    "semantic_hash": "37740f365dda9541b54cdb595841f8ff"
+  },
+  "src/engine/svgPathSerializer.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629645,
+    "ast_hash": "a210727eaef2651b2b30933a0552356b",
+    "semantic_hash": "a210727eaef2651b2b30933a0552356b"
+  },
+  "src/engine/textAndImageEngine.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.762966,
+    "ast_hash": "829bdcbc68439d05d80660400fcb754d",
+    "semantic_hash": "829bdcbc68439d05d80660400fcb754d"
+  },
+  "src/engine/topologicalCurveSimplifier.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629673,
+    "ast_hash": "288cd5790bfc0297ec29c2d7295742f2",
+    "semantic_hash": "288cd5790bfc0297ec29c2d7295742f2"
+  },
+  "src/engine/transformMatrixParser.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629688,
+    "ast_hash": "e430f7633d2deeebce95fe5199f48c00",
+    "semantic_hash": "e430f7633d2deeebce95fe5199f48c00"
+  },
+  "src/engine/vectorEngine.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7629704,
+    "ast_hash": "72006999c6b2acd68d199dfaf1551362",
+    "semantic_hash": "72006999c6b2acd68d199dfaf1551362"
+  },
+  "src/engine/vectorPrimitives.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629719,
+    "ast_hash": "3a85d20fc70ad28c6e41d9a485241c09",
+    "semantic_hash": "3a85d20fc70ad28c6e41d9a485241c09"
+  },
+  "src/main.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.762973,
+    "ast_hash": "bbf5ef226cc1154495a7c139a389a9cd",
+    "semantic_hash": "bbf5ef226cc1154495a7c139a389a9cd"
+  },
+  "src/renderer/adaptiveCubicFlattener.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629747,
+    "ast_hash": "31a3f8795eb75f5bed125da51e0e23cf",
+    "semantic_hash": "31a3f8795eb75f5bed125da51e0e23cf"
+  },
+  "src/renderer/benchmarkSuite.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629762,
+    "ast_hash": "f873c978c67777d4d1989e9062ef7f82",
+    "semantic_hash": "f873c978c67777d4d1989e9062ef7f82"
+  },
+  "src/renderer/geometryCache.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629778,
+    "ast_hash": "445fb1165dd6e67750257dda1170eb6a",
+    "semantic_hash": "445fb1165dd6e67750257dda1170eb6a"
+  },
+  "src/renderer/objectTessellationLod.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.762979,
+    "ast_hash": "1bed6ee98655ea0be08c26a19da6ea97",
+    "semantic_hash": "1bed6ee98655ea0be08c26a19da6ea97"
+  },
+  "src/renderer/pathWindingAndBatching.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629807,
+    "ast_hash": "8f005f06fef5892f1154799cf69f4f75",
+    "semantic_hash": "8f005f06fef5892f1154799cf69f4f75"
+  },
+  "src/renderer/polygonTriangulatorAndStroke.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.762982,
+    "ast_hash": "d8cfded072b241a0d145b4713ff95ffe",
+    "semantic_hash": "d8cfded072b241a0d145b4713ff95ffe"
+  },
+  "src/renderer/sceneRenderer.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7629833,
+    "ast_hash": "d1b549cfedb833b6e98663510ba90f40",
+    "semantic_hash": "d1b549cfedb833b6e98663510ba90f40"
+  },
+  "src/renderer/subpathBBox.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.762985,
+    "ast_hash": "83f3038818f84eae4cfe2855d390fe1d",
+    "semantic_hash": "83f3038818f84eae4cfe2855d390fe1d"
+  },
+  "src/utils/colorMath.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629864,
+    "ast_hash": "f8b9e3234ddee949ad935f8ca2f06e95",
+    "semantic_hash": "f8b9e3234ddee949ad935f8ca2f06e95"
+  },
+  "src/utils/colorParserAndFormatter.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.762988,
+    "ast_hash": "4ea7723e9bd8265030f0f51e21168b7a",
+    "semantic_hash": "4ea7723e9bd8265030f0f51e21168b7a"
+  },
+  "src/utils/fontManager.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7629895,
+    "ast_hash": "ea7163198b28f6ab0fae24b977cda822",
+    "semantic_hash": "ea7163198b28f6ab0fae24b977cda822"
+  },
+  "src/utils/gpuCapabilities.jsx": {
+    "mtime": 1793983354.0,
+    "seen": 1794024665.7629912,
+    "ast_hash": "5a52d7c27405cae4843e8a50f906d3b9",
+    "semantic_hash": "5a52d7c27405cae4843e8a50f906d3b9"
+  },
+  "src/utils/presenceAndFilePicker.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7629924,
+    "ast_hash": "324d7d7cd549580add2e20eb3da12231",
+    "semantic_hash": "324d7d7cd549580add2e20eb3da12231"
+  },
+  "src/utils/renderConfigAndTelemetry.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7629938,
+    "ast_hash": "c9753e2508140a2b8662fea8eacdb824",
+    "semantic_hash": "c9753e2508140a2b8662fea8eacdb824"
+  },
+  "src/utils/screenPipette.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7629955,
+    "ast_hash": "ef9aca223ce1ecf6ad392c85d53b3dfa",
+    "semantic_hash": "ef9aca223ce1ecf6ad392c85d53b3dfa"
+  },
+  "src/utils/shapeGenerators.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7629967,
+    "ast_hash": "ba77454105eedc3b80dcbc5320d24135",
+    "semantic_hash": "ba77454105eedc3b80dcbc5320d24135"
+  },
+  "src/utils/themeAndPrefsManager.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7629983,
+    "ast_hash": "e352d9a933877b8ee984a8e72b671222",
+    "semantic_hash": "e352d9a933877b8ee984a8e72b671222"
+  },
+  "src/utils/zoomAndFormatHelpers.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7629998,
+    "ast_hash": "c263aaaa7ffc1f10f85b31862669d050",
+    "semantic_hash": "c263aaaa7ffc1f10f85b31862669d050"
+  },
+  "src/vendor/reactOfflineBundle.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7630014,
+    "ast_hash": "ff4c02c69a3e8a9290d7ccc19d456567",
+    "semantic_hash": "ff4c02c69a3e8a9290d7ccc19d456567"
+  },
+  "src/vendor/tailwindOfflineBundle.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7630117,
+    "ast_hash": "212ca3f3ab72c6568b35d2599dbf538d",
+    "semantic_hash": "212ca3f3ab72c6568b35d2599dbf538d"
+  },
+  "src/vendor/tauriDesktopBridge.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7630136,
+    "ast_hash": "3d492ed4cee07a265e5fa493581eee57",
+    "semantic_hash": "3d492ed4cee07a265e5fa493581eee57"
+  },
+  "src/workspace/assetManager.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7630157,
+    "ast_hash": "404ef6a8753aac7d5e194ec9fe7e7e6f",
+    "semantic_hash": "404ef6a8753aac7d5e194ec9fe7e7e6f"
+  },
+  "src/workspace/projectRepository.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7630177,
+    "ast_hash": "74c2374b727374c5a789349ca0e6d915",
+    "semantic_hash": "74c2374b727374c5a789349ca0e6d915"
+  },
+  "src/workspace/thumbnailGenerator.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7630196,
+    "ast_hash": "44b22bdeb44c0355d5223513dca29f0e",
+    "semantic_hash": "44b22bdeb44c0355d5223513dca29f0e"
+  },
+  "src/workspace/workspaceController.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7630215,
+    "ast_hash": "3b48df0cb2abf3dc9f383a65428df635",
+    "semantic_hash": "3b48df0cb2abf3dc9f383a65428df635"
+  },
+  "src/workspace/workspaceDb.jsx": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7630255,
+    "ast_hash": "fc1bc12ed567a1aef2a550a984ee71bb",
+    "semantic_hash": "fc1bc12ed567a1aef2a550a984ee71bb"
+  },
+  "src/workspace/zipEngine.jsx": {
+    "mtime": 1793983356.0,
+    "seen": 1794024665.7630277,
+    "ast_hash": "3c2e83158b389301fcceda7a44d65c7a",
+    "semantic_hash": "3c2e83158b389301fcceda7a44d65c7a"
+  },
+  "index.html": {
+    "mtime": 1793994400.0,
+    "seen": 1794024665.7630293,
+    "ast_hash": "55508d14912d98048087ec7cf12df032",
+    "semantic_hash": "55508d14912d98048087ec7cf12df032"
+  }
+}

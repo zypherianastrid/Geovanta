@@ -613,7 +613,7 @@ class SceneRenderer {
       bytes
     });
     this._vboTotalBytes += bytes;
-    const maxVboBytes = Math.max(96 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxVboCacheBytes || 96 * 1024 * 1024);
+    const maxVboBytes = Math.max(16 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxVboCacheBytes || 96 * 1024 * 1024);
     while (this._vboCacheOrder.size > 1 && (this._vboTotalBytes > maxVboBytes || this._vboCacheOrder.size > 32768)) {
       const oldestMesh = this._vboCacheOrder.keys().next().value;
       const oldestMeta = this._vboCacheOrder.get(oldestMesh);
@@ -814,6 +814,28 @@ class SceneRenderer {
     } else if (revisionId != null) {
       this.revisionId = revisionId;
     }
+  }
+  _syncFrameCaches() {
+    const cur = this.frameBoxes || [];
+    if (this._frameBoxesRef !== cur) {
+      this._frameBoxesRef = cur;
+      const nextSet = new Set();
+      const nextMap = new Map();
+      for (let fi = 0; fi < cur.length; fi++) {
+        nextSet.add(cur[fi].id);
+        nextMap.set(cur[fi].id, cur[fi].bb);
+      }
+      this._frameSet = nextSet;
+      this._frameRectMap = nextMap;
+    }
+  }
+  _getFrameSet() {
+    this._syncFrameCaches();
+    return this._frameSet;
+  }
+  _getFrameRectMap() {
+    this._syncFrameCaches();
+    return this._frameRectMap;
   }
   setRenderEnv(env) {
     if (!env) return;
@@ -1092,6 +1114,7 @@ class SceneRenderer {
         hcv.width = dbw;
         hcv.height = dbh;
       }
+      this._lastPxTileKey = null; /* tekstur _pixelTileTex dipakai ulang di sini -> cache tile piksel tidak valid lagi */
       const savedCtx2d = this.ctx2d;
       this.ctx2d = hcv.getContext('2d');
       const effDpr = dbw / Math.max(1, cssW);
@@ -1158,6 +1181,7 @@ class SceneRenderer {
       tessTimeSum = 0;
     let activeClipFid = null,
       activeClipMode = null; /* 'scissor' | 'stencil' | null */
+    let activeScissorRect = null;
 
     const setObjectLocalTransform = (originX, originY, odx, ody) => {
       /* Hitung posisi layar origin objek dalam Float64 di CPU untuk mencegah jitter Float32 */
@@ -1203,6 +1227,30 @@ class SceneRenderer {
       }
       gl.colorMask(true, true, true, true);
       gl.disable(gl.STENCIL_TEST);
+    };
+    /* PERF: batasi stencil + cover pass ke bbox objek di layar (diintersect dgn scissor frame) agar fill-rate tidak sebesar layar penuh per objek */
+    const applyObjScissor = (o, odx, ody) => {
+      const bb = vinfo(o).bb;
+      const clampPx = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+      let x0 = clampPx(Math.floor(((bb[0] + odx) * z + px - 2) * dpr), 0, dbw);
+      let x1 = clampPx(Math.ceil(((bb[2] + odx) * z + px + 2) * dpr), 0, dbw);
+      let y0 = clampPx(Math.floor((cssH - ((bb[3] + ody) * z + py + 2)) * dpr), 0, dbh);
+      let y1 = clampPx(Math.ceil((cssH - ((bb[1] + ody) * z + py - 2)) * dpr), 0, dbh);
+      if (activeScissorRect) {
+        x0 = Math.max(x0, activeScissorRect[0]);
+        y0 = Math.max(y0, activeScissorRect[1]);
+        x1 = Math.min(x1, activeScissorRect[0] + activeScissorRect[2]);
+        y1 = Math.min(y1, activeScissorRect[1] + activeScissorRect[3]);
+      }
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+    };
+    const restoreFrameScissor = () => {
+      if (activeClipMode === 'scissor' && activeScissorRect) {
+        gl.scissor(activeScissorRect[0], activeScissorRect[1], activeScissorRect[2], activeScissorRect[3]);
+      } else {
+        gl.disable(gl.SCISSOR_TEST);
+      }
     };
     const drawObjectWebGL = (o, odx, ody, frameStencilActive) => {
       /* Dukungan clipPathD per objek di WebGL2 (kontrak kualitas identik dengan Canvas2D & SVG DOM) */
@@ -1308,6 +1356,7 @@ class SceneRenderer {
           if (stencilClipActive) gl.disable(gl.STENCIL_TEST);
           drawCalls++;
         } else if (vbos.fanVbo && vbos.coverVbo && gpuMesh.fanArray && gpuMesh.fanArray.length >= 6) {
+          applyObjScissor(o, odx, ody);
           gl.enable(gl.STENCIL_TEST);
           gl.uniform1i(P.u_mode, 0);
           gl.colorMask(false, false, false, false);
@@ -1352,6 +1401,7 @@ class SceneRenderer {
             gl.drawArrays(gl.TRIANGLES, 0, 6);
           }
           gl.disable(gl.STENCIL_TEST);
+          restoreFrameScissor();
           drawCalls++;
         }
 
@@ -1426,6 +1476,7 @@ class SceneRenderer {
       }
       activeClipFid = null;
       activeClipMode = null;
+      activeScissorRect = null;
     };
     const openFrameClipWebGL = fid => {
       if (activeClipFid === fid) return;
@@ -1450,6 +1501,7 @@ class SceneRenderer {
           const csh = Math.max(0, Math.min(dbh - csy, sy + sh - csy));
           gl.enable(gl.SCISSOR_TEST);
           gl.scissor(csx, csy, csw, csh);
+          activeScissorRect = [csx, csy, csw, csh];
           activeClipMode = 'scissor';
           return;
         }
@@ -1475,7 +1527,7 @@ class SceneRenderer {
         }
       }
       visCount++;
-      const fid = this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null;
+      const fid = !isDragged && this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null; /* FIX: objek yang sedang diseret tidak di-clip ke frame lamanya */
       if (fid !== activeClipFid) openFrameClipWebGL(fid);
       drawObjectWebGL(o, odx, ody, activeClipMode === 'stencil');
     };
@@ -1570,10 +1622,12 @@ class SceneRenderer {
      ========================================================================= */
   _renderSceneToPixelTile(cssW, cssH, z, px, py, vx0, vy0, vx1, vy1, mode = 'hard') {
     if (typeof document === 'undefined') return null;
-    const wx0 = Math.floor(-px / z) - 1;
-    const wy0 = Math.floor(-py / z) - 1;
-    const wx1 = Math.ceil((cssW - px) / z) + 1;
-    const wy1 = Math.ceil((cssH - py) / z) + 1;
+    /* PERF: snap tile ke kelipatan 32 piksel dokumen + margin, sehingga pan kecil tetap memakai tile cache (tileKey stabil) */
+    const SNAP = 32;
+    const wx0 = Math.floor((Math.floor(-px / z) - 1) / SNAP) * SNAP;
+    const wy0 = Math.floor((Math.floor(-py / z) - 1) / SNAP) * SNAP;
+    const wx1 = Math.ceil((Math.ceil((cssW - px) / z) + 1) / SNAP) * SNAP;
+    const wy1 = Math.ceil((Math.ceil((cssH - py) / z) + 1) / SNAP) * SNAP;
     const rawW = wx1 - wx0,
       rawH = wy1 - wy0;
     if (rawW > 4096 || rawH > 4096) return null;
@@ -1613,8 +1667,8 @@ class SceneRenderer {
     /* Mode 2 — Pixel Coverage Preview (Rasterisasi 1x1 dengan coverage antialiasing asli) */
     tctx.save();
     tctx.setTransform(1, 0, 0, 1, -wx0, -wy0);
-    const frameSet = new Set((this.frameBoxes || []).map(f => f.id));
-    const frameRectMap = new Map((this.frameBoxes || []).map(f => [f.id, f.bb]));
+    const frameSet = this._getFrameSet();
+    const frameRectMap = this._getFrameRectMap();
     const objs = this.doc && this.doc.objects || [];
     const drag = this.dragOffset;
     let drawCalls = 0,
@@ -1686,7 +1740,7 @@ class SceneRenderer {
         }
       }
       visCount++;
-      const fid = this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null;
+      const fid = !isDragged && this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null; /* FIX: objek yang sedang diseret tidak di-clip ke frame lamanya */
       if (fid !== activeClipFid) openFrameClip(fid);
       tctx.save();
       if (odx || ody) tctx.translate(odx, ody);
@@ -1751,19 +1805,20 @@ class SceneRenderer {
     /* Bagian 5 `perbaikan tools geovanta terbaru.md`: Diagnostik Partial Alpha Coverage (hanya dibaca ke CPU saat logPartialAlpha aktif agar tidak memblokir GPU saat zoom interaktif) */
     let partialAlphaPixels = 0;
     let rawBytes = null;
-    try {
-      const imgData = tctx.getImageData(0, 0, tileW, tileH);
-      const pixels = imgData.data;
-      rawBytes = new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength);
-      if (RENDER_CONFIG.logPartialAlpha) {
+    /* PERF: getImageData memaksa sinkronisasi GPU->CPU; hanya dijalankan untuk diagnostik. Tile diunggah langsung dari canvas ke tekstur. */
+    if (RENDER_CONFIG.logPartialAlpha) {
+      try {
+        const imgData = tctx.getImageData(0, 0, tileW, tileH);
+        const pixels = imgData.data;
+        rawBytes = new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength);
         for (let i = 3; i < pixels.length; i += 4) {
           if (pixels[i] > 0 && pixels[i] < 255) {
             partialAlphaPixels++;
           }
         }
         console.log('Partial alpha coverage:', partialAlphaPixels);
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
     const covRes = {
       canvas: tcv,
       data: rawBytes,
@@ -1799,8 +1854,8 @@ class SceneRenderer {
       /* Fast Single-Pass Binary Pixel Tile (1x getImageData, 100% menampilkan seluruh objek & mengunggah Uint8Array langsung ke WebGL2!) */
       tctx.save();
       tctx.setTransform(1, 0, 0, 1, -wx0, -wy0);
-      const frameSet = new Set((this.frameBoxes || []).map(f => f.id));
-      const frameRectMap = new Map((this.frameBoxes || []).map(f => [f.id, f.bb]));
+      const frameSet = this._getFrameSet();
+      const frameRectMap = this._getFrameRectMap();
       const drag = this.dragOffset;
       let drawCalls = 0,
         visCount = 0,
@@ -1871,7 +1926,7 @@ class SceneRenderer {
           }
         }
         visCount++;
-        const fid = this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null;
+        const fid = !isDragged && this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null; /* FIX: objek yang sedang diseret tidak di-clip ke frame lamanya */
         if (fid !== activeClipFid) openFrameClip(fid);
         if (o.img) {
           const m = VE.imageMatrix(o);
@@ -1960,304 +2015,7 @@ class SceneRenderer {
         partialAlphaPixels: 0
       };
     }
-    if (!this._hardCovCanvas) {
-      this._hardCovCanvas = document.createElement('canvas');
-      this._hardCovCtx = this._hardCovCanvas.getContext('2d', {
-        willReadFrequently: true
-      });
-    }
-    if (!this._hardPaintCanvas) {
-      this._hardPaintCanvas = document.createElement('canvas');
-      this._hardPaintCtx = this._hardPaintCanvas.getContext('2d', {
-        willReadFrequently: true
-      });
-    }
-    const ccv = this._hardCovCanvas,
-      cctx = this._hardCovCtx;
-    const pcv = this._hardPaintCanvas,
-      pctx = this._hardPaintCtx;
-    if (!cctx || !pctx) return null;
-    if (ccv.width !== tileW || ccv.height !== tileH) {
-      ccv.width = tileW;
-      ccv.height = tileH;
-    }
-    if (pcv.width !== tileW || pcv.height !== tileH) {
-      pcv.width = tileW;
-      pcv.height = tileH;
-    }
-    const outData = new Uint8ClampedArray(tileW * tileH * 4);
-    const frameSet = new Set((this.frameBoxes || []).map(f => f.id));
-    const frameRectMap = new Map((this.frameBoxes || []).map(f => [f.id, f.bb]));
-    const objs = this.doc && this.doc.objects || [];
-    const drag = this.dragOffset;
-    let drawCalls = 0,
-      visCount = 0,
-      culledCount = 0,
-      lodVerts = 0,
-      tessTimeSum = 0;
-
-    /* Helper komposit biner per-subrect: hanya kompositkan piksel di mana coverage geometris >= 128 */
-    const compositeBinarySubRect = (ix0, iy0, subW, subH, covData, solidRgba, paintData, objOpacity) => {
-      if (!covData) return;
-      if (solidRgba) {
-        const sR = Math.round(solidRgba[0] * 255);
-        const sG = Math.round(solidRgba[1] * 255);
-        const sB = Math.round(solidRgba[2] * 255);
-        const sA = Math.round(solidRgba[3] * 255);
-        if (sA <= 0) return;
-        for (let dy = 0; dy < subH; dy++) {
-          const rowOut = ((iy0 + dy) * tileW + ix0) * 4;
-          const rowCov = dy * subW * 4;
-          for (let dx = 0; dx < subW; dx++) {
-            const cov = covData[rowCov + dx * 4 + 3];
-            if (cov < 128) continue; /* Di luar cakupan biner titik pusat piksel -> jangan sentuh! */
-            const oi = rowOut + dx * 4;
-            if (sA === 255) {
-              outData[oi] = sR;
-              outData[oi + 1] = sG;
-              outData[oi + 2] = sB;
-              outData[oi + 3] = 255;
-            } else {
-              const sa = sA / 255;
-              const da = outData[oi + 3] / 255;
-              const outA = sa + da * (1 - sa);
-              if (outA > 1e-5) {
-                outData[oi] = Math.round((sR * sa + outData[oi] * da * (1 - sa)) / outA);
-                outData[oi + 1] = Math.round((sG * sa + outData[oi + 1] * da * (1 - sa)) / outA);
-                outData[oi + 2] = Math.round((sB * sa + outData[oi + 2] * da * (1 - sa)) / outA);
-                outData[oi + 3] = Math.round(outA * 255);
-              }
-            }
-          }
-        }
-      } else if (paintData) {
-        const op = objOpacity ?? 1;
-        for (let dy = 0; dy < subH; dy++) {
-          const rowOut = ((iy0 + dy) * tileW + ix0) * 4;
-          const rowSub = dy * subW * 4;
-          for (let dx = 0; dx < subW; dx++) {
-            const si = rowSub + dx * 4;
-            if (covData[si + 3] < 128) continue;
-            const sR = paintData[si];
-            const sG = paintData[si + 1];
-            const sB = paintData[si + 2];
-            const sA = Math.round(paintData[si + 3] * op);
-            if (sA <= 0) continue;
-            const oi = rowOut + dx * 4;
-            if (sA === 255) {
-              outData[oi] = sR;
-              outData[oi + 1] = sG;
-              outData[oi + 2] = sB;
-              outData[oi + 3] = 255;
-            } else {
-              const sa = sA / 255;
-              const da = outData[oi + 3] / 255;
-              const outA = sa + da * (1 - sa);
-              if (outA > 1e-5) {
-                outData[oi] = Math.round((sR * sa + outData[oi] * da * (1 - sa)) / outA);
-                outData[oi + 1] = Math.round((sG * sa + outData[oi + 1] * da * (1 - sa)) / outA);
-                outData[oi + 2] = Math.round((sB * sa + outData[oi + 2] * da * (1 - sa)) / outA);
-                outData[oi + 3] = Math.round(outA * 255);
-              }
-            }
-          }
-        }
-      }
-    };
-    const applyFrameAndObjClips = (ctxTarget, fid, o, odx, ody) => {
-      if (fid) {
-        const bgObj = this.frameBgByGroup && this.frameBgByGroup.get(fid);
-        if (bgObj && vinfo(bgObj).p2) {
-          if (drag && drag.ids && drag.ids.has(bgObj.id)) {
-            ctxTarget.save();
-            ctxTarget.translate(drag.dx, drag.dy);
-            ctxTarget.clip(vinfo(bgObj).p2);
-            ctxTarget.restore();
-          } else {
-            ctxTarget.clip(vinfo(bgObj).p2);
-          }
-        } else {
-          const fbb = frameRectMap.get(fid);
-          if (fbb) {
-            ctxTarget.beginPath();
-            ctxTarget.rect(fbb[0], fbb[1], fbb[2] - fbb[0], fbb[3] - fbb[1]);
-            ctxTarget.clip();
-          }
-        }
-      }
-      if (odx || ody) ctxTarget.translate(odx, ody);
-      if (o.clipPathD) {
-        try {
-          ctxTarget.clip(new Path2D(o.clipPathD));
-        } catch (e) {}
-      }
-    };
-    for (let i = 0, L = objs.length; i < L; i++) {
-      const o = objs[i];
-      if (!o || o.hidden) continue;
-      const isDragged = !!(drag && drag.ids && drag.ids.has(o.id));
-      const odx = isDragged ? drag.dx : 0,
-        ody = isDragged ? drag.dy : 0;
-      const info = vinfo(o);
-      const bb = info.bb;
-      const sPad = o.stroke !== 'none' && o.strokeWidth > 0 ? o.strokeWidth * 0.5 + 2 : 2;
-      if (!o.isFrameBg && !o.isAutoFrame) {
-        if (bb[2] + odx + sPad < vx0 || bb[0] + odx - sPad > vx1 || bb[3] + ody + sPad < vy0 || bb[1] + ody - sPad > vy1) {
-          culledCount++;
-          continue;
-        }
-      }
-      visCount++;
-      const ix0 = Math.max(0, Math.floor(bb[0] + odx - sPad - wx0));
-      const iy0 = Math.max(0, Math.floor(bb[1] + ody - sPad - wy0));
-      const ix1 = Math.min(tileW, Math.ceil(bb[2] + odx + sPad - wx0));
-      const iy1 = Math.min(tileH, Math.ceil(bb[3] + ody + sPad - wy0));
-      const subW = ix1 - ix0,
-        subH = iy1 - iy0;
-      if (subW <= 0 || subH <= 0) continue;
-      const fid = this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null;
-      if (o.img) {
-        const m = VE.imageMatrix(o);
-        let imgEl = IMG_ELEMENT_CACHE.get(o.img.href);
-        if (!imgEl && typeof Image !== 'undefined') {
-          imgEl = new Image();
-          imgEl.onload = () => this.requestRender(true);
-          imgEl.src = o.img.href;
-          IMG_ELEMENT_CACHE.set(o.img.href, imgEl);
-        }
-        if (imgEl && imgEl.complete && imgEl.naturalWidth > 0 && m) {
-          cctx.setTransform(1, 0, 0, 1, 0, 0);
-          cctx.clearRect(ix0, iy0, subW, subH);
-          cctx.save();
-          cctx.translate(-wx0, -wy0);
-          applyFrameAndObjClips(cctx, fid, o, odx, ody);
-          cctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
-          cctx.fillStyle = '#ffffff';
-          cctx.fillRect(0, 0, o.img.w, o.img.h);
-          cctx.restore();
-          pctx.setTransform(1, 0, 0, 1, 0, 0);
-          pctx.clearRect(ix0, iy0, subW, subH);
-          pctx.save();
-          pctx.imageSmoothingEnabled = false;
-          pctx.translate(-wx0, -wy0);
-          if (odx || ody) pctx.translate(odx, ody);
-          pctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
-          pctx.drawImage(imgEl, 0, 0, o.img.w, o.img.h);
-          pctx.restore();
-          try {
-            const covData = cctx.getImageData(ix0, iy0, subW, subH).data;
-            const paintData = pctx.getImageData(ix0, iy0, subW, subH).data;
-            compositeBinarySubRect(ix0, iy0, subW, subH, covData, null, paintData, o.opacity ?? 1);
-          } catch (e) {}
-          drawCalls++;
-        }
-        continue;
-      }
-      const p2 = info.p2 || getObjectTessellationLOD(o, Math.max(1, z)).path2d;
-      lodVerts += info.n || 0;
-      if (!p2) continue;
-      const hasFill = o.fill && o.fill !== 'none' && o.fill !== 'transparent';
-      const hasStroke = o.stroke && o.stroke !== 'none' && o.strokeWidth > 0;
-      const objOp = o.opacity ?? 1;
-
-      /* 1. Binary Fill Pass untuk objek `o` */
-      if (hasFill) {
-        cctx.setTransform(1, 0, 0, 1, 0, 0);
-        cctx.clearRect(ix0, iy0, subW, subH);
-        cctx.save();
-        cctx.translate(-wx0, -wy0);
-        applyFrameAndObjClips(cctx, fid, o, odx, ody);
-        cctx.fillStyle = '#ffffff';
-        cctx.globalAlpha = 1.0;
-        cctx.fill(p2, o.fillRule === 'evenodd' ? 'evenodd' : 'nonzero');
-        cctx.restore();
-        try {
-          const covData = cctx.getImageData(ix0, iy0, subW, subH).data;
-          if (VE.gradOn(o)) {
-            /* Evaluasi warna murni gradient di atas persegi penuh (100% coverage tanpa dilusi AA tepi) */
-            pctx.setTransform(1, 0, 0, 1, 0, 0);
-            pctx.clearRect(ix0, iy0, subW, subH);
-            pctx.save();
-            pctx.translate(-wx0, -wy0);
-            if (odx || ody) pctx.translate(odx, ody);
-            pctx.fillStyle = this._makeCanvasGrad(pctx, o.grad);
-            pctx.fillRect(wx0 + ix0 - odx, wy0 + iy0 - ody, subW, subH);
-            pctx.restore();
-            const paintData = pctx.getImageData(ix0, iy0, subW, subH).data;
-            compositeBinarySubRect(ix0, iy0, subW, subH, covData, null, paintData, objOp);
-          } else {
-            const solidRgba = parsePaintRgba01(o.fill, objOp);
-            compositeBinarySubRect(ix0, iy0, subW, subH, covData, solidRgba, null, objOp);
-          }
-        } catch (e) {}
-        drawCalls++;
-      }
-
-      /* 2. Binary Stroke Pass untuk objek `o` */
-      if (hasStroke) {
-        cctx.setTransform(1, 0, 0, 1, 0, 0);
-        cctx.clearRect(ix0, iy0, subW, subH);
-        cctx.save();
-        cctx.translate(-wx0, -wy0);
-        applyFrameAndObjClips(cctx, fid, o, odx, ody);
-        cctx.strokeStyle = '#ffffff';
-        cctx.globalAlpha = 1.0;
-        cctx.lineWidth = Math.max(1, o.strokeWidth);
-        cctx.lineJoin = o.strokeLinejoin || 'round';
-        cctx.lineCap = o.strokeLinecap || 'round';
-        if (o.strokeMiterlimit) cctx.miterLimit = o.strokeMiterlimit;
-        cctx.stroke(p2);
-        cctx.restore();
-        try {
-          const covData = cctx.getImageData(ix0, iy0, subW, subH).data;
-          if (VE.strokeGradOn(o)) {
-            pctx.setTransform(1, 0, 0, 1, 0, 0);
-            pctx.clearRect(ix0, iy0, subW, subH);
-            pctx.save();
-            pctx.translate(-wx0, -wy0);
-            if (odx || ody) pctx.translate(odx, ody);
-            pctx.fillStyle = this._makeCanvasGrad(pctx, o.strokeGrad);
-            pctx.fillRect(wx0 + ix0 - odx, wy0 + iy0 - ody, subW, subH);
-            pctx.restore();
-            const paintData = pctx.getImageData(ix0, iy0, subW, subH).data;
-            compositeBinarySubRect(ix0, iy0, subW, subH, covData, null, paintData, objOp);
-          } else {
-            const solidRgba = parsePaintRgba01(o.stroke, objOp);
-            compositeBinarySubRect(ix0, iy0, subW, subH, covData, solidRgba, null, objOp);
-          }
-        } catch (e) {}
-        drawCalls++;
-      }
-    }
-    try {
-      if (typeof ImageData !== 'undefined') {
-        tctx.putImageData(new ImageData(outData, tileW, tileH), 0, 0);
-      }
-    } catch (e) {}
-
-    /* Bagian 5: Hitung partialAlphaPixels pada hasil Hard Pixel (untuk objek 100% opaque, nilainya pasti 0!) */
-    let partialAlphaPixels = 0;
-    for (let i = 3; i < outData.length; i += 4) {
-      if (outData[i] > 0 && outData[i] < 255) {
-        partialAlphaPixels++;
-      }
-    }
-    if (RENDER_CONFIG.logPartialAlpha) {
-      console.log('Partial alpha coverage (Hard Pixel mode):', partialAlphaPixels);
-    }
-    return {
-      canvas: tcv,
-      wx0,
-      wy0,
-      tileW,
-      tileH,
-      drawCalls,
-      visCount,
-      culledCount,
-      lodVerts,
-      tessTimeSum,
-      partialAlphaPixels
-    };
+    return null;
   }
 
   /* =========================================================================
@@ -2478,8 +2236,8 @@ class SceneRenderer {
     ctx.save();
     ctx.translate(px, py);
     ctx.scale(z, z);
-    const frameSet = new Set((this.frameBoxes || []).map(f => f.id));
-    const frameRectMap = new Map((this.frameBoxes || []).map(f => [f.id, f.bb]));
+    const frameSet = this._getFrameSet();
+    const frameRectMap = this._getFrameRectMap();
     const objs = this.doc.objects || [];
     const drag = this.dragOffset;
     let drawCalls = 0,
@@ -2549,7 +2307,7 @@ class SceneRenderer {
         }
       }
       visCount++;
-      const fid = this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null;
+      const fid = !isDragged && this.clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameSet.has(o.group) ? o.group : null; /* FIX: objek yang sedang diseret tidak di-clip ke frame lamanya */
       if (fid !== activeClipFid) openFrameClip(fid);
       ctx.save();
       if (odx || ody) ctx.translate(odx, ody);
@@ -2682,7 +2440,7 @@ class SceneRenderer {
     if (!this.doc || !this.doc.objects) return null;
     const tol = tolerancePx / (this.camera.zoom || 1);
     const sIdx = !this._spatialIndexDirty && this.spatialIndex ? this.spatialIndex : (this.spatialIndex = VE.getDocSpatialIndex(this.doc.objects), this._spatialIndexDirty = false, this.spatialIndex);
-    const frameRectMap = new Map((this.frameBoxes || []).map(f => [f.id, f.bb]));
+    const frameRectMap = this._getFrameRectMap();
     const cands = sIdx ? sIdx.queryObjectsInRect(worldPoint.x - tol, worldPoint.y - tol, worldPoint.x + tol, worldPoint.y + tol) : [];
     for (let i = cands.length - 1; i >= 0; i--) {
       const o = cands[i].o;

@@ -172,6 +172,45 @@ function earClipSimplePolygon(coords) {
   return new Float32Array(out);
 }
 
+/* PERF: Poligon simpel CONVEX (lingkaran, elips, rounded rect, dsb.) tidak butuh stencil-then-cover.
+   Cukup triangle fan dari vertex 0 -> tanpa cover pass layar penuh. Cek: tanda cross konsisten + total putaran = 360 derajat
+   (mencegah bintang/pentagram yang selalu berbelok searah tapi berputar 720 derajat). */
+function isConvexSimplePolygon(coords) {
+  const n = coords.length >> 1;
+  if (n < 3) return false;
+  let sign = 0, total = 0, used = 0;
+  for (let i = 0; i < n; i++) {
+    const ax = coords[i * 2], ay = coords[i * 2 + 1];
+    const bx = coords[((i + 1) % n) * 2], by = coords[((i + 1) % n) * 2 + 1];
+    const cx = coords[((i + 2) % n) * 2], cy = coords[((i + 2) % n) * 2 + 1];
+    const ux = bx - ax, uy = by - ay, vx = cx - bx, vy = cy - by;
+    const l1 = Math.hypot(ux, uy), l2 = Math.hypot(vx, vy);
+    if (l1 < 1e-9 || l2 < 1e-9) continue;
+    const cross = ux * vy - uy * vx;
+    const dot = ux * vx + uy * vy;
+    if (Math.abs(cross) / (l1 * l2) < 2e-3 && dot > 0) continue; /* kolinier */
+    const sg = cross > 0 ? 1 : -1;
+    if (sign && sg !== sign) return false;
+    sign = sg;
+    total += Math.atan2(cross, dot);
+    used++;
+  }
+  if (used < 3 || !sign) return false;
+  return Math.abs(Math.abs(total) - Math.PI * 2) < 0.05;
+}
+function fanTrianglesFromVertex0(coords) {
+  const n = coords.length >> 1;
+  const out = new Float32Array((n - 2) * 6);
+  const x0 = coords[0], y0 = coords[1];
+  let o = 0;
+  for (let k = 1; k < n - 1; k++) {
+    out[o++] = x0; out[o++] = y0;
+    out[o++] = coords[k * 2]; out[o++] = coords[k * 2 + 1];
+    out[o++] = coords[(k + 1) * 2]; out[o++] = coords[(k + 1) * 2 + 1];
+  }
+  return out;
+}
+
 /* Tahap 3 & 5: Tessellator Stroke Lengkap dengan Join (miter, bevel, round), Cap (butt, square, round), & Adaptive Round Steps */
 /* Tahap 3 & 5: Tessellator Stroke Lengkap dengan Join (miter, bevel, round), Cap (butt, square, round), & Adaptive Round Steps */
 function tessellateStrokePolylines(polylines, halfWidth, joinMode = 'round', capMode = 'round', miterLimit = 4, effectiveZoom = 1) {
@@ -407,6 +446,7 @@ function buildObjectGpuBuffers(o, zoom = 1) {
   let earArray = null;
   if (pls.length === 1 && pls[0].closed && o.fillRule !== 'evenodd') {
     earArray = earClipSimplePolygon(pls[0].coords);
+    if (!earArray && isConvexSimplePolygon(pls[0].coords)) earArray = fanTrianglesFromVertex0(pls[0].coords);
   }
   const bb = vinfo(o).bb;
   const localW = Math.max(1e-4, bb[2] - bb[0]);
@@ -478,4 +518,4 @@ function setSceneInteractingZoom(v) {
   return v;
 }
 
-export { hasPolygonSelfIntersection, earClipSimplePolygon, tessellateStrokePolylines, isObjectSeamCandidate, SCENE_INTERACTING_ZOOM, buildObjectGpuBuffers, setSceneInteractingZoom };
+export { isConvexSimplePolygon, fanTrianglesFromVertex0, hasPolygonSelfIntersection, earClipSimplePolygon, tessellateStrokePolylines, isObjectSeamCandidate, SCENE_INTERACTING_ZOOM, buildObjectGpuBuffers, setSceneInteractingZoom };
