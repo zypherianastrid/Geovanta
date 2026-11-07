@@ -193,6 +193,40 @@ const VectorEditor = ({
       p = panRef.current;
     if (g) {
       g.setAttribute('transform', fmtVpMat(z, p.x, p.y));
+      /* Editor teks DOM berada di atas SVG, jadi sinkronkan dengan matriks kamera
+         pada frame yang sama agar tidak tertinggal saat zoom/pan berlangsung. */
+      const textEditor = boxRef.current && boxRef.current.querySelector('.ct-canvas-editor[data-doc-x]');
+      if (textEditor) {
+        const docX = Number(textEditor.dataset.docX),
+          docY = Number(textEditor.dataset.docY),
+          fontSize = Number(textEditor.dataset.baseFontSize),
+          scaleX = Number(textEditor.dataset.scaleX),
+          scaleY = Number(textEditor.dataset.scaleY),
+          boxW = Number(textEditor.dataset.boxWidth),
+          boxH = Number(textEditor.dataset.boxHeight),
+          letterSpacing = Number(textEditor.dataset.letterSpacing),
+          wordSpacing = Number(textEditor.dataset.wordSpacing);
+        if ([docX, docY, fontSize, scaleX, scaleY, boxW, boxH].every(Number.isFinite)) {
+          textEditor.style.left = (docX * z + p.x) + 'px';
+          textEditor.style.top = (docY * z + p.y) + 'px';
+          textEditor.style.width = Math.max(0.1, boxW * z) + 'px';
+          textEditor.style.height = Math.max(0.1, boxH * z) + 'px';
+          textEditor.style.fontSize = Math.max(0.1, fontSize * scaleY * z) + 'px';
+          textEditor.style.letterSpacing = (letterSpacing * scaleX * z) + 'px';
+          textEditor.style.wordSpacing = (wordSpacing * scaleX * z) + 'px';
+          const canvasInput = textEditor.querySelector('textarea.ct-canvas-inline');
+          if (canvasInput) {
+            const textWidth = Number(textEditor.dataset.measuredWidth),
+              sx = Math.abs(scaleX),
+              sy = Math.abs(scaleY),
+              safeSy = Math.max(0.0001, sy);
+            canvasInput.style.width = Math.max(0.1, textWidth * sy * z) + 'px';
+            canvasInput.style.transform = 'scaleX(' + sx / safeSy + ')';
+            canvasInput.style.letterSpacing = (letterSpacing * sy * z) + 'px';
+            canvasInput.style.wordSpacing = (wordSpacing * sy * z) + 'px';
+          }
+        }
+      }
       if (!isPanOnly) {
         const bbG = g.querySelector('.vc-bbox-overlay');
         if (bbG) {
@@ -2605,7 +2639,7 @@ const VectorEditor = ({
 
   /* ---- pointer & SN-006 tool-aware snapAt ---- */
   const snapAt = (p, e, exObjs, exNodes, objs, opt) => {
-    if (!snapOn || e.altKey) {
+    if (!snapOn || e.ctrlKey || e.metaKey) {
       setSnapInd(null);
       return p;
     }
@@ -3512,6 +3546,53 @@ const VectorEditor = ({
       }
     }
   };
+  /* ---- FIX Z-ORDER TEKS vs OBJEK ----
+     Teks digambar di layer SVG yang selalu berada di atas canvas WebGL, sehingga objek lain (WebGL) tidak pernah bisa
+     tampil di atas teks. Solusi: objek yang urutan Z-nya di atas sebuah teks DAN tumpang-tindih dengannya (serta objek
+     yang sedang diseret) ikut dirender di layer SVG sesuai urutan dokumen; GPU melewatkan objek tersebut. */
+  const svgOverlayIds = React.useMemo(() => {
+    const out = new Set();
+    if (!gpuOn || renderCfg.pixelPreviewMode !== 'smooth') return out;
+    const objs = doc.objects;
+    const textBoxes = [];
+    let firstText = -1;
+    for (let i = 0; i < objs.length; i++) {
+      const o = objs[i];
+      if (!o || o.hidden || !o.text) continue;
+      if (firstText < 0) firstText = i;
+      if (textBoxes.length < 200) {
+        try {
+          const bb = vinfo(o).bb;
+          if (bb && isFinite(bb[0])) textBoxes.push({ i, bb });
+        } catch (e) {}
+      }
+    }
+    if (firstText < 0) return out;
+    for (let i = firstText + 1; i < objs.length; i++) {
+      const o = objs[i];
+      if (!o || o.hidden || o.text || o.isFrameBg || o.isAutoFrame) continue;
+      if (out.size >= 600) break;
+      let bb = null;
+      try {
+        bb = vinfo(o).bb;
+      } catch (e) {}
+      if (!bb || !isFinite(bb[0])) continue;
+      const pad = (o.stroke !== 'none' && o.strokeWidth > 0 ? o.strokeWidth * 0.5 : 0) + 1;
+      for (let k = 0; k < textBoxes.length; k++) {
+        const t = textBoxes[k];
+        if (t.i >= i) break;
+        if (bb[2] + pad >= t.bb[0] && bb[0] - pad <= t.bb[2] && bb[3] + pad >= t.bb[1] && bb[1] - pad <= t.bb[3]) {
+          out.add(o.id);
+          break;
+        }
+      }
+    }
+    return out;
+  }, [doc.objects, gpuOn, renderCfg.pixelPreviewMode]);
+  React.useLayoutEffect(() => {
+    const sr = sceneRendererRef.current;
+    if (sr && sr.setSvgOverlayIds) sr.setSvgOverlayIds(svgOverlayIds);
+  }, [svgOverlayIds, gpuOn, renderCfg.backendOverride]);
   React.useLayoutEffect(() => {
     const dg = dragRef.current;
     if (!dg || dg.type !== 'obj' || !dg.moved) return;
@@ -4318,7 +4399,7 @@ const VectorEditor = ({
     if (dg.type === 'imgscale') {
       if (!dg.moved && dg.sx != null && Math.hypot(e.clientX - dg.sx, e.clientY - dg.sy) < 5) return;
       let q = pt;
-      if (snapOn && !e.altKey) q = snapAt(pt, e, new Set([dg.objId]), null, dg.base.objects);else setSnapInd(null);
+      if (snapOn && !(e.ctrlKey || e.metaKey)) q = snapAt(pt, e, new Set([dg.objId]), null, dg.base.objects);else setSnapInd(null);
       const den = dg.cx0 * dg.cx0 + dg.cy0 * dg.cy0,
         k = Math.max(0.001, ((q.x - dg.ax) * dg.cx0 + (q.y - dg.ay) * dg.cy0) / den);
       dg.moved = true;
@@ -4622,13 +4703,13 @@ const VectorEditor = ({
       dg.hasOtherObjs = hasOtherObjs;
       dg.dragNodeCount = dragNodeCount;
     }
-    if (!snapOn || e.altKey) {
+    if (!snapOn || e.ctrlKey || e.metaKey) {
       if (dg.lastSnapSig) {
         dg.lastSnapSig = null;
         setSnapInd(null);
       }
     } else {
-      const thr = (zoomRef.current >= 2 ? 5 : 7) / zoomRef.current,
+      const thr = 5 / zoomRef.current,
         gOn = gridOn && snapCfg.grid;
       const cfg = isObj ? snapCfg : {
         ...snapCfg,
@@ -4695,7 +4776,8 @@ const VectorEditor = ({
           dy
         },
         edgeFn,
-        lockAxis: shiftAxis
+        lockAxis: shiftAxis,
+        figmaObjectMode: isObj
       });
       dx += r.dx;
       dy += r.dy;
@@ -6750,9 +6832,9 @@ const VectorEditor = ({
                 });
                 return bb ? <rect data-drag-extra="1" x={bb[0]} y={bb[1]} width={bb[2] - bb[0]} height={bb[3] - bb[1]} fill="none" stroke="var(--acc)" strokeOpacity="0.8" strokeWidth="1" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" pointerEvents="none" /> : null;
               })()}{(!gpuOn || doc.objects.some(o => o && !o.hidden && o.text)) && <defs>{gradientDefs}{frameClipDefs}</defs>}{gpuOn && renderCfg.pixelPreviewMode === 'smooth' && doc.objects.map(o => {
-                if (!o || o.hidden || !o.text || renamingId === 'ct:' + o.id) return null;
+                if (!o || o.hidden || !(o.text || svgOverlayIds.has(o.id)) || renamingId === 'ct:' + o.id) return null;
                 const safeFid = clipFrames && o.group && !o.isFrameBg && !o.isAutoFrame && frameBoxes.some(f => f.id === o.group) ? 'url(#ved-clip-' + String(o.group).replace(/[^\w-]/g, '_') + ')' : undefined;
-                return <CanvasObj key={'vec-txt-' + o.id} o={o} clipAttr={safeFid} />;
+                return <CanvasObj key={(o.text ? 'vec-txt-' : 'vec-ovl-') + o.id} o={o} clipAttr={safeFid} />;
               })}{!gpuOn && (() => {
                 const renderBatches = batches => batches.map(b => {
                   if (b.objs.length === 1) {
@@ -7015,23 +7097,23 @@ const VectorEditor = ({
                 display: zoom >= 6 && (renderCfg.pixelPreviewMode !== 'smooth' ? renderCfg.pixelGrid !== false : !!renderCfg.pixelGridInSmooth) ? 'block' : 'none',
                 pointerEvents: 'none'
               }} />{vcSimp && vcSimp.showOriginal && vcSimp.preview && vcSimp.baseDoc && <g className="vc-original-path-overlay" pointerEvents="none">{vcSimp.baseDoc.objects.filter(o => !o.hidden && !o.locked && !o.img && !o.isFrameBg && !o.isAutoFrame && (!vcSimp.baseSel.objs.size || vcSimp.baseSel.objs.has(o.id))).map(o => <path key={'vc-orig-' + o.id} d={VE.serializePath(o)} fill="none" stroke="#f97316" strokeOpacity="0.45" strokeWidth={3 / Math.max(1e-4, zoom)} strokeLinecap="round" strokeLinejoin="round" />)}</g>}{marq && <rect x={marq.x0} y={marq.y0} width={marq.x1 - marq.x0} height={marq.y1 - marq.y0} fill="var(--acc)" fillOpacity="0.12" stroke="var(--acc)" strokeWidth={1 / zoom} strokeDasharray={4 / zoom} pointerEvents="none" />}{snapInd && <g pointerEvents="none">{(snapInd.guides || []).map((g, gi) => {
-                  const col = g.kind === 'edge' || g.kind === 'midpoint' ? '#10b981' : g.kind === 'perp' || g.kind === 'hline' ? '#f59e0b' : g.kind === 'artboard' ? 'var(--acc)' : '#f43f5e';
+                  const col = '#F24822';
                   if (g.type === 'line') {
-                    const s = 3.5 / zoom,
-                      ends = g.kind !== 'artboard',
+                    const s = 3 / zoom,
+                      ends = g.kind !== 'artboard' && g.kind !== 'grid',
                       mx = (g.x1 + g.x2) / 2,
                       my = (g.y1 + g.y2) / 2;
-                    return <g key={'gl' + gi} stroke={col} strokeWidth={1.2 / zoom} fill="none"><line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} strokeDasharray={g.kind === 'axial' || g.kind === 'perp' ? 3 / zoom + ' ' + 2.5 / zoom : undefined} />{ends && <><path d={`M${g.x1 - s} ${g.y1 - s}L${g.x1 + s} ${g.y1 + s}M${g.x1 + s} ${g.y1 - s}L${g.x1 - s} ${g.y1 + s}`} /><path d={`M${g.x2 - s} ${g.y2 - s}L${g.x2 + s} ${g.y2 + s}M${g.x2 + s} ${g.y2 - s}L${g.x2 - s} ${g.y2 + s}`} /></>}{g.label && <><rect x={mx - 12 / zoom} y={my - 7 / zoom} width={24 / zoom} height={14 / zoom} rx={4 / zoom} fill={col} stroke="none" /><text x={mx} y={my + 3.2 / zoom} textAnchor="middle" fontSize={9 / zoom} fontWeight="600" fill="#fff" stroke="none" fontFamily="sans-serif">{g.label}</text></>}</g>;
+                    return <g key={'gl' + gi} stroke={col} strokeWidth={1 / zoom} fill="none" strokeLinecap="butt"><line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} />{ends && <><path d={`M${g.x1 - s} ${g.y1 - s}L${g.x1 + s} ${g.y1 + s}M${g.x1 + s} ${g.y1 - s}L${g.x1 - s} ${g.y1 + s}`} /><path d={`M${g.x2 - s} ${g.y2 - s}L${g.x2 + s} ${g.y2 + s}M${g.x2 + s} ${g.y2 - s}L${g.x2 - s} ${g.y2 + s}`} /></>}{g.label && <><rect x={mx - 12 / zoom} y={my - 7 / zoom} width={24 / zoom} height={14 / zoom} rx={3 / zoom} fill={col} stroke="none" /><text x={mx} y={my + 3.2 / zoom} textAnchor="middle" fontSize={9 / zoom} fontWeight="600" fill="#fff" stroke="none" fontFamily="sans-serif">{g.label}</text></>}</g>;
                   }
                   if (g.type === 'spacing') {
                     const mx = (g.x1 + g.x2) / 2,
                       my = (g.y1 + g.y2) / 2,
                       horiz = Math.abs(g.y2 - g.y1) < 1e-4,
                       tick = 5 / zoom;
-                    return <g key={'gs' + gi} stroke="#ec4899" strokeWidth={1.3 / zoom}><line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} />{horiz ? <><line x1={g.x1} y1={g.y1 - tick} x2={g.x1} y2={g.y1 + tick} /><line x1={g.x2} y1={g.y2 - tick} x2={g.x2} y2={g.y2 + tick} /></> : <><line x1={g.x1 - tick} y1={g.y1} x2={g.x1 + tick} y2={g.y1} /><line x1={g.x2 - tick} y1={g.y2} x2={g.x2 + tick} y2={g.y2} /></>}<rect x={mx - 14 / zoom} y={my - 7 / zoom} width={28 / zoom} height={14 / zoom} rx={4 / zoom} fill="#ec4899" stroke="none" /><text x={mx} y={my + 3.2 / zoom} textAnchor="middle" fontSize={9.5 / zoom} fontWeight="600" fill="#fff" stroke="none" fontFamily="sans-serif">{g.label}</text></g>;
+                    return <g key={'gs' + gi} stroke="#F24822" strokeWidth={1 / zoom}><line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} />{horiz ? <><line x1={g.x1} y1={g.y1 - tick} x2={g.x1} y2={g.y1 + tick} /><line x1={g.x2} y1={g.y2 - tick} x2={g.x2} y2={g.y2 + tick} /></> : <><line x1={g.x1 - tick} y1={g.y1} x2={g.x1 + tick} y2={g.y1} /><line x1={g.x2 - tick} y1={g.y2} x2={g.x2 + tick} y2={g.y2} /></>}<rect x={mx - 14 / zoom} y={my - 7 / zoom} width={28 / zoom} height={14 / zoom} rx={3 / zoom} fill="#F24822" stroke="none" /><text x={mx} y={my + 3.2 / zoom} textAnchor="middle" fontSize={9.5 / zoom} fontWeight="600" fill="#fff" stroke="none" fontFamily="sans-serif">{g.label}</text></g>;
                   }
                   return null;
-                })}{snapInd.cross !== false && snapInd.x != null && <g stroke={snapInd.kind === 'edge' || snapInd.kind === 'midpoint' ? '#10b981' : snapInd.kind === 'hline' || snapInd.kind === 'perp' ? '#f59e0b' : '#f43f5e'} fill="none" strokeWidth={1.5 / zoom}><path d={'M' + (snapInd.x - 7 / zoom) + ' ' + snapInd.y + 'H' + (snapInd.x + 7 / zoom) + 'M' + snapInd.x + ' ' + (snapInd.y - 7 / zoom) + 'V' + (snapInd.y + 7 / zoom)} />{(snapInd.kind === 'edge' || snapInd.kind === 'hline' || snapInd.kind === 'midpoint' || snapInd.kind === 'perp') && <path d={'M' + snapInd.x + ' ' + (snapInd.y - 6 / zoom) + 'L' + (snapInd.x + 6 / zoom) + ' ' + snapInd.y + 'L' + snapInd.x + ' ' + (snapInd.y + 6 / zoom) + 'L' + (snapInd.x - 6 / zoom) + ' ' + snapInd.y + 'Z'} />}{snapInd.kind === 'node' && <circle cx={snapInd.x} cy={snapInd.y} r={6 / zoom} />}</g>}</g>}</g></svg>{vcSimp && vcSimp.mode === 'slider' && (() => {
+                })}{snapInd.cross !== false && snapInd.x != null && <g stroke="#F24822" fill="none" strokeWidth={1 / zoom}><path d={'M' + (snapInd.x - 7 / zoom) + ' ' + snapInd.y + 'H' + (snapInd.x + 7 / zoom) + 'M' + snapInd.x + ' ' + (snapInd.y - 7 / zoom) + 'V' + (snapInd.y + 7 / zoom)} />{(snapInd.kind === 'edge' || snapInd.kind === 'hline' || snapInd.kind === 'midpoint' || snapInd.kind === 'perp') && <path d={'M' + snapInd.x + ' ' + (snapInd.y - 6 / zoom) + 'L' + (snapInd.x + 6 / zoom) + ' ' + snapInd.y + 'L' + snapInd.x + ' ' + (snapInd.y + 6 / zoom) + 'L' + (snapInd.x - 6 / zoom) + ' ' + snapInd.y + 'Z'} />}{snapInd.kind === 'node' && <circle cx={snapInd.x} cy={snapInd.y} r={6 / zoom} />}</g>}</g>}</g></svg>{vcSimp && vcSimp.mode === 'slider' && (() => {
             const targetObjs = doc.objects.filter(o => !o.hidden && !o.locked && !o.img && !o.isFrameBg && !o.isAutoFrame && (!vcSimp.baseSel.objs.size || vcSimp.baseSel.objs.has(o.id)));
             const bb = targetObjs.length ? VE.docBounds({
               objects: targetObjs
@@ -7110,13 +7192,9 @@ const VectorEditor = ({
             const mb = VE.measureTextBox(t);
             const wx = (t.x || 0) + mb.xOff * (t.scaleX || 1);
             const wy = (t.y || 0) + mb.yTop * (t.scaleY || 1);
-            const sx = Math.max(8, wx * zNow + pNow.x);
-            const sy = Math.max(8, wy * zNow + pNow.y);
-            const dispFs = clampN((t.fontSize || 32) * (t.scaleY || 1) * zNow, 13, 96);
             const rawFs = Math.max(1, Number(t.fontSize) || 32);
             const effScaleX = Number(t.scaleX) || 1;
             const effScaleY = Number(t.scaleY) || 1;
-            const exactFsPx = Math.max(8, rawFs * effScaleY * zNow);
             const exactSx = wx * zNow + pNow.x;
             const exactSy = wy * zNow + pNow.y;
             const txtColor = !tObj.fill || tObj.fill === 'none' || tObj.fill === 'transparent' || VE.gradOn(tObj) ? 'var(--ink)' : tObj.fill;
@@ -7124,7 +7202,8 @@ const VectorEditor = ({
               position: 'absolute',
               left: exactSx + 'px',
               top: exactSy + 'px',
-              minWidth: Math.max(24, Math.round(mb.w * effScaleX * zNow + 12)) + 'px',
+              width: Math.max(0.1, mb.w * effScaleX * zNow) + 'px',
+              height: Math.max(0.1, mb.h * effScaleY * zNow) + 'px',
               zIndex: 55,
               background: 'transparent',
               border: 'none',
@@ -7135,15 +7214,17 @@ const VectorEditor = ({
               fontFamily: t.fontFamily || 'Inter, system-ui, sans-serif',
               fontWeight: t.fontWeight || 400,
               fontStyle: t.fontStyle === 'oblique' ? 'italic' : t.fontStyle || 'normal',
-              fontSize: exactFsPx + 'px',
+              fontSize: Math.max(0.1, rawFs * effScaleY * zNow) + 'px',
               lineHeight: Math.max(0.5, Number(t.lineHeight) || 1.2),
               letterSpacing: (Number(t.letterSpacing) || 0) * effScaleX * zNow + 'px',
               wordSpacing: (Number(t.wordSpacing) || 0) * effScaleX * zNow + 'px',
               textAlign: t.textAnchor === 'middle' ? 'center' : t.textAnchor === 'end' ? 'right' : 'left',
               textTransform: t.textTransform && t.textTransform !== 'none' ? t.textTransform : undefined,
               transform: t.rotation ? 'rotate(' + t.rotation + 'deg)' : undefined,
-              transformOrigin: '0 0'
-            }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><CustomTextBox cls="ct-canvas-inline" autoFocus={true} selectOnFocus={true} multiline={true} value={renameVal} ariaLabel="Ketik teks di kanvas" onChange={v => {
+              transformOrigin: '0 0',
+              boxSizing: 'border-box',
+              overflow: 'visible'
+            }} data-doc-x={wx} data-doc-y={wy} data-base-font-size={rawFs} data-scale-x={effScaleX} data-scale-y={effScaleY} data-box-width={mb.w * effScaleX} data-box-height={mb.h * effScaleY} data-measured-width={mb.w} data-letter-spacing={Number(t.letterSpacing) || 0} data-word-spacing={Number(t.wordSpacing) || 0} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><CustomTextBox cls="ct-canvas-inline" canvasScaleX={effScaleX} canvasScaleY={effScaleY} canvasWidth={mb.w} canvasZoom={zNow} canvasLetterSpacing={Number(t.letterSpacing) || 0} canvasWordSpacing={Number(t.wordSpacing) || 0} autoFocus={true} selectOnFocus={true} multiline={true} value={renameVal} ariaLabel="Ketik teks di kanvas" onChange={v => {
                 setRenameVal(v);
                 commitObjs(o => o.id === tid && o.text ? VE.updateTextObj(o, {
                   content: v || ' '

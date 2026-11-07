@@ -661,6 +661,7 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
   const sIdx = hasTargets ? C.spatialIndex || (objects ? getDocSpatialIndex(objects) : null) : null;
   const probes = extra.probes && extra.probes.length ? extra.probes : [p],
     delta = extra.delta || null;
+  const figmaObj = !!(extra.figmaObjectMode && dragBBox);
   const preX = extra.lockAxis === 'y',
     preY = extra.lockAxis === 'x';
   let dx = 0,
@@ -680,7 +681,7 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
     yScore = 1e18;
 
   /* 1. Kunci titik 2D via Spatial Hash pra-filter C.pts (hanya objek non-excluded dengan sel presisi thr) */
-  if (hasTargets && !lockX && !lockY && (cfg.node || cfg.midpoint)) {
+  if (hasTargets && !figmaObj && !lockX && !lockY && (cfg.node || cfg.midpoint)) {
     let best = null,
       bp = null,
       bs = thr;
@@ -749,7 +750,7 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
   }
 
   /* 2. Kunci sinar siku-siku (90°) & perpanjangan garis (180°) tanpa batas jumlah sinar */
-  if (!lockX && !lockY && cfg.perp && C.rays && C.rays.length) {
+  if (!figmaObj && !lockX && !lockY && cfg.perp && C.rays && C.rays.length) {
     const hitRays = [];
     for (let ri = 0; ri < C.rays.length; ri++) {
       const r = C.rays[ri];
@@ -854,6 +855,26 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
   /* 3. Equal Spacing menggunakan array pra-urut boxesByX & boxesByY tanpa batas 96 box */
   const srcBoxesX = C.boxesByX && C.boxesByX.length >= 2 ? C.boxesByX : C.boxes && C.boxes.length >= 2 ? C.boxes.slice().sort((a, b) => a.l - b.l) : null;
   const srcBoxesY = C.boxesByY && C.boxesByY.length >= 2 ? C.boxesByY : C.boxes && C.boxes.length >= 2 ? C.boxes.slice().sort((a, b) => a.t - b.t) : null;
+  const nearLine = (lines, buckets, targets) => {
+    let best = 1e18;
+    if (!lines || !lines.length) return best;
+    for (const t of targets) {
+      if (buckets && buckets.size) {
+        queryLineBuckets(buckets, t, thr, ln => {
+          const d = Math.abs(t - ln.v);
+          if (d < best) best = d;
+        });
+      } else {
+        for (const ln of lines) {
+          const d = Math.abs(t - ln.v);
+          if (d < best) best = d;
+        }
+      }
+    }
+    return best;
+  };
+  const xTn = dragBBox ? [dragBBox[0], (dragBBox[0] + dragBBox[2]) / 2, dragBBox[2]] : [p.x];
+  const yTn = dragBBox ? [dragBBox[1], (dragBBox[1] + dragBBox[3]) / 2, dragBBox[3]] : [p.y];
   if (cfg.spacing && dragBBox && srcBoxesX) {
     const dl = dragBBox[0],
       dt = dragBBox[1],
@@ -910,6 +931,7 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
           }
         }
       }
+      if (best && figmaObj && nearLine(C.xLines, C.xBuckets, xTn) < be) best = null;
       if (best) {
         dx = best.t - dl;
         lockX = true;
@@ -969,6 +991,7 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
           }
         }
       }
+      if (best && figmaObj && nearLine(C.yLines, C.yBuckets, yTn) < be) best = null;
       if (best) {
         dy = best.t - dt;
         lockY = true;
@@ -1085,7 +1108,7 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
   }
 
   /* 5. SN-004: Tepi / kontur path */
-  if (hasTargets && cfg.edge && !ptKind) {
+  if (hasTargets && !figmaObj && cfg.edge && !ptKind) {
     let r = null;
     if (extra.edgeFn) r = extra.edgeFn();else {
       const q = snapPt({
@@ -1196,8 +1219,13 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
 
   /* 7. Pixel: bulatkan sumbu yang belum terkunci */
   if (cfg.pixel) {
-    if (!lockX) dx = Math.round(p.x) - p.x;
-    if (!lockY) dy = Math.round(p.y) - p.y;
+    if (dragBBox) {
+      if (!lockX) dx = Math.round(dragBBox[0]) - dragBBox[0];
+      if (!lockY) dy = Math.round(dragBBox[1]) - dragBBox[1];
+    } else {
+      if (!lockX) dx = Math.round(p.x) - p.x;
+      if (!lockY) dy = Math.round(p.y) - p.y;
+    }
   }
 
   /* Susun panduan visual pada posisi akhir */
@@ -1205,40 +1233,36 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
     py = p.y + dy;
   const xr = dragBBox ? [dragBBox[0] + dx, dragBBox[2] + dx] : [px, px],
     yr = dragBBox ? [dragBBox[1] + dy, dragBBox[3] + dy] : [py, py];
-  if (aX.length) {
-    const v = aX[0].v;
-    let y0 = yr[0],
-      y1 = yr[1];
-    aX.forEach(l => {
-      y0 = Math.min(y0, l.y0, l.y1);
-      y1 = Math.max(y1, l.y0, l.y1);
+  const pushAligned = (arr, vert) => {
+    const groups = new Map();
+    arr.forEach(l => {
+      const k = Math.round(l.v * 100);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(l);
     });
-    guides.push({
-      type: 'line',
-      x1: v,
-      y1: y0,
-      x2: v,
-      y2: y1,
-      kind: aX[0].kind
+    groups.forEach(ls => {
+      const v = ls[0].v;
+      if (vert) {
+        let y0 = yr[0],
+          y1 = yr[1];
+        ls.forEach(l => {
+          y0 = Math.min(y0, l.y0, l.y1);
+          y1 = Math.max(y1, l.y0, l.y1);
+        });
+        guides.push({ type: 'line', x1: v, y1: y0, x2: v, y2: y1, kind: ls[0].kind });
+      } else {
+        let x0 = xr[0],
+          x1 = xr[1];
+        ls.forEach(l => {
+          x0 = Math.min(x0, l.x0, l.x1);
+          x1 = Math.max(x1, l.x0, l.x1);
+        });
+        guides.push({ type: 'line', x1: x0, y1: v, x2: x1, y2: v, kind: ls[0].kind });
+      }
     });
-  }
-  if (aY.length) {
-    const v = aY[0].v;
-    let x0 = xr[0],
-      x1 = xr[1];
-    aY.forEach(l => {
-      x0 = Math.min(x0, l.x0, l.x1);
-      x1 = Math.max(x1, l.x0, l.x1);
-    });
-    guides.push({
-      type: 'line',
-      x1: x0,
-      y1: v,
-      x2: x1,
-      y2: v,
-      kind: aY[0].kind
-    });
-  }
+  };
+  if (aX.length) pushAligned(aX, true);
+  if (aY.length) pushAligned(aY, false);
   if (dragBBox) {
     const ext = thr * 2.5;
     if (gxHit !== null) guides.push({

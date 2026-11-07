@@ -303,9 +303,12 @@ function setSelectionRotation(doc, selObjs, degTarget, isDelta, pin) {
   let delta = isDelta ? degTarget : degTarget - (m.rot || 0);
   delta = (delta % 360 + 540) % 360 - 180;
   if (Math.abs(delta) < 1e-6) return doc;
+  /* `rot` disimpan sebagai kebalikan sudut matriks (sesuai konvensi layar),
+     jadi gerakan geometri harus memakai tanda berlawanan agar field mencapai target. */
+  const geometryDelta = -delta;
   return {
     ...doc,
-    objects: doc.objects.map(o => selObjs.has(o.id) ? rotateObjAround(o, p.x, p.y, delta) : o)
+    objects: doc.objects.map(o => selObjs.has(o.id) ? rotateObjAround(o, p.x, p.y, geometryDelta) : o)
   };
 }
 function flipSelection(doc, selObjs, axis, pin) {
@@ -314,7 +317,11 @@ function flipSelection(doc, selObjs, axis, pin) {
   const p = pinPoint(m, pin || [0.5, 0.5]),
     sx = axis === 'h' ? -1 : 1,
     sy = axis === 'v' ? -1 : 1;
-  const mat = affineMul(affineTranslate(p.x, p.y), affineMul(affineScale(sx, sy), affineTranslate(-p.x, -p.y)));
+  /* Flip around the selection's local axes. A world-axis reflection changes
+     both orientation and placement for an already rotated object. */
+  const rot = -(Number(m.rot) || 0) * Math.PI / 180,
+    localFlip = affineMul(affineRotate(rot), affineMul(affineScale(sx, sy), affineRotate(-rot))),
+    mat = affineMul(affineTranslate(p.x, p.y), affineMul(localFlip, affineTranslate(-p.x, -p.y)));
   return {
     ...doc,
     objects: doc.objects.map(o => selObjs.has(o.id) ? transformObject(o, mat, false) : o)

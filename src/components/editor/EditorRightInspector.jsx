@@ -114,7 +114,22 @@ const EditorRightInspector = ({
   exportSvg,
   downloadSvg,
   onExportBackup
-}) => <aside className="fig-right-sidebar order-3 lg:order-none"><div className="fig-r-topbar space-y-2"><div className="flex items-center justify-between gap-1 min-w-0"><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" disabled={!canUndo} title="Undo (Ctrl+Z)" onClick={undo}><Vi d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13" s={15} /></button><button type="button" className="fig-ibtn" disabled={!canRedo} title="Redo (Ctrl+Y)" onClick={redo}><Vi d="M21 7v6h-6M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13" s={15} /></button></div><div className="flex items-center gap-1 min-w-0"><button type="button" className="fig-ibtn" data-tip="veZoomOut" onClick={() => zoomBy(1 / 1.25)}><Ico n="zoomOut" size={14} /></button><span ref={zoomPctRef} className="text-[11.5px] font-semibold tabular-nums text-center" data-tip="veZoomPct" style={{
+}) => <aside className="fig-right-sidebar order-3 lg:order-none"><style>{`
+  .fig-right-sidebar .fig-r-scroll { scroll-behavior: smooth; overscroll-behavior: contain; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; scroll-padding-block: 10px; }
+  .fig-right-sidebar .fig-r-scroll::-webkit-scrollbar { width: 8px; }
+  .fig-right-sidebar .fig-r-scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; background-clip: padding-box; transition: background-color .18s ease; }
+  .fig-right-sidebar .fig-r-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--mut) 50%, transparent) !important; }
+  .fig-right-sidebar .fig-ibtn, .fig-right-sidebar .ved-pill, .fig-right-sidebar .fig-aln-bar button, .fig-right-sidebar .seg button, .fig-right-sidebar .gch button, .fig-right-sidebar .opt, .fig-right-sidebar [role="switch"] { transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease; }
+  .fig-right-sidebar .fig-ibtn:hover:not(:disabled), .fig-right-sidebar .ved-pill:hover:not(:disabled), .fig-right-sidebar .fig-aln-bar button:hover:not(:disabled), .fig-right-sidebar .seg button:hover:not(:disabled), .fig-right-sidebar .gch button:hover:not(:disabled), .fig-right-sidebar .opt:hover, .fig-right-sidebar [role="switch"]:hover:not(:disabled) { background-color: color-mix(in srgb, var(--acc) 10%, var(--card)); border-color: color-mix(in srgb, var(--acc) 28%, var(--line)); color: var(--ink); }
+  .fig-right-sidebar button:disabled { cursor: not-allowed; }
+  .ct-canvas-inline { display: block; width: 100%; height: 100%; min-height: 0 !important; box-sizing: border-box; align-items: flex-start; line-height: 1.06; }
+  .ct-canvas-inline .c-inp-txt, .ct-canvas-inline .c-inp-txt.sel { font-family: inherit !important; font-size: inherit !important; font-weight: inherit !important; font-style: inherit !important; line-height: 1.06 !important; letter-spacing: inherit !important; word-spacing: inherit !important; padding: 0 !important; vertical-align: top; transform: none !important; }
+  .ct-canvas-inline .c-caret { display: inline-block !important; width: 1.5px !important; height: 1em !important; margin-left: 1px; vertical-align: baseline; background: var(--acc) !important; opacity: 1 !important; visibility: visible !important; animation: cblink 1s steps(2, start) infinite !important; }
+  .ct-canvas-caret { position: absolute; z-index: 2; display: block; width: 3px; min-width: 3px; background: var(--acc); border-radius: 2px; pointer-events: none; animation: cblink .9s steps(2, start) infinite; }
+  .ct-multiline-input-wrap { width: 100%; }
+  .c-inp-multiline { font-size: 12px; border-radius: 7px; }
+  .c-inp-multiline:focus { outline: 2px solid color-mix(in srgb, var(--acc) 32%, transparent); outline-offset: 1px; }
+`}</style><div className="fig-r-topbar space-y-2"><div className="flex items-center justify-between gap-1 min-w-0"><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" disabled={!canUndo} title="Undo (Ctrl+Z)" onClick={undo}><Vi d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13" s={15} /></button><button type="button" className="fig-ibtn" disabled={!canRedo} title="Redo (Ctrl+Y)" onClick={redo}><Vi d="M21 7v6h-6M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13" s={15} /></button></div><div className="flex items-center gap-1 min-w-0"><button type="button" className="fig-ibtn" data-tip="veZoomOut" onClick={() => zoomBy(1 / 1.25)}><Ico n="zoomOut" size={14} /></button><span ref={zoomPctRef} className="text-[11.5px] font-semibold tabular-nums text-center" data-tip="veZoomPct" style={{
           minWidth: 56,
           display: 'inline-block',
           fontVariantNumeric: 'tabular-nums'
@@ -147,7 +162,7 @@ const EditorRightInspector = ({
               background: 'var(--sub)',
               width: 30,
               height: 30
-            }} data-tip="veXfLock" aria-label="Kunci proporsi" aria-pressed={lockAR} onClick={() => setLockAR(v => !v)}><Vi s={14} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></button></div></div><div><div className="fig-sub-lbl">Rotation & Flip</div><div className="grid grid-cols-[1fr_auto] gap-1.5 items-center"><XfField label="\u2220" value={xm.rot} step={1} dis={!!xfNodes} on={setXfRot} tip="veXfRot" /><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" style={{
+            }} data-tip="veXfLock" aria-label="Kunci proporsi" aria-pressed={lockAR} onClick={() => setLockAR(v => !v)}><Vi s={14} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></button></div></div><div><div className="fig-sub-lbl">Rotation & Flip</div><div className="grid grid-cols-[1fr_auto] gap-1.5 items-center"><XfField label="∠" value={xm.rot} step={1} dis={!!xfNodes} on={setXfRot} tip="veXfRot" /><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" style={{
                 background: 'var(--sub)',
                 width: 30,
                 height: 30
@@ -332,7 +347,7 @@ const EditorRightInspector = ({
                 }} title="Hapus font dari daftar (objek teks tetap aman)" onClick={() => {
                   FontManager.removeFont(cf.id);
                   say('Font ' + cf.name + ' dihapus dari daftar');
-                }}><Ico n="x" size={11} /></button></div>)}</div>}</div><div className="grid grid-cols-2 gap-1.5 items-end"><div><div className="fig-sub-lbl">B. Font Weight</div><Select value={String(tData.fontWeight || 400)} on={v => updateSelText({
+                }}><Ico n="x" size={11} /></button></div>)}</div>}</div><div className="space-y-2"><div><div className="fig-sub-lbl">B. Font Weight</div><Select value={String(tData.fontWeight || 400)} on={v => updateSelText({
                 fontWeight: Number(v) || 400
               }, 'p:font-weight')} options={weightOptions} /></div><div><div className="fig-sub-lbl">C. Ukuran (px)</div><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" style={{
                   background: 'var(--sub)',
@@ -366,14 +381,14 @@ const EditorRightInspector = ({
                 lineHeight: Math.max(0.5, v)
               }, 'p:line-height')} /></div><div className="fig-sub-lbl pt-0.5 text-nowrap">Transformasi Huruf</div><div className="fig-wrap-tabs" role="group" aria-label="Transformasi Huruf">{[['none', 'Asli'], ['uppercase', 'UPPER'], ['lowercase', 'lower'], ['capitalize', 'Title']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.textTransform || 'none') === k ? ' on' : '')} onClick={() => updateSelText({
                 textTransform: k
-              }, 'p:text-transform')}><span className="text-nowrap whitespace-nowrap">{lbl}</span></button>)}</div></div><div className="space-y-1.5"><div className="fig-sub-lbl text-nowrap">H. Skala & Baseline Teks</div><div className="grid grid-cols-3 gap-1.5"><XfField label="SX%" value={Math.round((tData.scaleX || 1) * 100)} min={10} step={5} on={v => updateSelText({
+              }, 'p:text-transform')}><span className="text-nowrap whitespace-nowrap">{lbl}</span></button>)}</div></div><div className="space-y-1.5"><div className="fig-sub-lbl text-nowrap">H. Skala & Baseline Teks</div><div className="space-y-1.5"><XfField label="SX%" value={Math.round((tData.scaleX || 1) * 100)} min={10} step={5} on={v => updateSelText({
                 scaleX: Math.max(0.1, v / 100)
               }, 'p:text-sx')} /><XfField label="SY%" value={Math.round((tData.scaleY || 1) * 100)} min={10} step={5} on={v => updateSelText({
                 scaleY: Math.max(0.1, v / 100)
               }, 'p:text-sy')} /><XfField label="Base" value={tData.baselineShift || 0} step={1} on={v => updateSelText({
                 baselineShift: v
               }, 'p:text-base')} /></div></div></div>}</div>;
-    })()}<div className="fig-isec" data-tip="veAppear"><div className="fig-isec-title"><span>Appearance{selObjs.length > 1 ? ' (' + selObjs.length + ')' : ''}</span><button type="button" className="fig-ibtn" title="Show/Hide Layer (Ctrl+Shift+H)" disabled={!selObjs.length} onClick={toggleSelHidden}><Ico n={allSelHidden ? 'eyeOff' : 'eye'} size={14} /></button></div>{primary ? <div className="space-y-2.5 fade"><div className="grid grid-cols-[1fr_1fr_auto] gap-1.5 items-end"><div><div className="fig-sub-lbl">Opacity</div><XfField label="%" value={Math.round(primary.opacity * 100)} min={0} step={5} on={v => setProp('opacity', clampN(v / 100, 0, 1))} tip="veOpacity" /></div><div><div className="fig-sub-lbl">{indivCornerOpen && activeCorners.length < detectedCorners.length ? `Radius (${activeCorners.length}/${detectedCorners.length})` : 'Corner radius'}</div><XfField label="\u25DC" value={curR} min={0} step={1} dis={!!(primary.img || primary.text)} on={setRadius} tip="veCornerRadius" /></div><button type="button" className={'fig-ibtn' + (indivCornerOpen ? ' on' : '')} style={{
+    })()}<div className="fig-isec" data-tip="veAppear"><div className="fig-isec-title"><span>Appearance{selObjs.length > 1 ? ' (' + selObjs.length + ')' : ''}</span><button type="button" className="fig-ibtn" title="Show/Hide Layer (Ctrl+Shift+H)" disabled={!selObjs.length} onClick={toggleSelHidden}><Ico n={allSelHidden ? 'eyeOff' : 'eye'} size={14} /></button></div>{primary ? <div className="space-y-2.5 fade"><div className="grid grid-cols-[1fr_1fr_auto] gap-1.5 items-end"><div><div className="fig-sub-lbl">Opacity</div><XfField label="%" value={Math.round(primary.opacity * 100)} min={0} step={5} on={v => setProp('opacity', clampN(v / 100, 0, 1))} tip="veOpacity" /></div><div><div className="fig-sub-lbl">{indivCornerOpen && activeCorners.length < detectedCorners.length ? `Radius (${activeCorners.length}/${detectedCorners.length})` : 'Corner radius'}</div><XfField label="◜" value={curR} min={0} step={1} dis={!!(primary.img || primary.text)} on={setRadius} tip="veCornerRadius" /></div><button type="button" className={'fig-ibtn' + (indivCornerOpen ? ' on' : '')} style={{
             background: 'var(--sub)',
             width: 30,
             height: 30

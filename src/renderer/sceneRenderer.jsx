@@ -846,6 +846,20 @@ class SceneRenderer {
     if (env.frameBgByGroup) this.frameBgByGroup = env.frameBgByGroup;
     this._cachedRootAcc = undefined;
   }
+  /* Objek yang berada DI ATAS teks (urutan Z) dan tumpang-tindih dengannya dirender di layer SVG (bersama teks)
+     agar urutan tumpukan benar; GPU melewatkan objek-objek ini agar tidak tergambar dobel. */
+  setSvgOverlayIds(ids) {
+    const next = ids && ids.size ? ids : null;
+    const prev = this.svgOverlayIds || null;
+    if (prev === next) return;
+    if (prev && next && prev.size === next.size) {
+      let same = true;
+      for (const id of next) if (!prev.has(id)) { same = false; break; }
+      if (same) return;
+    }
+    this.svgOverlayIds = next;
+    this.requestRender(true);
+  }
   setDragOffset(ids, dx, dy) {
     this.dragOffset = ids && (dx || dy) ? {
       ids,
@@ -1514,8 +1528,10 @@ class SceneRenderer {
         activeClipMode = 'stencil';
       }
     };
+    const svgOverlayIds = this.svgOverlayIds;
     const renderObjWebGL = (o, isDragged) => {
       if (!o || o.hidden) return;
+      if (svgOverlayIds && svgOverlayIds.has(o.id)) return;
       const odx = isDragged ? drag.dx : 0,
         ody = isDragged ? drag.dy : 0;
       const bb = vinfo(o).bb;

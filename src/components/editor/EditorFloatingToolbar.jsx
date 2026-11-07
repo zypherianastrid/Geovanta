@@ -3,11 +3,27 @@
  * @description Komponen bilah alat melayang utama di bagian bawah kanvas (EditorFloatingToolbar)
  */
 import React from 'react';
-import { VE_TOOLS, SHAPES, DEFAULT_SNAP_CFG, SNAP_OPTS, SNAP_TOOL_CAPABILITIES } from '../../constants/editorToolsAndShapes.jsx';
+import { VE_TOOLS, SHAPES, SNAP_OPTS, SNAP_TOOL_CAPABILITIES } from '../../constants/editorToolsAndShapes.jsx';
 import { TIPS } from '../../constants/tooltipsCatalog.jsx';
 import { Vi, Chev, ShapeGlyph, IconBtn } from '../ui/IconGlyphs.jsx';
 import { Float } from '../ui/FloatPopover.jsx';
 import { VE } from '../../engine/vectorEngine.jsx';
+
+const FrameToolGlyph = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v3 M16 4h3a1 1 0 0 1 1 1v3 M20 16v3a1 1 0 0 1-1 1h-3 M8 20H5a1 1 0 0 1-1-1v-3" /><rect x="8" y="8" width="8" height="8" rx="1.2" /><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none" /></svg>;
+
+const SNAP_ICON_PATHS = {
+  bbox: <><rect x="4" y="4" width="16" height="16" rx="1" /><path d="M12 2v4 M12 18v4 M2 12h4 M18 12h4" /></>,
+  spacing: <><path d="M3 5v14 M21 5v14 M7 12h10 M7 12l2.5-2.5 M7 12l2.5 2.5 M17 12l-2.5-2.5 M17 12l-2.5 2.5" /></>,
+  artboard: <><rect x="3" y="3" width="18" height="18" rx="1" /><path d="M12 3v18 M3 12h18" /></>,
+  node: <><rect x="9" y="9" width="6" height="6" rx="1" /><path d="M4 20 9 15 M20 4l-5 5" /><circle cx="3.5" cy="20.5" r="1.3" /><circle cx="20.5" cy="3.5" r="1.3" /></>,
+  axial: <><path d="M4 20V4 M4 20h16" /><circle cx="12" cy="12" r="2" /><path d="M12 14v6 M10 12H4" strokeDasharray="2 2.4" /></>,
+  midpoint: <><path d="M3 18 21 6" /><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" /><path d="M12 3.5v3 M12 17.5v3" /></>,
+  edge: <><path d="M3 17C7 17 7 7 12 7s5 10 9 10" /><circle cx="12" cy="7" r="1.8" fill="currentColor" stroke="none" /></>,
+  perp: <><path d="M5 4v15h15" /><path d="M5 14h5v5" /><path d="M15 4h5v5" strokeDasharray="2 2.4" /></>,
+  grid: <><rect x="3" y="3" width="18" height="18" rx="1.5" /><path d="M9 3v18 M15 3v18 M3 9h18 M3 15h18" /></>,
+  pixel: <><rect x="4" y="4" width="6" height="6" /><rect x="14" y="4" width="6" height="6" /><rect x="4" y="14" width="6" height="6" /><rect x="14" y="14" width="6" height="6" fill="currentColor" stroke="none" /></>
+};
+const SnapIcon = ({ k }) => <svg className="snp-custom-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{SNAP_ICON_PATHS[k] || <circle cx="12" cy="12" r="6" />}</svg>;
 
 const EditorFloatingToolbar = ({
   tool,
@@ -51,7 +67,20 @@ const EditorFloatingToolbar = ({
   opacity: 1,
   backdropFilter: 'none',
   WebkitBackdropFilter: 'none'
-}} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>{VE_TOOLS.map(entry => {
+}} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><style>{`
+  .fig-floating-bar .tool-btn, .flt .opt, .flt .tool-btn, .flt .ved-pill, .flt .snp-row { transition: background-color .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+  .fig-floating-bar .tool-btn:hover:not(:disabled), .flt .opt:hover, .flt .tool-btn:hover:not(:disabled), .flt .ved-pill:hover:not(:disabled), .flt .snp-row:hover:not(:disabled) { background-color: color-mix(in srgb, var(--acc) 12%, var(--card)); color: var(--ink); border-color: color-mix(in srgb, var(--acc) 32%, var(--line)); }
+  .fig-floating-bar .tool-btn:focus-visible, .flt .opt:focus-visible, .flt button:focus-visible { outline: 2px solid color-mix(in srgb, var(--acc) 72%, transparent); outline-offset: 1px; }
+  .flt .snp-row, .flt .snp-row:hover:not(:disabled), .flt .snp-row.on, .flt .snp-row:focus-visible { background: transparent !important; border: 0 !important; box-shadow: none !important; outline: none; }
+  .flt .snp-row { color: var(--ink); }
+  .flt .snp-row .snp-custom-icon { color: var(--mut); flex: none; transition: color .16s ease; }
+  .flt .snp-row:hover:not(:disabled) .snp-custom-icon, .flt .snp-row.on .snp-custom-icon { color: var(--acc); }
+  .flt .snp-row:hover:not(:disabled) .snp-lb { color: var(--ink); }
+  .flt .snp-row .snp-sw { background: color-mix(in srgb, var(--acc) 22%, var(--line)) !important; }
+  .flt .snp-row.on .snp-sw { background: var(--acc) !important; }
+  .flt .snp-row .snp-sw::after { background: #fff !important; }
+  .flt .opt { cursor: pointer; }
+`}</style>{VE_TOOLS.map(entry => {
     if (entry.type === 'single') {
       const [k, tip, d] = entry.item;
       return <button key={k} type="button" className={'tool-btn' + (tool === k ? ' on' : '')} data-tip={tip} aria-label={TIPS[tip] ? TIPS[tip].t : k} onClick={() => {
@@ -92,10 +121,10 @@ const EditorFloatingToolbar = ({
                 opacity: on ? 1 : 0
               }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></span></div>;
         })}</Float></React.Fragment>;
-  })}<button type="button" className={'tool-btn' + (tool === 'frame' ? ' on' : '')} data-tip="veFrameTool" aria-label="Frame" onClick={() => {
+  })}<button type="button" className={'tool-btn' + (tool === 'frame' ? ' on' : '')} data-tool="frame" data-tip="veFrameTool" aria-label="Frame" onClick={() => {
     setShapeOpen(false);
     setTool('frame');
-  }}><Vi d="M7.5 3.5v17 M16.5 3.5v17 M3.5 7.5h17 M3.5 16.5h17" s={22} /></button><button type="button" className={'tool-btn' + (tool === 'text' ? ' on' : '')} title="Alat Teks (T) \u2014 Klik di kanvas untuk membuat objek teks SVG" aria-label="Text" onClick={() => {
+  }}><FrameToolGlyph /></button><button type="button" className={'tool-btn' + (tool === 'text' ? ' on' : '')} title="Alat Teks (T) \u2014 Klik di kanvas untuk membuat objek teks SVG" aria-label="Text" onClick={() => {
     setShapeOpen(false);
     setTool('text');
     say('Alat Teks (T): klik di kanvas untuk menambahkan teks');
@@ -109,9 +138,7 @@ const EditorFloatingToolbar = ({
         setTool('shape');
         setShapeOpen(false);
         say(lb + ': seret di kanvas untuk menggambar');
-      }}><ShapeGlyph k={k} s={22} /></button>)}</div></Float><span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center"><IconBtn s={22} on={snapOn} tip="veSnap" act={() => setSnapOn(s => !s)} d="M6 4v6a6 6 0 0 0 12 0V4 M6 7.5h3.5 M14.5 7.5H18" /><button type="button" className="tool-btn chev-btn" data-tip="veSnapMenu" aria-label="Opsi Checklist Snap" aria-expanded={snapMenuOpen} onClick={() => setSnapMenuOpen(o => !o)}><Chev open={snapMenuOpen} /></button></div><Float anchor={snapMenuBtn} open={snapMenuOpen} onClose={() => setSnapMenuOpen(false)} w={272} cls="cp" preferUp={true}><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold">Checklist Fitur Snap</span><div className="flex gap-1"><button type="button" className="ved-pill" data-tip="veSnapPresetDef" onClick={() => setSnapCfg({
-          ...DEFAULT_SNAP_CFG
-        })}>Bawaan</button><button type="button" className="ved-pill" data-tip="veSnapPresetAll" onClick={() => setSnapCfg({
+      }}><ShapeGlyph k={k} s={22} /></button>)}</div></Float><span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center"><IconBtn s={22} on={snapOn} tip="veSnap" act={() => setSnapOn(s => !s)} d="M6 4v6a6 6 0 0 0 12 0V4 M6 7.5h3.5 M14.5 7.5H18" /><button type="button" className="tool-btn chev-btn" data-tip="veSnapMenu" aria-label="Opsi Checklist Snap" aria-expanded={snapMenuOpen} onClick={() => setSnapMenuOpen(o => !o)}><Chev open={snapMenuOpen} /></button></div><Float anchor={snapMenuBtn} open={snapMenuOpen} onClose={() => setSnapMenuOpen(false)} w={272} cls="cp" preferUp={true}><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold">Checklist Fitur Snap</span><div className="flex gap-1"><button type="button" className="ved-pill" data-tip="veSnapPresetAll" onClick={() => setSnapCfg({
           bbox: true,
           spacing: true,
           artboard: true,
@@ -145,7 +172,7 @@ const EditorFloatingToolbar = ({
           opacity: activeInTool ? 1 : 0.65
         }} onClick={() => setSnapCfg(c => ({
           [k]: !c[k]
-        }))}><span className="snp-dot" /><span className="snp-lb">{label}{!activeInTool ? ' · (Alat lain)' : ''}</span><span className="snp-sw" aria-hidden="true" /></button>;
+        }))}><SnapIcon k={k} /><span className="snp-lb">{label}{!activeInTool ? ' · (Alat lain)' : ''}</span><span className="snp-sw" aria-hidden="true" /></button>;
       })}</div></Float><IconBtn s={22} on={gridOn} tip="veGrid" act={() => setGridOn(g => !g)} d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" /><span className="fig-bar-sep" /><div ref={mirrorBtn} className="inline-flex items-center"><button type="button" className={'tool-btn' + (mirrorCur ? ' on' : '')} disabled={!selNodes.size} data-tip="veMirror" aria-label="Mirroring Handle" aria-haspopup="listbox" aria-expanded={mirrorOpen} onClick={() => setMirrorOpen(o => !o)}><Vi d={(MIRROR_OPTS.find(q => q[0] === (mirrorCur || 'symmetric')) || MIRROR_OPTS[3])[3]} s={22} /></button><button type="button" className="tool-btn chev-btn" disabled={!selNodes.size} data-tip="veMirror" aria-label="Pilih mode mirroring" aria-expanded={mirrorOpen} onClick={e => {
       e.stopPropagation();
       setMirrorOpen(o => !o);

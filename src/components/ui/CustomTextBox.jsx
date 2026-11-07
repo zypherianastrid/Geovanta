@@ -20,17 +20,28 @@ const CustomTextBox = ({
   maxLen,
   upper,
   autoFocus,
-  cls = ''
+  cls = '',
+  canvasScaleX = 1,
+  canvasScaleY = 1,
+  canvasWidth = 0,
+  canvasZoom = 1,
+  canvasLetterSpacing = 0,
+  canvasWordSpacing = 0
 }) => {
   const ref = useRef(null);
+  const isCanvasInline = typeof cls === 'string' && cls.includes('ct-canvas-inline');
   const [editing, setEditing] = useState(false);
   const [buf, setBuf] = useState(String(value ?? ''));
   const [caret, setCaret] = useState(String(value ?? '').length);
   const [selAll, setSelAll] = useState(false);
+  const [nativeCaretPos, setNativeCaretPos] = useState({ x: 0, y: 0, h: 16 });
   const skipRef = useRef(false);
   const bufRef = useRef(String(value ?? ''));
   const bumpedRef = useRef(false);
   const justFocusedRef = useRef(false);
+  const doneRef = useRef(false);
+  /* Caret native <textarea> dipakai langsung (selalu sejajar dengan teks); caret simulasi berbasis measureText dihapus karena sering meleset */
+  const updateCanvasCaret = () => {};
   useEffect(() => {
     const s = String(value ?? '');
     if (!editing || bumpedRef.current) {
@@ -48,7 +59,15 @@ const CustomTextBox = ({
       setBuf(s);
       bufRef.current = s;
       setCaret(s.length);
-      setSelAll(!!selectOnFocus);
+      setSelAll(isCanvasInline ? false : !!selectOnFocus);
+      if (isCanvasInline && ref.current.setSelectionRange) {
+        requestAnimationFrame(() => {
+          if (!ref.current) return;
+          const p = selectOnFocus ? 0 : s.length;
+          ref.current.setSelectionRange(p, selectOnFocus ? s.length : p);
+          updateCanvasCaret();
+        });
+      }
     }
   }, [autoFocus]);
   const updateBuf = (nextStr, nextCaret) => {
@@ -60,16 +79,17 @@ const CustomTextBox = ({
   };
   const startEdit = () => {
     if (dis) return;
+    doneRef.current = false;
     const s = String(value ?? '');
-    justFocusedRef.current = true;
     setEditing(true);
     setBuf(s);
     bufRef.current = s;
     setCaret(s.length);
-    setSelAll(!!selectOnFocus);
+    setSelAll(isCanvasInline ? false : !!selectOnFocus);
   };
   const finishEdit = () => {
-    if (!editing) return;
+    if (!editing || doneRef.current) return;
+    doneRef.current = true;
     setEditing(false);
     setSelAll(false);
     if (skipRef.current) {
@@ -85,6 +105,15 @@ const CustomTextBox = ({
   const onKeyDown = e => {
     if (dis) return;
     e.stopPropagation();
+    if (isCanvasInline || multiline) {
+      /* Editor teks kanvas: Enter = baris baru; Esc atau Ctrl/Cmd + Enter = selesai (teks tersimpan) */
+      if (isCanvasInline && (e.key === 'Escape' || e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
+        e.preventDefault();
+        finishEdit();
+        ref.current && ref.current.blur();
+      }
+      return;
+    }
     const curBuf = bufRef.current;
     if (e.key === 'Enter') {
       if (multiline && e.shiftKey) {
@@ -201,10 +230,39 @@ const CustomTextBox = ({
     setEditing(true);
     updateBuf(next, Math.min(next.length, pos + s.length));
   };
+  const onCanvasChange = e => {
+    let next = String(e.target.value ?? '');
+    if (!multiline) next = next.replace(/[\r\n]+/g, ' ');
+    if (filterRe) next = next.replace(filterRe, '');
+    if (maxLen) next = next.slice(0, maxLen);
+    if (upper) next = next.toUpperCase();
+    updateBuf(next, e.target.selectionStart);
+    if (isCanvasInline) requestAnimationFrame(updateCanvasCaret);
+  };
+  const onCanvasPaste = e => {
+    if (dis) return;
+    const raw = e.clipboardData && e.clipboardData.getData('text/plain');
+    if (raw == null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    let insert = multiline ? String(raw).replace(/\r\n/g, '\n') : String(raw).replace(/[\r\n]+/g, ' ');
+    if (filterRe) insert = insert.replace(filterRe, '');
+    const el = e.currentTarget,
+      start = el.selectionStart || 0,
+      end = el.selectionEnd || start;
+    let next = bufRef.current.slice(0, start) + insert + bufRef.current.slice(end);
+    if (maxLen) next = next.slice(0, maxLen);
+    if (upper) next = next.toUpperCase();
+    const pos = Math.min(next.length, start + insert.length);
+    updateBuf(next, pos);
+    requestAnimationFrame(() => {
+      if (ref.current && ref.current.setSelectionRange) ref.current.setSelectionRange(pos, pos);
+      updateCanvasCaret();
+    });
+  };
   const shown = editing ? buf : String(value ?? '');
   const beforeCaret = editing && !selAll ? shown.slice(0, caret) : shown;
   const afterCaret = editing && !selAll ? shown.slice(caret) : '';
-  const isCanvasInline = typeof cls === 'string' && cls.includes('ct-canvas-inline');
   const boxStyle = isCanvasInline ? {
     background: 'transparent',
     border: 'none',
@@ -227,11 +285,14 @@ const CustomTextBox = ({
     wordBreak: 'break-word',
     minHeight: 24
   } : undefined;
+  if (isCanvasInline || multiline) return <div className={isCanvasInline ? 'ct-canvas-input-wrap' : 'ct-multiline-input-wrap'} style={isCanvasInline ? { position: 'relative', width: '100%', height: '100%' } : undefined}><textarea ref={ref} tabIndex={dis ? -1 : 0} aria-label={ariaLabel || placeholder} aria-disabled={!!dis} data-custom-input="true" className={'c-inp ' + cls + (dis ? ' dis' : '') + (editing ? ' ed' : '') + (!isCanvasInline ? ' c-inp-multiline' : '')} value={shown} placeholder={placeholder} disabled={dis} spellCheck={false} rows={isCanvasInline ? 1 : 4} wrap={isCanvasInline ? 'off' : 'soft'} style={isCanvasInline ? { ...boxStyle, display: 'block', width: 'calc(' + Math.max(0.1, canvasWidth * Math.abs(canvasScaleY) * canvasZoom) + 'px + 3em)', height: '100%', minHeight: 0, boxSizing: 'border-box', resize: 'none', overflow: 'visible', cursor: 'text', whiteSpace: 'pre', wordBreak: 'normal', transform: 'scaleX(' + canvasScaleX / Math.max(0.0001, Math.abs(canvasScaleY)) + ')', transformOrigin: '0 0', letterSpacing: canvasLetterSpacing * Math.abs(canvasScaleY) * canvasZoom + 'px', wordSpacing: canvasWordSpacing * Math.abs(canvasScaleY) * canvasZoom + 'px', caretColor: 'var(--acc)' } : { background: 'transparent', border: 'none', boxShadow: 'none', outline: 'none', padding: '4px 2px', margin: 0, display: 'block', width: '100%', minHeight: 96, maxHeight: 240, boxSizing: 'border-box', resize: 'vertical', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', font: 'inherit', color: 'inherit', lineHeight: 1.45 }} onFocus={e => { startEdit(); if (isCanvasInline) requestAnimationFrame(updateCanvasCaret); }} onBlur={finishEdit} onKeyDown={onKeyDown} onChange={onCanvasChange} onPaste={onCanvasPaste} onClick={isCanvasInline ? updateCanvasCaret : undefined} onKeyUp={isCanvasInline ? updateCanvasCaret : undefined} onSelect={isCanvasInline ? updateCanvasCaret : undefined} onPointerUp={isCanvasInline ? updateCanvasCaret : undefined} onPointerDown={isCanvasInline ? e => e.stopPropagation() : undefined} /></div>;
   return <div ref={ref} role="textbox" tabIndex={dis ? -1 : 0} aria-label={ariaLabel || placeholder} aria-disabled={!!dis} data-custom-input="true" className={'c-inp ' + cls + (dis ? ' dis' : '') + (editing ? ' ed' : '')} style={boxStyle} onFocus={startEdit} onBlur={finishEdit} onKeyDown={onKeyDown} onPaste={onPaste} onDoubleClick={e => {
     if (dis) return;
     e.stopPropagation();
     setEditing(true);
-    setSelAll(true);
+    /* Canvas text editing needs an insertion caret after a double-click, not
+       the select-all state that intentionally hides the simulated caret. */
+    setSelAll(!isCanvasInline);
     setCaret(shown.length);
   }} onClick={e => {
     if (dis) return;
@@ -248,6 +309,7 @@ const CustomTextBox = ({
     }
   }} onPointerDown={e => {
     if (dis) return;
+    justFocusedRef.current = document.activeElement !== ref.current;
     e.stopPropagation();
   }}>{!shown && !editing && placeholder ? <span className="mut opacity-60 pointer-events-none select-none truncate">{placeholder}</span> : editing && !selAll ? <span className="c-inp-txt">{beforeCaret}<span className="c-caret" aria-hidden="true" />{afterCaret}</span> : <><span className={'c-inp-txt' + (editing && selAll && shown ? ' sel' : '')}>{shown}</span>{editing && <span className="c-caret" aria-hidden="true" />}</>}</div>;
 };
