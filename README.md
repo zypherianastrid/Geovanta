@@ -1,4 +1,4 @@
-<p align="center">🌐 <a href="README.en.md">English</a> · <b>Bahasa Indonesia</b></p>
+<p align="center">🌐 <b>English</b> · <a href="README.id.md">Bahasa Indonesia</a></p>
 
 <p align="center">
   <img src="src-tauri/icons/icon.png" alt="Geovanta" width="120">
@@ -7,8 +7,8 @@
 <h1 align="center">Geovanta Vector Studio</h1>
 
 <p align="center">
-  <b>Editor vektor desktop untuk Windows 64-bit — cepat, presisi, dan 100% offline.</b><br>
-  Buat logo, ikon, ilustrasi, dan artwork vektor tanpa internet, tanpa langganan, tanpa loading CDN.
+  <b>Desktop vector editor for Windows 64-bit — fast, precise, and 100% offline.</b><br>
+  Create logos, icons, illustrations, and vector artwork with no internet, no subscription, and no CDN loading.
 </p>
 
 <p align="center">
@@ -20,121 +20,121 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/05-editor-fill-solid.png" alt="Geovanta Vector Studio — mengedit artwork Have a Good Day" width="100%">
-  <br><em>Mengedit artwork di Geovanta — layer, warna, dan kanvas dalam satu layar.</em>
+  <img src="assets/screenshots/05-editor-fill-solid.png" alt="Geovanta Vector Studio — editing the Have a Good Day artwork" width="100%">
+  <br><em>Editing artwork in Geovanta — layers, colors, and canvas on one screen.</em>
 </p>
 
 ---
 
-## ✨ Kenapa Geovanta?
+## ✨ Why Geovanta?
 
 | | |
 |---|---|
-| 🖥️ **Desktop asli, bukan web** | Rust + Tauri v2. Ringan, native, dan file kamu tetap di komputermu. |
-| 🔌 **100% offline** | Tanpa CDN, tanpa akun, tanpa server. React & Tailwind sudah dibundel lokal. |
-| 🎯 **Presisi ala Figma** | Snapping cerdas, equal spacing, dan panduan sejajar yang terasa natural. |
-| ✂️ **Pathfinder lengkap** | Boolean, Outline Stroke, dan Offset Path — fitur yang biasanya hanya ada di editor berbayar. |
-| 🌐 **Indonesia & English** | Seluruh antarmuka dan 303 tooltip tersedia dalam dua bahasa. |
-| ⚡ **Akselerasi GPU** | Mesin vektor WebGL2 dengan MSAA 4x — kanvas tetap mulus saat di-zoom. |
+| 🖥️ **A real desktop app, not a website** | Rust + Tauri v2. Lightweight, native, and your files stay on your computer. |
+| 🔌 **100% offline** | No CDN, no account, no server. React & Tailwind are bundled locally. |
+| 🎯 **Figma-grade precision** | Smart snapping, equal spacing, and alignment guides that feel natural. |
+| ✂️ **Full Pathfinder** | Boolean, Outline Stroke, and Offset Path — features usually found only in paid editors. |
+| 🌐 **Indonesian & English** | The entire interface and all 303 tooltips are available in both languages. |
+| ⚡ **GPU acceleration** | WebGL2 vector engine with MSAA 4x — the canvas stays smooth even when zoomed in. |
 
-## 🚀 Fitur Utama
+## 🚀 Key Features
 
-### 🎨 Menggambar & Mengedit Vektor
-- **Node editing Bézier** — edit titik, handle, dan kurva dengan kontrol penuh, sampai zoom 322%
-- **Shape, teks, dan gradien** — bentuk siap pakai, teks dengan Google Fonts, dan gradient gizmo di kanvas (Linear / Radial, OKLab & sRGB)
-- **Frame & Auto Layout** — susun komponen seperti di Figma: Baris / Kolom / Grid, alignment, gap, dan padding
-- **Simplify, fillet, dan straighten** — rapikan path berantakan jadi bersih dalam satu klik
+### 🎨 Drawing & Editing Vectors
+- **Bézier node editing** — edit points, handles, and curves with full control, up to 322% zoom
+- **Shapes, text, and gradients** — ready-made shapes, text with Google Fonts, and a gradient gizmo right on the canvas (Linear / Radial, OKLab & sRGB)
+- **Frames & Auto Layout** — arrange components like in Figma: Row / Column / Grid, alignment, gap, and padding
+- **Simplify, fillet, and straighten** — clean up messy paths in one click
 
 <p align="center">
-  <img src="assets/screenshots/06-editor-gradient.png" alt="Gradien linear kuning ke ungu di Geovanta" width="49%">
-  <img src="assets/screenshots/08-editor-node-zoom-export.png" alt="Zoom 322% menampilkan node Bézier" width="49%">
-  <br><em>Gradien linear dengan gizmo di kanvas, dan node Bézier yang tetap tajam saat di-zoom 322%.</em>
+  <img src="assets/screenshots/06-editor-gradient.png" alt="Yellow-to-purple linear gradient in Geovanta" width="49%">
+  <img src="assets/screenshots/08-editor-node-zoom-export.png" alt="Bézier nodes at 322% zoom" width="49%">
+  <br><em>A linear gradient with its on-canvas gizmo, and Bézier nodes that stay sharp at 322% zoom.</em>
 </p>
 
 ### ✂️ Boolean / Pathfinder
-Gabung, potong, dan iris bentuk sesuka hati — langsung dari floating bar, menu konteks, atau shortcut:
+Combine, cut, and slice shapes however you like — from the floating bar, the context menu, or a shortcut:
 
-| Operasi | Shortcut | Hasil |
+| Operation | Shortcut | Result |
 |---|---|---|
-| **Union** | `Ctrl+Alt+U` | Gabung 2+ bentuk jadi satu |
-| **Subtract** | `Ctrl+Alt+S` | Potong bentuk atas dari bentuk bawah |
-| **Intersect** | `Ctrl+Alt+I` | Ambil irisan kedua bentuk |
-| **Exclude** | `Ctrl+Alt+X` | Buang irisan, sisakan sisanya |
-| **Outline Stroke** | `Ctrl+Alt+O` | Ubah stroke jadi bentuk berisi |
-| **Offset Path** | menu konteks | Perbesar / perkecil path −100…+100 pt, join Miter / Bevel / Round, pratinjau langsung |
+| **Union** | `Ctrl+Alt+U` | Merge 2+ shapes into one |
+| **Subtract** | `Ctrl+Alt+S` | Cut the top shape out of the bottom one |
+| **Intersect** | `Ctrl+Alt+I` | Keep the intersection of both shapes |
+| **Exclude** | `Ctrl+Alt+X` | Remove the intersection, keep the rest |
+| **Outline Stroke** | `Ctrl+Alt+O` | Turn a stroke into a filled shape |
+| **Offset Path** | context menu | Expand / contract a path by −100…+100 pt, Miter / Bevel / Round joins, live preview |
 
-### 🧲 Snapping ala Figcraft
-- Snap 5 px yang terasa pas — tidak terlalu agresif, tidak terlalu longgar
-- **Equal spacing** antar objek terdeteksi otomatis
-- Tahan `Ctrl` / `Cmd` untuk mematikan snap sementara saat butuh kebebasan
+### 🧲 Figcraft-style Snapping
+- A 5 px snap that feels just right — not too aggressive, not too loose
+- **Equal spacing** between objects is detected automatically
+- Hold `Ctrl` / `Cmd` to temporarily disable snapping when you need freedom
 
-### 🗂️ Workspace & Layer
-- Manajemen proyek dengan thumbnail otomatis, favorit, dan trash
-- Panel layer yang dioptimalkan — scroll tetap mulus di proyek besar (27 objek, 389 node pada contoh di bawah)
-- Penyimpanan lokal (IndexedDB) dan pemulihan crash, tanpa cloud
-
-<p align="center">
-  <img src="assets/screenshots/02-workspace.png" alt="Workspace Geovanta — All Projects" width="49%">
-  <img src="assets/screenshots/07-editor-frame-autolayout.png" alt="Frame dengan Auto Layout" width="49%">
-  <br><em>Workspace dengan kartu proyek, dan Frame dengan Auto Layout + Selection Colors.</em>
-</p>
-
-### 🔤 Teks & Tipografi
-- Font family, weight, ukuran, gaya (Normal / Italic / Oblique), dan dekorasi teks
-- Tambah Google Fonts lewat URL, langsung dari panel inspector
+### 🗂️ Workspace & Layers
+- Project management with automatic thumbnails, favorites, and trash
+- An optimized layer panel — scrolling stays smooth in large projects (27 objects, 389 nodes in the example below)
+- Local storage (IndexedDB) and crash recovery, no cloud
 
 <p align="center">
-  <img src="assets/screenshots/01-editor-geovanta-text.png" alt="Teks GEOVANTA, Times New Roman 96px Semi Bold" width="100%">
-  <br><em>Teks GEOVANTA — Times New Roman, 96 px, Semi Bold.</em>
+  <img src="assets/screenshots/02-workspace.png" alt="Geovanta Workspace — All Projects" width="49%">
+  <img src="assets/screenshots/07-editor-frame-autolayout.png" alt="Frame with Auto Layout" width="49%">
+  <br><em>The workspace with project cards, and a Frame with Auto Layout + Selection Colors.</em>
 </p>
 
-### 🎛️ Pengaturan yang Bisa Diutak-atik
-- Tema Terang / Gelap / Sistem, bahasa Indonesia / English
-- **25 warna aksen** — dari Geovanta `#13b152` sampai Figma Blue, Indigo, Violet, dan Slate — plus pipet warna kustom
-- Animasi antarmuka, tooltip, dan simpan preferensi otomatis
+### 🔤 Text & Typography
+- Font family, weight, size, style (Normal / Italic / Oblique), and text decoration
+- Add Google Fonts via URL, right from the inspector panel
 
 <p align="center">
-  <img src="assets/screenshots/03-settings.png" alt="Pengaturan — Tampilan & Warna" width="49%">
-  <img src="assets/screenshots/04-settings-gpu-about.png" alt="Pengaturan — Mesin Vektor & Diagnostik, Tentang Geovanta v1.0" width="49%">
-  <br><em>Pengaturan tampilan & warna aksen, serta mesin vektor GPU dan halaman Tentang — Versi 1.0.</em>
+  <img src="assets/screenshots/01-editor-geovanta-text.png" alt="GEOVANTA text, Times New Roman 96px Semi Bold" width="100%">
+  <br><em>GEOVANTA text — Times New Roman, 96 px, Semi Bold.</em>
 </p>
 
-### 📁 Impor & Ekspor
-- Ekspor **SVG, PNG, JPG, WEBP, AI, EPS** — per Artboard, Semua, atau Seleksi
-- Salin SVG langsung, dan ekspor backup proyek (`.GEOVANTA`)
+### 🎛️ Settings You Can Tweak
+- Light / Dark / System theme, Indonesian / English language
+- **25 accent colors** — from Geovanta `#13b152` to Figma Blue, Indigo, Violet, and Slate — plus a custom color picker
+- Interface animations, tooltips, and automatic preference saving
 
-## 📥 Instalasi
+<p align="center">
+  <img src="assets/screenshots/03-settings.png" alt="Settings — Appearance & Colors" width="49%">
+  <img src="assets/screenshots/04-settings-gpu-about.png" alt="Settings — Vector Engine & Diagnostics, About Geovanta v1.0" width="49%">
+  <br><em>Appearance & accent color settings, plus the GPU vector engine and the About page — Version 1.0.</em>
+</p>
 
-### Opsi 1 — Installer Windows (paling mudah)
-1. Build installer di PC Windows 64-bit dengan Rust terinstal, lalu jalankan:
+### 📁 Import & Export
+- Export **SVG, PNG, JPG, WEBP, AI, EPS** — per Artboard, All, or Selection
+- Copy SVG directly, and export a project backup (`.GEOVANTA`)
+
+## 📥 Installation
+
+### Option 1 — Windows Installer (easiest)
+1. Build the installer on a 64-bit Windows PC with Rust installed, then run:
    ```bat
    build-windows-64bit.bat
    ```
-2. Hasilnya: installer **NSIS (`.exe`)** dan **WiX MSI (`.msi`)** 64-bit di `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`.
+2. Result: a 64-bit **NSIS installer (`.exe`)** and **WiX MSI (`.msi`)** in `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`.
 
-### Opsi 2 — GitHub Actions
-Workflow `.github/workflows/build-windows-x64.yml` membangun `.exe` dan `.msi` otomatis di runner `windows-latest`.
+### Option 2 — GitHub Actions
+The `.github/workflows/build-windows-x64.yml` workflow builds the `.exe` and `.msi` automatically on a `windows-latest` runner.
 
-## 🛠️ Untuk Developer
+## 🛠️ For Developers
 
 ```bash
-npm install --no-save esbuild   # sekali saja
-npm run build:web               # kompilasi ulang bundle web
+npm install --no-save esbuild   # once only
+npm run build:web               # rebuild the web bundle
 ```
 
-> `index.html` memuat `dist/assets/geovanta.bundle.js`, bukan `src/*.jsx` langsung — jadi setiap selesai mengedit `src/`, bundle harus dikompilasi ulang.
+> `index.html` loads `dist/assets/geovanta.bundle.js`, not `src/*.jsx` directly — so after editing `src/`, rebuild the bundle.
 
-**Stack:** Rust + Tauri v2 · React 18.3.1 · Tailwind CSS 3.4.17 · esbuild — semuanya offline, tanpa CDN dan tanpa CSS native.
+**Stack:** Rust + Tauri v2 · React 18.3.1 · Tailwind CSS 3.4.17 · esbuild — all offline, no CDN and no native CSS.
 
 <details>
-<summary><b>Struktur proyek</b></summary>
+<summary><b>Project structure</b></summary>
 
-- `src/engine/` — mesin vektor: parser SVG, Bézier, snapping, Boolean, offset, gradien
-- `src/renderer/` — renderer kanvas, flattener kubik adaptif, dan triangulasi
-- `src/components/editor/` — VectorEditor, floating toolbar, inspector, panel layer
-- `src/workspace/` — proyek, aset, thumbnail, dan penyimpanan lokal
-- `src-tauri/` — backend Rust + konfigurasi installer Windows 64-bit
-- `assets/screenshots/` — screenshot untuk README ini
+- `src/engine/` — vector engine: SVG parser, Bézier, snapping, Boolean, offset, gradients
+- `src/renderer/` — canvas renderer, adaptive cubic flattener, and triangulation
+- `src/components/editor/` — VectorEditor, floating toolbar, inspector, layer panel
+- `src/workspace/` — projects, assets, thumbnails, and local storage
+- `src-tauri/` — Rust backend + Windows 64-bit installer configuration
+- `assets/screenshots/` — screenshots for this README
 
 </details>
 
