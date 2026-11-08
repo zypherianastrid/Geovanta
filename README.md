@@ -1,72 +1,143 @@
-# Geovanta Vector Studio — Windows 64-Bit Desktop App (Rust + Tauri)
+<p align="center">
+  <img src="src-tauri/icons/icon.png" alt="Geovanta" width="120">
+</p>
 
-Aplikasi desktop **Geovanta Vector Studio** untuk **Windows 64-bit (`x86_64-pc-windows-msvc`)** menggunakan **Rust + Tauri v2**, **React 18 (JSX)**, dan **Tailwind CSS v3.4.17** secara **100% Offline (Tanpa CDN & Tanpa Native CSS)**.
+<h1 align="center">Geovanta Vector Studio</h1>
 
-## Arsitektur Proyek
+<p align="center">
+  <b>Editor vektor desktop untuk Windows 64-bit — cepat, presisi, dan 100% offline.</b><br>
+  Buat logo, ikon, ilustrasi, dan artwork vektor tanpa internet, tanpa langganan, tanpa loading CDN.
+</p>
 
-1. **1 File HTML Utama (`index.html`)**
-   - Titik masuk DOM tunggal tanpa tag `<style>` native CSS dan tanpa link CDN eksternal.
-2. **88 File Modular `.jsx` Berdasarkan Fungsinya (`src/`)**
-   - `src/main.jsx` — Entrypoint aplikasi & registrasi bridge desktop Tauri.
-   - `src/App.jsx` — Router aplikasi (`WorkspaceHome` & `VectorEditor`), manajemen preferensi, dialog pemulihan crash, & kuota penyimpanan.
-   - `src/vendor/` (3 file `.jsx`)
-     - `reactOfflineBundle.jsx` — Bundle lokal penuh React 18.3.1 & ReactDOM 18.3.1 (tanpa CDN).
-     - `tailwindOfflineBundle.jsx` — Engine & runtime penuh Tailwind CSS v3.4.17 + plugin tema variabel desain Geovanta (tanpa CDN & tanpa file `.css` native).
-     - `tauriDesktopBridge.jsx` — Bridge komunikasi IPC Rust Tauri (`set_window_title`, `get_system_info`, `save_vector_file`, `read_vector_file`).
-   - `src/constants/` (7 file `.jsx`)
-     - `brandAndIcons.jsx`, `tooltipsCatalog.jsx`, `keyboardShortcuts.jsx`, `themeAndPrefsConstants.jsx`, `fontCatalog.jsx`, `workspaceConstants.jsx`, `editorToolsAndShapes.jsx`.
-   - `src/utils/` (10 file `.jsx`)
-     - `colorMath.jsx`, `colorParserAndFormatter.jsx`, `screenPipette.jsx`, `presenceAndFilePicker.jsx`, `themeAndPrefsManager.jsx`, `gpuCapabilities.jsx`, `renderConfigAndTelemetry.jsx`, `zoomAndFormatHelpers.jsx`, `fontManager.jsx`, `shapeGenerators.jsx`.
-   - `src/engine/` (22 file `.jsx`)
-     - `vectorPrimitives.jsx`, `transformMatrixParser.jsx`, `arcToBezier.jsx`, `svgPathParser.jsx`, `svgPathSerializer.jsx`, `textAndImageEngine.jsx`, `gradientEngine.jsx`, `svgDocumentParser.jsx`, `svgDocumentSerializer.jsx`, `straightenAndAlignNodes.jsx`, `cornerFilletEngine.jsx`, `nodeEditingAndHandles.jsx`, `bezierSubdivisionAndMove.jsx`, `spatialIndexAndHitTest.jsx`, `multiSnapSolver.jsx`, `curveFittingAndAnomalies.jsx`, `topologicalCurveSimplifier.jsx`, `postscriptAiRasterIo.jsx`, `selectionTransformAndAlign.jsx`, `figmaAutoLayoutAndFrames.jsx`, `affineAndOrientedBox.jsx`, `autoRefineGeometry.jsx`, `vectorEngine.jsx`.
-   - `src/renderer/` (8 file `.jsx`)
-     - `subpathBBox.jsx`, `geometryCache.jsx`, `adaptiveCubicFlattener.jsx`, `objectTessellationLod.jsx`, `polygonTriangulatorAndStroke.jsx`, `sceneRenderer.jsx`, `pathWindingAndBatching.jsx`, `benchmarkSuite.jsx`.
-   - `src/workspace/` (6 file `.jsx`)
-     - `workspaceDb.jsx`, `assetManager.jsx`, `thumbnailGenerator.jsx`, `zipEngine.jsx`, `projectRepository.jsx`, `workspaceController.jsx`.
-   - `src/components/ui/` (12 file `.jsx`)
-     - `IconGlyphs.jsx`, `Slider.jsx`, `RangeField.jsx`, `FloatPopover.jsx`, `SelectDropdown.jsx`, `SegmentedControl.jsx`, `CustomTextBox.jsx`, `TransformField.jsx`, `PinGridSelector.jsx`, `ColorPickerField.jsx`, `ColorHexInput.jsx`, `ContextMenu.jsx`.
-   - `src/components/modals/` (3 file `.jsx`)
-     - `TooltipHost.jsx`, `HelpShortcutsModal.jsx`, `SettingsModal.jsx`.
-   - `src/components/editor/` (13 file `.jsx`)
-     - `GradientEditorPanel.jsx`, `GradientCanvasGizmo.jsx`, `SelectionRotationAndRedlines.jsx`, `CanvasVectorObjects.jsx`, `RenderDebugCanvasOverlay.jsx`, `LayerTreeViewport.jsx`, `EditorActionRail.jsx`, `EditorLeftSidebar.jsx`, `EditorSimplifyStrip.jsx`, `EditorFloatingToolbar.jsx`, `EditorRightInspector.jsx`, `VectorEditor.jsx`.
-   - `src/components/workspace/` (2 file `.jsx`)
-     - `WorkspaceProjectThumb.jsx`, `WorkspaceHome.jsx`.
-3. **Paket Offline Lokal (`node_modules/` & `dist/assets/geovanta.bundle.js`)**
-   - `node_modules/react`, `node_modules/react-dom`, dan `node_modules/tailwindcss` sudah terinstal di dalam folder proyek.
-   - `dist/assets/geovanta.bundle.js` berisi hasil kompilasi seluruh 88 modul `.jsx` beserta React 18 dan Tailwind CSS sehingga langsung berjalan 100% offline.
-4. **Backend Rust & Tauri Windows 64-Bit Installer (`src-tauri/`)**
-   - `src-tauri/Cargo.toml` — Konfigurasi crate Rust dengan optimasi rilis (`lto = true`, `opt-level = 3`, `strip = true`).
-   - `src-tauri/tauri.conf.json` — Target installer Windows 64-bit **NSIS (`_x64-setup.exe`)** dan **WiX MSI (`_x64_en-US.msi`)**.
-   - `src-tauri/src/main.rs` & `src-tauri/src/lib.rs` — Subsystem Windows native (`#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`) dan perintah IPC file/window.
-   - `src-tauri/icons/` — Ikon aplikasi desktop Windows (`.ico` multi-resolusi & `.png`).
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-64--bit-0078D6?style=flat-square&logo=windows" alt="Windows 64-bit">
+  <img src="https://img.shields.io/badge/Tauri-v2-FFC131?style=flat-square&logo=tauri" alt="Tauri v2">
+  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react" alt="React 18">
+  <img src="https://img.shields.io/badge/Offline-100%25-22c55e?style=flat-square" alt="100% Offline">
+  <img src="https://img.shields.io/badge/Version-1.0-13b152?style=flat-square" alt="Version 1.0">
+</p>
 
-## Cara Build Installer Windows 64-Bit (`.exe` & `.msi`)
+<p align="center">
+  <img src="assets/screenshots/05-editor-fill-solid.png" alt="Geovanta Vector Studio — mengedit artwork Have a Good Day" width="100%">
+  <br><em>Mengedit artwork di Geovanta — layer, warna, dan kanvas dalam satu layar.</em>
+</p>
 
-### Opsi 1: Klik Ganda Script Otomatis (Windows 64-Bit)
-Jalankan file **`build-windows-64bit.bat`** pada PC Windows 64-bit yang memiliki Rust (`https://rustup.rs`). Script ini otomatis menjalankan:
-```bat
-rustup target add x86_64-pc-windows-msvc
-node scripts/build-offline-bundle.js
-cd src-tauri
-cargo tauri build --target x86_64-pc-windows-msvc
+---
+
+## ✨ Kenapa Geovanta?
+
+| | |
+|---|---|
+| 🖥️ **Desktop asli, bukan web** | Rust + Tauri v2. Ringan, native, dan file kamu tetap di komputermu. |
+| 🔌 **100% offline** | Tanpa CDN, tanpa akun, tanpa server. React & Tailwind sudah dibundel lokal. |
+| 🎯 **Presisi ala Figma** | Snapping cerdas, equal spacing, dan panduan sejajar yang terasa natural. |
+| ✂️ **Pathfinder lengkap** | Boolean, Outline Stroke, dan Offset Path — fitur yang biasanya hanya ada di editor berbayar. |
+| 🌐 **Indonesia & English** | Seluruh antarmuka dan 303 tooltip tersedia dalam dua bahasa. |
+| ⚡ **Akselerasi GPU** | Mesin vektor WebGL2 dengan MSAA 4x — kanvas tetap mulus saat di-zoom. |
+
+## 🚀 Fitur Utama
+
+### 🎨 Menggambar & Mengedit Vektor
+- **Node editing Bézier** — edit titik, handle, dan kurva dengan kontrol penuh, sampai zoom 322%
+- **Shape, teks, dan gradien** — bentuk siap pakai, teks dengan Google Fonts, dan gradient gizmo di kanvas (Linear / Radial, OKLab & sRGB)
+- **Frame & Auto Layout** — susun komponen seperti di Figma: Baris / Kolom / Grid, alignment, gap, dan padding
+- **Simplify, fillet, dan straighten** — rapikan path berantakan jadi bersih dalam satu klik
+
+<p align="center">
+  <img src="assets/screenshots/06-editor-gradient.png" alt="Gradien linear kuning ke ungu di Geovanta" width="49%">
+  <img src="assets/screenshots/08-editor-node-zoom-export.png" alt="Zoom 322% menampilkan node Bézier" width="49%">
+  <br><em>Gradien linear dengan gizmo di kanvas, dan node Bézier yang tetap tajam saat di-zoom 322%.</em>
+</p>
+
+### ✂️ Boolean / Pathfinder
+Gabung, potong, dan iris bentuk sesuka hati — langsung dari floating bar, menu konteks, atau shortcut:
+
+| Operasi | Shortcut | Hasil |
+|---|---|---|
+| **Union** | `Ctrl+Alt+U` | Gabung 2+ bentuk jadi satu |
+| **Subtract** | `Ctrl+Alt+S` | Potong bentuk atas dari bentuk bawah |
+| **Intersect** | `Ctrl+Alt+I` | Ambil irisan kedua bentuk |
+| **Exclude** | `Ctrl+Alt+X` | Buang irisan, sisakan sisanya |
+| **Outline Stroke** | `Ctrl+Alt+O` | Ubah stroke jadi bentuk berisi |
+| **Offset Path** | menu konteks | Perbesar / perkecil path −100…+100 pt, join Miter / Bevel / Round, pratinjau langsung |
+
+### 🧲 Snapping ala Figcraft
+- Snap 5 px yang terasa pas — tidak terlalu agresif, tidak terlalu longgar
+- **Equal spacing** antar objek terdeteksi otomatis
+- Tahan `Ctrl` / `Cmd` untuk mematikan snap sementara saat butuh kebebasan
+
+### 🗂️ Workspace & Layer
+- Manajemen proyek dengan thumbnail otomatis, favorit, dan trash
+- Panel layer yang dioptimalkan — scroll tetap mulus di proyek besar (27 objek, 389 node pada contoh di bawah)
+- Penyimpanan lokal (IndexedDB) dan pemulihan crash, tanpa cloud
+
+<p align="center">
+  <img src="assets/screenshots/02-workspace.png" alt="Workspace Geovanta — All Projects" width="49%">
+  <img src="assets/screenshots/07-editor-frame-autolayout.png" alt="Frame dengan Auto Layout" width="49%">
+  <br><em>Workspace dengan kartu proyek, dan Frame dengan Auto Layout + Selection Colors.</em>
+</p>
+
+### 🔤 Teks & Tipografi
+- Font family, weight, ukuran, gaya (Normal / Italic / Oblique), dan dekorasi teks
+- Tambah Google Fonts lewat URL, langsung dari panel inspector
+
+<p align="center">
+  <img src="assets/screenshots/01-editor-geovanta-text.png" alt="Teks GEOVANTA, Times New Roman 96px Semi Bold" width="100%">
+  <br><em>Teks GEOVANTA — Times New Roman, 96 px, Semi Bold.</em>
+</p>
+
+### 🎛️ Pengaturan yang Bisa Diutak-atik
+- Tema Terang / Gelap / Sistem, bahasa Indonesia / English
+- **25 warna aksen** — dari Geovanta `#13b152` sampai Figma Blue, Indigo, Violet, dan Slate — plus pipet warna kustom
+- Animasi antarmuka, tooltip, dan simpan preferensi otomatis
+
+<p align="center">
+  <img src="assets/screenshots/03-settings.png" alt="Pengaturan — Tampilan & Warna" width="49%">
+  <img src="assets/screenshots/04-settings-gpu-about.png" alt="Pengaturan — Mesin Vektor & Diagnostik, Tentang Geovanta v1.0" width="49%">
+  <br><em>Pengaturan tampilan & warna aksen, serta mesin vektor GPU dan halaman Tentang — Versi 1.0.</em>
+</p>
+
+### 📁 Impor & Ekspor
+- Ekspor **SVG, PNG, JPG, WEBP, AI, EPS** — per Artboard, Semua, atau Seleksi
+- Salin SVG langsung, dan ekspor backup proyek (`.GEOVANTA`)
+
+## 📥 Instalasi
+
+### Opsi 1 — Installer Windows (paling mudah)
+1. Build installer di PC Windows 64-bit dengan Rust terinstal, lalu jalankan:
+   ```bat
+   build-windows-64bit.bat
+   ```
+2. Hasilnya: installer **NSIS (`.exe`)** dan **WiX MSI (`.msi`)** 64-bit di `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`.
+
+### Opsi 2 — GitHub Actions
+Workflow `.github/workflows/build-windows-x64.yml` membangun `.exe` dan `.msi` otomatis di runner `windows-latest`.
+
+## 🛠️ Untuk Developer
+
+```bash
+npm install --no-save esbuild   # sekali saja
+npm run build:web               # kompilasi ulang bundle web
 ```
 
-Hasil installer 64-bit akan tersedia di:
-- **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Studio_6.4.0_x64-setup.exe`
-- **MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Studio_6.4.0_x64_en-US.msi`
+> `index.html` memuat `dist/assets/geovanta.bundle.js`, bukan `src/*.jsx` langsung — jadi setiap selesai mengedit `src/`, bundle harus dikompilasi ulang.
 
-### Opsi 2: Build Otomatis via GitHub Actions
-Proyek ini juga dilengkapi workflow `.github/workflows/build-windows-x64.yml` yang siap mengompilasi installer `.exe` dan `.msi` 64-bit secara otomatis di runner `windows-latest`.
+**Stack:** Rust + Tauri v2 · React 18.3.1 · Tailwind CSS 3.4.17 · esbuild — semuanya offline, tanpa CDN dan tanpa CSS native.
 
-## Catatan Build (diperbarui)
+<details>
+<summary><b>Struktur proyek</b></summary>
 
-- `index.html` TIDAK membaca file `src/*.jsx` secara langsung — ia memuat `dist/assets/geovanta.bundle.js`.
-  Setiap selesai mengedit `src/`, bundle harus dikompilasi ulang:
-  ```
-  npm install --no-save esbuild   # sekali saja
-  npm run build:web
-  ```
-- `scripts/build-offline-bundle.js` mengompilasi ulang bundle (jika `esbuild` terpasang) lalu menyalin
-  `index.html` + bundle ke folder terisolasi `web/`, yang dipakai Tauri sebagai `frontendDist`
-  (Tauri v2 menolak `frontendDist` yang mencakup `node_modules` / `src-tauri`).
-- Tanpa `esbuild`, skrip memakai bundle yang sudah ada di `dist/` (sudah berisi 25 warna aksen).
+- `src/engine/` — mesin vektor: parser SVG, Bézier, snapping, Boolean, offset, gradien
+- `src/renderer/` — renderer kanvas, flattener kubik adaptif, dan triangulasi
+- `src/components/editor/` — VectorEditor, floating toolbar, inspector, panel layer
+- `src/workspace/` — proyek, aset, thumbnail, dan penyimpanan lokal
+- `src-tauri/` — backend Rust + konfigurasi installer Windows 64-bit
+- `assets/screenshots/` — screenshot untuk README ini
+
+</details>
+
+---
+
+<p align="center">
+  <b>Geovanta Vector Studio v1.0</b> — Precision Vector Studio · Hybrid WebGL2 Engine · Adaptive Bézier &amp; Topology
+</p>
