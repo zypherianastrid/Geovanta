@@ -38,6 +38,7 @@ class SceneRenderer {
     this._lastRenderView = null; /* PANFIX: view (zoom/pan) saat canvas terakhir kali di-render; dipakai untuk CSS transform selama drag pan/zoom */
     this._cssTransformActive = false;
     this.isLiveDrag = false; /* FOLLOWUP node-drag: true selama drag node/handle/obj via live(); render DPR 0.5x + throttle saat true */
+    this._wasInteracting = false; /* ZOOMSHARP: status interaksi pada renderFrame sebelumnya; dipakai untuk mendeteksi frame pertama drag */
     this._gpuTimer = null; /* P2-05 wiring: state EXT_disjoint_timer_query_webgl2 (null bila extension tak tersedia) */
     this._lastObjDragRenderTs = 0; /* PANFIX2: timestamp render terakhir saat drag objek (throttle async) */
     this._frameBoxesRef = null;
@@ -1311,12 +1312,24 @@ class SceneRenderer {
        saat drag objek sama beratnya (1044 objek, ~667ms/frame), jadi DPR 0.5x,
        throttle & sub-pixel cull juga berlaku untuknya. */
     const renderInteracting = interacting || !!this.dragOffset || !!this.isLiveDrag;
-    /* PANFIX: Selama drag pan/zoom (force + interacting), JANGAN render WebGL
-       tiap frame — terapkan CSS transform saja dan lewati render. Render WebGL
-       1044 objek ~300ms/frame (SwiftShader; berat di GPU lemah) adalah sumber
-       hang/patah-patah saat pan. Render sungguhan terjadi saat settle
-       (interacting=false) atau bila belum ada baseline (_lastRenderView null). */
-    if (force && interacting && this._lastRenderView) {
+    /* PANFIX (diubah ZOOMSHARP): Selama drag pan/zoom (force + interacting),
+       JANGAN selalu lewati render WebGL — itu membuat canvas blur saat ZOOM
+       (piksel lama direntangkan via CSS) dan objek tak ter-render sampai drag
+       dilepas. Tapi PAN beda dari ZOOM: pan hanya MENGGESER canvas (translasi,
+       tanpa peregangan piksel), jadi CSS transform tetap tepat & tercepat untuk
+       pan — JANGAN ubah perilaku pan. ADAPTIF HANYA UNTUK ZOOM: lewati render
+       (CSS transform) HANYA bila render sebelumnya lambat (>20ms). Bila render
+       cepat (hardware bagus / dokumen kecil), render nyata tiap frame — tajam
+       dan objek selalu terlihat. Frame pertama zoom SELALU coba render nyata
+       (untuk mengukur kecepatan render zoom pada DPR 0.5x). Bila render zoom
+       itu lambat, frame berikutnya otomatis beralih ke CSS transform. */
+    const justStartedInteracting = interacting && !this._wasInteracting;
+    this._wasInteracting = interacting;
+    /* Pan selalu CSS transform (tanpa syarat _lastRenderMs); zoom adaptif
+       (CSS transform hanya bila bukan frame pertama DAN render sebelumnya lambat). */
+    const useCssTransform = force && interacting && this._lastRenderView &&
+      (this.isPanning || (!justStartedInteracting && (this._lastRenderMs || 0) > 20));
+    if (useCssTransform) {
       if (this._applyInteractionCssTransform()) return;
     }
     /* Bukan interaksi (settle / render async): bersihkan CSS transform agar
