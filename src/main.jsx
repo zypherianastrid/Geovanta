@@ -2,7 +2,6 @@
  * @file src/main.jsx
  * @description Titik masuk utama (Entrypoint) aplikasi desktop Geovanta Tauri Windows 64-bit
  */
-import './vendor/reactOfflineBundle.jsx';
 import './vendor/tailwindOfflineBundle.jsx';
 import React from 'react';
 import ReactDOM from 'react-dom';

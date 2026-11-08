@@ -2,7 +2,8 @@
  * @file src/utils/renderConfigAndTelemetry.jsx
  * @description Konfigurasi pipeline render & telemetri performa frame/memori
  */
-import { ACTIVE_DEVICE_PROFILE } from './gpuCapabilities.jsx';
+import { ACTIVE_DEVICE_PROFILE, TIER_HYSTERESIS } from './gpuCapabilities.jsx';
+import { GPU_TIMER_QUERY_SUPPORTED } from './gpuTimerQuery.jsx';
 import { GEOMETRY_CACHE } from '../renderer/geometryCache.jsx';
 
 /* =========================================================================
@@ -117,6 +118,50 @@ const PERF_TELEMETRY = (() => {
     droppedFrames = 0;
   let lastInteractionTs = 0,
     rafProbeActive = false;
+  /* P2-05 (Track 4): ring buffer terpisah untuk frame interaksi (hanya saat
+     pointer/zoom aktif) dan untuk durasi thumbnail — jangan dicampur dengan
+     sampel render-pass/idle agar p95 interaksi jujur. */
+  const interactionIntervals = new Float64Array(MAX_SAMPLES);
+  let iHead = 0,
+    iCount = 0;
+  const thumbDurations = new Float64Array(60);
+  let tHead = 0,
+    tCount = 0;
+  const _percentileOf = (arr, count, q) => {
+    if (!count) return 0;
+    const sub = Array.from(arr.subarray(0, count)).sort((a, b) => a - b);
+    return Math.round(sub[Math.min(sub.length - 1, Math.max(0, Math.floor((sub.length - 1) * q)))] * 100) / 100;
+  };
+  /* P2-05 (Track 4): hitung long task via PerformanceObserver. Aman bila API
+     tak tersedia (mis. WebView lama): counter tetap 0 dan tidak throw. */
+  if (typeof window !== 'undefined' && typeof PerformanceObserver !== 'undefined') {
+    try {
+      const _ltObs = new PerformanceObserver(list => {
+        try {
+          const entries = list.getEntries ? list.getEntries() : [];
+          for (const e of entries) {
+            state.longTaskCount++;
+            if (e.duration > state.longTaskMaxMs) state.longTaskMaxMs = Math.round(e.duration * 100) / 100;
+          }
+        } catch (e) {}
+      });
+      _ltObs.observe({
+        entryTypes: ['longtask']
+      });
+    } catch (e) {}
+  }
+  /* P2-06 (Track 4): sinkronkan tier ke snapshot saat setDeviceProfileTier /
+     setPerfPreset mengubahnya (event 'geovanta-device-tier'). */
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    try {
+      window.addEventListener('geovanta-device-tier', ev => {
+        const d = ev && ev.detail || {};
+        if (d.tier) state.deviceProfileTier = d.tier;
+        if (d.apiUnknown != null) state.deviceProfileApiUnknown = !!d.apiUnknown;
+        if (d.mode) state.deviceTierMode = d.mode;
+      });
+    } catch (e) {}
+  }
   const state = {
     fps: 120,
     nativeHz: 120,
@@ -148,6 +193,10 @@ const PERF_TELEMETRY = (() => {
     cacheHits: 0,
     cacheMisses: 0,
     cachedObjectsCount: 0,
+    /* P1-05 followup: byte cache di atas budget + jumlah entri oversized
+       (dari SceneRenderer.getCacheStats(); 0 bila tidak ada yang over-budget). */
+    overBudgetBytes: 0,
+    oversizedEntryCount: 0,
     toleranceMet: true,
     partialAlphaPixels: 0,
     pixelPreviewMode: 'smooth',
@@ -163,6 +212,43 @@ const PERF_TELEMETRY = (() => {
     webglContextLostCount: 0,
     backendFallbackReason: 'none',
     deviceProfileTier: _initDevProf.tier,
+    /* P2-06 (Track 4): dibawa dari profil perangkat; true bila API memori/
+       core tak tersedia sehingga tier jatuh ke 'unknown'. */
+    deviceProfileApiUnknown: !!_initDevProf.apiUnknown,
+    deviceTierMode: 'auto',
+    /* P2-05 (Track 4): metrik BARU di samping metrik lama. Definisi lama
+       TIDAK diubah: renderPassMs tetap waktu CPU submit seperti sebelumnya,
+       fps/p50/p95/p99 tetap dari sampel render-pass. Yang baru:
+       - rafIntervalMs: rerata interval antar frame aktual (ms).
+       - interactionFrameP50/P95/P99: persentil interval frame HANYA saat
+         pointer/zoom aktif (markInteractionFrame), bukan campuran idle.
+       - cpuSubmitMs: alias eksplisit waktu CPU menyiapkan+mengirim draw
+         command (nilai sama dengan renderPassMs; penamaan jujur).
+       - gpuTimeMs: waktu eksekusi GPU via EXT_disjoint_timer_query_webgl2;
+         null bila extension tak tersedia / belum ada sampel. Wiring query
+         ada di sceneRenderer (TERLARANG untuk track ini) — lihat modul
+         baru src/utils/gpuTimerQuery.jsx + laporan Track 4.
+       - gpuTimerQuerySupported: hasil probe extension (false = tak tersedia).
+       - longTaskCount/longTaskMaxMs: dari PerformanceObserver 'longtask'.
+       - thumbnailLastMs/thumbnailP95Ms/thumbnailCount/
+         thumbnailSkippedCached/thumbnailDroppedUnstable: durasi pembuatan
+         thumbnail (P2-04), terpisah dari autosave. */
+    rafIntervalMs: 0,
+    interactionFrameP50: 0,
+    interactionFrameP95: 0,
+    interactionFrameP99: 0,
+    cpuSubmitMs: 0.4,
+    gpuTimeMs: null,
+    /* P2-05: hasil probe sekali saat modul dimuat (bukan klaim dari membaca
+       kode): true hanya bila EXT_disjoint_timer_query_webgl2 tersedia. */
+    gpuTimerQuerySupported: !!GPU_TIMER_QUERY_SUPPORTED,
+    longTaskCount: 0,
+    longTaskMaxMs: 0,
+    thumbnailLastMs: 0,
+    thumbnailP95Ms: 0,
+    thumbnailCount: 0,
+    thumbnailSkippedCached: 0,
+    thumbnailDroppedUnstable: 0,
     dpr: typeof window !== 'undefined' && window.devicePixelRatio || 1,
     drawingBufferWidth: 0,
     drawingBufferHeight: 0,
@@ -182,6 +268,11 @@ const PERF_TELEMETRY = (() => {
       if (fCount < MAX_SAMPLES) fCount++;
       if (fCount >= 3 && (fCount < 8 || (fHead & 15) === 0)) {
         const sub = Array.from(frameIntervals.subarray(0, fCount)).sort((a, b) => a - b);
+        /* P2-05 (Track 4): rafIntervalMs = rerata SEMUA interval frame aktual
+           (bukan subset tercepat seperti estimasi Hz di bawah). */
+        let total = 0;
+        for (let i = 0; i < sub.length; i++) total += sub[i];
+        state.rafIntervalMs = Math.round(total / sub.length * 100) / 100;
         /* Gunakan persentil 25% tercepat dari interval frame agar jeda idle tidak menurunkan bacaan Hz native layar 100Hz/120Hz/144Hz/240Hz+ */
         const fastCount = Math.max(1, Math.ceil(sub.length * 0.45));
         let sum = 0;
@@ -216,6 +307,9 @@ const PERF_TELEMETRY = (() => {
     const now = nowTs || (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
     if (execMs >= 0 && execMs < 2000) {
       state.renderPassMs = Math.round(execMs * 100) / 100;
+      /* P2-05 (Track 4): cpuSubmitMs = nilai yang sama, nama yang jujur —
+         ini waktu CPU menyiapkan+mengirim command, BUKAN waktu GPU. */
+      state.cpuSubmitMs = state.renderPassMs;
       renderDurations[rHead] = execMs;
       rHead = (rHead + 1) % MAX_SAMPLES;
       if (rCount < MAX_SAMPLES) rCount++;
@@ -228,6 +322,12 @@ const PERF_TELEMETRY = (() => {
         state.p50 = Math.round(pick(0.50) * 100) / 100;
         state.p95 = Math.round(pick(0.95) * 100) / 100;
         state.p99 = Math.round(pick(0.99) * 100) / 100;
+        /* P2-06 (Track 4): beri makan hysteresis tier dari p95 render-pass.
+           Hanya preset 'auto' yang bisa berubah; manual tidak disentuh.
+           Pemanggilan aman: observeFrameHealth no-op bila mode manual. */
+        try {
+          if (typeof TIER_HYSTERESIS !== 'undefined' && TIER_HYSTERESIS) TIER_HYSTERESIS.observeFrameHealth(state.p95, budgetMs, now);
+        } catch (e) {}
       }
     }
     if (lastRenderTs > 0) {
@@ -235,12 +335,36 @@ const PERF_TELEMETRY = (() => {
     }
     lastRenderTs = now;
   };
+  /* P2-05 (Track 4): catat waktu eksekusi GPU dari timer query. Dipanggil
+     oleh sceneRenderer SETELAH wiring EXT_disjoint_timer_query_webgl2
+     (lihat src/utils/gpuTimerQuery.jsx). Nilai null = belum ada sampel /
+     extension tak tersedia; jangan dibaca sebagai 0. */
+  const recordGpuTimeMs = ms => {
+    if (ms != null && Number.isFinite(ms) && ms >= 0 && ms < 2000) {
+      state.gpuTimeMs = Math.round(ms * 100) / 100;
+    }
+  };
+  const setGpuTimerQuerySupported = supported => {
+    state.gpuTimerQuerySupported = !!supported;
+  };
   const recordFrameDelta = dt => recordRenderPass(dt);
   const markInteractionFrame = () => {
     const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     if (lastInteractionTs > 0) {
       const dt = now - lastInteractionTs;
-      if (dt >= 0.4 && dt < 60) recordFrameIntervalSample(dt);
+      if (dt >= 0.4 && dt < 60) {
+        recordFrameIntervalSample(dt);
+        /* P2-05 (Track 4): sampel interaksi terpisah — p50/p95/p99 HANYA
+           dari frame saat pointer/zoom aktif, tanpa campuran frame idle. */
+        interactionIntervals[iHead] = dt;
+        iHead = (iHead + 1) % MAX_SAMPLES;
+        if (iCount < MAX_SAMPLES) iCount++;
+        if (iCount >= 3 && (iCount < 8 || (iHead & 15) === 0)) {
+          state.interactionFrameP50 = _percentileOf(interactionIntervals, iCount, 0.50);
+          state.interactionFrameP95 = _percentileOf(interactionIntervals, iCount, 0.95);
+          state.interactionFrameP99 = _percentileOf(interactionIntervals, iCount, 0.99);
+        }
+      }
     }
     lastInteractionTs = now;
     if (!rafProbeActive) probeNativeRefreshRate(12);
@@ -271,6 +395,8 @@ const PERF_TELEMETRY = (() => {
     if (metrics.cacheHits != null) state.cacheHits = metrics.cacheHits;
     if (metrics.cacheMisses != null) state.cacheMisses = metrics.cacheMisses;
     if (metrics.cachedObjectsCount != null) state.cachedObjectsCount = metrics.cachedObjectsCount;
+    if (metrics.overBudgetBytes != null) state.overBudgetBytes = metrics.overBudgetBytes;
+    if (metrics.oversizedEntryCount != null) state.oversizedEntryCount = metrics.oversizedEntryCount;
     if (metrics.toleranceMet != null) state.toleranceMet = metrics.toleranceMet;
     if (metrics.partialAlphaPixels != null) state.partialAlphaPixels = metrics.partialAlphaPixels;
     if (metrics.pixelPreviewMode != null) state.pixelPreviewMode = metrics.pixelPreviewMode;
@@ -295,6 +421,40 @@ const PERF_TELEMETRY = (() => {
     if (metrics.webglContextLostCount != null) state.webglContextLostCount = metrics.webglContextLostCount;
     if (metrics.backendFallbackReason != null) state.backendFallbackReason = metrics.backendFallbackReason;
     if (metrics.deviceProfileTier != null) state.deviceProfileTier = metrics.deviceProfileTier;
+    if (metrics.deviceProfileApiUnknown != null) state.deviceProfileApiUnknown = !!metrics.deviceProfileApiUnknown;
+    if (metrics.deviceTierMode != null) state.deviceTierMode = metrics.deviceTierMode;
+    /* P2-05 (Track 4): metrik baru via updateSceneMetrics — gpuTimeMs dari
+       timer query (null = tak tersedia), longTask dari observer internal
+       (boleh di-override untuk pengujian), rafIntervalMs bila diukur di luar. */
+    if (metrics.rafIntervalMs != null) state.rafIntervalMs = Math.round(metrics.rafIntervalMs * 100) / 100;
+    if (metrics.interactionFrameP50 != null) state.interactionFrameP50 = Math.round(metrics.interactionFrameP50 * 100) / 100;
+    if (metrics.interactionFrameP95 != null) state.interactionFrameP95 = Math.round(metrics.interactionFrameP95 * 100) / 100;
+    if (metrics.interactionFrameP99 != null) state.interactionFrameP99 = Math.round(metrics.interactionFrameP99 * 100) / 100;
+    if (metrics.cpuSubmitMs != null) state.cpuSubmitMs = Math.round(metrics.cpuSubmitMs * 100) / 100;
+    if (metrics.gpuTimeMs != null) state.gpuTimeMs = metrics.gpuTimeMs == null ? null : Math.round(metrics.gpuTimeMs * 100) / 100;
+    if (metrics.gpuTimerQuerySupported != null) state.gpuTimerQuerySupported = !!metrics.gpuTimerQuerySupported;
+    if (metrics.longTaskCount != null) state.longTaskCount = metrics.longTaskCount;
+    if (metrics.longTaskMaxMs != null) state.longTaskMaxMs = Math.round(metrics.longTaskMaxMs * 100) / 100;
+    /* P2-04 (Track 4): durasi thumbnail — HANYA bila pemanggil menandai
+       `thumbnailSample: true` (satu pembuatan selesai) sampel masuk ring
+       p95 dan menaikkan thumbnailCount. Laporan skip/drop hanya membawa
+       counter dan tidak boleh dihitung sebagai sampel durasi. */
+    if (metrics.thumbnailSample === true && metrics.thumbnailLastMs != null) {
+      state.thumbnailLastMs = Math.round(metrics.thumbnailLastMs * 100) / 100;
+      if (metrics.thumbnailLastMs >= 0 && metrics.thumbnailLastMs < 60000) {
+        thumbDurations[tHead] = metrics.thumbnailLastMs;
+        tHead = (tHead + 1) % thumbDurations.length;
+        if (tCount < thumbDurations.length) tCount++;
+        state.thumbnailCount++;
+        state.thumbnailP95Ms = _percentileOf(thumbDurations, tCount, 0.95);
+      }
+    } else if (metrics.thumbnailLastMs != null) {
+      state.thumbnailLastMs = Math.round(metrics.thumbnailLastMs * 100) / 100;
+    }
+    if (metrics.thumbnailP95Ms != null) state.thumbnailP95Ms = Math.round(metrics.thumbnailP95Ms * 100) / 100;
+    if (metrics.thumbnailCount != null) state.thumbnailCount = metrics.thumbnailCount;
+    if (metrics.thumbnailSkippedCached != null) state.thumbnailSkippedCached = metrics.thumbnailSkippedCached;
+    if (metrics.thumbnailDroppedUnstable != null) state.thumbnailDroppedUnstable = metrics.thumbnailDroppedUnstable;
   };
   const getSnapshot = () => ({
     ...state,
@@ -310,6 +470,8 @@ const PERF_TELEMETRY = (() => {
   return {
     recordRenderPass,
     recordFrameDelta,
+    recordGpuTimeMs,
+    setGpuTimerQuerySupported,
     markInteractionFrame,
     updateSceneMetrics,
     getSnapshot,

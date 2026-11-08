@@ -851,6 +851,8 @@ const VectorEditor = ({
       liveRafRef.current = 0;
     }
     if (sceneRendererRef.current) {
+      /* FOLLOWUP node-drag: drag selesai — render akhir kualitas penuh. */
+      sceneRendererRef.current.isLiveDrag = false;
       sceneRendererRef.current.setScene(docRef.current, ++docRevRef.current);
       sceneRendererRef.current.renderFrame();
     }
@@ -874,6 +876,10 @@ const VectorEditor = ({
       return;
     }
     if (!liveRafRef.current) {
+      /* FOLLOWUP node-drag: tandai drag aktif agar renderFrame memakai
+         DPR 0.5x + throttle + sub-pixel cull (sebelumnya node-drag merender
+         penuh tiap frame, 667-867ms/frame di SwiftShader). */
+      if (sceneRendererRef.current) sceneRendererRef.current.isLiveDrag = true;
       liveRafRef.current = requestAnimationFrame(() => {
         liveRafRef.current = 0;
         if (sceneRendererRef.current) sceneRendererRef.current.renderFrame();
@@ -4863,6 +4869,8 @@ const VectorEditor = ({
   const onPointerUp = e => {
     const dg = dragRef.current;
     dragRef.current = null;
+    /* FOLLOWUP node-drag: drag selesai — kembalikan render kualitas penuh. */
+    if (sceneRendererRef.current) sceneRendererRef.current.isLiveDrag = false;
     document.body.classList.remove('grabbing');
     if (boxRef.current) {
       boxRef.current.removeAttribute('data-dragging');
@@ -6455,7 +6463,15 @@ const VectorEditor = ({
     const padY = bh * 0.65 / zNow + 120 / zNow;
     return [-pNow.x / zNow - padX, -pNow.y / zNow - padY, (bw - pNow.x) / zNow + padX, (bh - pNow.y) / zNow + padY];
   }, [zoom, cullPanQx, cullPanQy, doc.objects.length]);
+  /* P2-02: di mode GPU, defs SVG hanya dibutuhkan oleh objek yang dirender
+     sebagai SVG (teks/overlay di gpuOverlayObjs — CanvasObj memakai
+     url(#vgr-…)/url(#vsgr-…)). Bila tidak ada konsumen SVG sama sekali,
+     jangan pindai dokumen & jangan bangun elemen <linearGradient>/
+     <radialGradient>/<clipPath> yang langsung dibuang (di mode GPU, <defs>
+     ini bahkan tidak dirender). Fallback non-GPU (!gpuOn) tetap membangun
+     defs lengkap seperti sebelumnya. */
   const gradientDefs = React.useMemo(() => {
+    if (gpuOn && gpuOverlayObjs.length === 0) return [];
     const defs = [];
     for (let i = 0, L = doc.objects.length; i < L; i++) {
       const o = doc.objects[i];
@@ -6471,7 +6487,7 @@ const VectorEditor = ({
       }
     }
     return defs;
-  }, [doc.objects]);
+  }, [doc.objects, gpuOn, gpuOverlayObjs]);
   const frameBgByGroup = React.useMemo(() => {
     const map = new Map();
     for (let i = 0, L = doc.objects.length; i < L; i++) {

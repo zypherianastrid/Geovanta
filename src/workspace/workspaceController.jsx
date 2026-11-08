@@ -3,6 +3,7 @@
  * @description Koordinator siklus hidup proyek & sinkronisasi status ruang kerja (WorkspaceController)
  */
 import { ThumbnailGenerator } from './thumbnailGenerator.jsx';
+import { createThumbnailScheduler } from './thumbnailScheduler.jsx';
 import { WorkspaceDB } from './workspaceDb.jsx';
 import { ProjectRepository } from './projectRepository.jsx';
 import { PERF_TELEMETRY } from '../utils/renderConfigAndTelemetry.jsx';
@@ -63,22 +64,32 @@ const WorkspaceController = (() => {
   };
   const _pendingJobsByProject = new Map(); // projectId -> job
 
+  /* P2-04 (Track 4): thumbnail dijadwalkan saat idle SETELAH autosave
+     stabil + cache per revisi dokumen (projectId|seq) + durasi tercatat.
+     Lihat src/workspace/thumbnailScheduler.jsx. Scheduler dibuat di sini
+     agar closure isStable() bisa membaca antrean/status save controller.
+     CATATAN Worker: generateThumbnailBlob butuh DOM (canvas/Image/Path2D)
+     sehingga tidak bisa dipindah ke Worker apa adanya — lihat modul
+     scheduler untuk temuan lengkapnya. */
+  const _thumbScheduler = createThumbnailScheduler({
+    generate: doc => ThumbnailGenerator.generateThumbnailBlob(doc),
+    persist: async (projectId, blob) => {
+      const proj = await WorkspaceDB.get('projects', projectId);
+      if (proj) {
+        await WorkspaceDB.put('projects', {
+          ...proj,
+          thumbnail: blob,
+          thumbnailRenderVer: 3
+        });
+      }
+    },
+    isStable: () => !_activeSavePromise && !_pendingJob && _pendingJobsByProject.size === 0 && _currentStatus !== 'saving' && _currentStatus !== 'dirty',
+    report: metrics => PERF_TELEMETRY.updateSceneMetrics(metrics)
+  });
+  const getThumbnailStats = () => _thumbScheduler.getStats();
   const _scheduleBackgroundThumbnail = (projectId, doc, seq) => {
     if (!projectId || !doc) return;
-    Promise.resolve().then(async () => {
-      try {
-        const thumbBlob = await ThumbnailGenerator.generateThumbnailBlob(doc);
-        if (!thumbBlob || thumbBlob.size < 16) return;
-        const proj = await WorkspaceDB.get('projects', projectId);
-        if (proj) {
-          await WorkspaceDB.put('projects', {
-            ...proj,
-            thumbnail: thumbBlob,
-            thumbnailRenderVer: 3
-          });
-        }
-      } catch (e) {}
-    });
+    _thumbScheduler.schedule(projectId, doc, seq);
   };
   const _processQueue = async () => {
     if (_activeSavePromise) return _activeSavePromise;
@@ -516,6 +527,7 @@ const WorkspaceController = (() => {
     setSaveStatus,
     onSaveStatusChange,
     onQuotaError,
+    getThumbnailStats,
     importFileAsNewProject,
     cancelActiveImport,
     triggerBackupDownload

@@ -32,6 +32,10 @@ const GEOMETRY_CACHE = (() => {
   let hits = 0,
     misses = 0,
     totalGeometryBytes = 0;
+  /* P1-05: telemetri entri oversized. oversizedEntryCount = kumulatif entri yang
+     teramati melebihi budget lalu dievict; overBudgetBytes dilaporkan live di getStats(). */
+  let oversizedEntryCount = 0;
+  const maxBudgetBytes = () => Math.max(16 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxGeometryCacheBytes || 96 * 1024 * 1024);
   const estimateLodBytes = lod => {
     if (!lod) return 0;
     if (lod._byteSize != null) return lod._byteSize;
@@ -73,22 +77,31 @@ const GEOMETRY_CACHE = (() => {
     return totalGeometryBytes;
   };
   const registerLodBytes = (entry, lod, sign) => {
+    /* P1-05: jangan hitung byte untuk entry yang sudah tidak ada di store
+       (mis. dievict mid-build oleh enforceByteBudget) agar total tidak drift. */
+    if (!entry || !store.has(entry.objectId) || store.get(entry.objectId) !== entry) return;
     const b = estimateLodBytes(lod);
     entry.byteSize = Math.max(128, (entry.byteSize || 128) + sign * b);
     totalGeometryBytes = Math.max(0, totalGeometryBytes + sign * b);
   };
   const registerGpuMeshBytes = (entry, gm, sign) => {
+    if (!entry || !store.has(entry.objectId) || store.get(entry.objectId) !== entry) return;
     const b = estimateGpuMeshBytes(gm);
     entry.byteSize = Math.max(128, (entry.byteSize || 128) + sign * b);
     totalGeometryBytes = Math.max(0, totalGeometryBytes + sign * b);
   };
   const enforceByteBudget = () => {
-    const maxBytes = Math.max(16 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxGeometryCacheBytes || 96 * 1024 * 1024);
-    while ((store.size > MAX_CACHED_OBJECTS || totalGeometryBytes > maxBytes) && store.size > 1) {
+    const maxBytes = maxBudgetBytes();
+    /* P1-05: eviction BOLEH sampai cache kosong (tanpa guard size > 1).
+       Satu entry yang sendirian melebihi budget ikut dievict — ia dibuat ulang
+       saat dibutuhkan lagi, bukan dipertahankan diam-diam di atas budget. */
+    while ((store.size > MAX_CACHED_OBJECTS || totalGeometryBytes > maxBytes) && store.size > 0) {
       const oldestId = store.keys().next().value;
       const oldEntry = store.get(oldestId);
       store.delete(oldestId);
-      totalGeometryBytes = Math.max(0, totalGeometryBytes - (oldEntry ? oldEntry.byteSize || estimateEntryBytes(oldEntry) : 0));
+      const oldBytes = oldEntry ? oldEntry.byteSize || estimateEntryBytes(oldEntry) : 0;
+      if (oldEntry && oldBytes > maxBytes) oversizedEntryCount++;
+      totalGeometryBytes = Math.max(0, totalGeometryBytes - oldBytes);
     }
     PERF_TELEMETRY.updateSceneMetrics({
       geometryCacheBytes: totalGeometryBytes,
@@ -239,7 +252,10 @@ const GEOMETRY_CACHE = (() => {
       const oldestId = store.keys().next().value;
       const oldE = store.get(oldestId);
       store.delete(oldestId);
-      if (oldE) totalGeometryBytes = Math.max(0, totalGeometryBytes - (oldE.byteSize || 128));
+      if (oldE) {
+        if ((oldE.byteSize || 128) > maxBudgetBytes()) oversizedEntryCount++;
+        totalGeometryBytes = Math.max(0, totalGeometryBytes - (oldE.byteSize || 128));
+      }
     }
     store.set(objId, entry);
     return entry;
@@ -260,6 +276,7 @@ const GEOMETRY_CACHE = (() => {
     hits = 0;
     misses = 0;
     totalGeometryBytes = 0;
+    oversizedEntryCount = 0;
     PERF_TELEMETRY.updateSceneMetrics({
       cacheHits: 0,
       cacheMisses: 0,
@@ -281,6 +298,10 @@ const GEOMETRY_CACHE = (() => {
   const getStats = () => ({
     cachedObjectsCount: store.size,
     geometryCacheBytes: totalGeometryBytes,
+    geometryBudgetBytes: maxBudgetBytes(),
+    /* P1-05: kelebihan byte yang saat ini ditahan di atas budget (0 bila eviction sudah jalan). */
+    overBudgetBytes: Math.max(0, totalGeometryBytes - maxBudgetBytes()),
+    oversizedEntryCount,
     hits,
     misses
   });

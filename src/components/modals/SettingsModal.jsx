@@ -15,7 +15,7 @@ import { ColorField } from '../ui/ColorPickerField.jsx';
 import { parseColorWithAlpha } from '../../utils/colorParserAndFormatter.jsx';
 import { ColorText } from '../ui/ColorHexInput.jsx';
 import { pickScreenColor } from '../../utils/screenPipette.jsx';
-import { GPU_INFO } from '../../utils/gpuCapabilities.jsx';
+import { GPU_INFO, setPerfPreset } from '../../utils/gpuCapabilities.jsx';
 import { VE } from '../../engine/vectorEngine.jsx';
 import { Range } from '../ui/RangeField.jsx';
 import { GEOVANTA_BENCHMARK_SUITE } from '../../renderer/benchmarkSuite.jsx';
@@ -54,6 +54,14 @@ const Settings = ({
   const scList = prefs && prefs.lang === 'en' ? SC_EN : SC;
   if (!m) return null;
   const set = k => v => {
+    /* P2-06 (Track 4): preset performa diterapkan langsung ke profil
+       perangkat (dan mematikan/menghidupkan hysteresis); prefs hanya
+       menyimpan pilihannya agar bertahan setelah restart. */
+    if (k === 'perfPreset') {
+      try {
+        setPerfPreset(v);
+      } catch (e) {}
+    }
     setPrefs(p => {
       const n = {
         ...p,
@@ -75,6 +83,9 @@ const Settings = ({
       ...DEFAULT_PREFS
     };
     setPrefs(n);
+    try {
+      setPerfPreset('auto');
+    } catch (e) {}
     applyTheme(n.theme);
     applyMotion(n.motion);
     applyAccent(n.accent);
@@ -160,9 +171,9 @@ const Settings = ({
                   }} onClick={() => setAdvRenderOpen(v => !v)}><Ico n="sliders" size={13} /><span>{L.paramsBtn}</span></button><button type="button" className={'btn ' + (debugModeOpen ? 'pri' : 'sec') + ' text-[11px]'} style={{
                     padding: '6px 10px',
                     borderRadius: 9
-                  }} onClick={() => setDebugModeOpen(v => !v)}><Ico n="code" size={13} /><span>{L.debugBtn}</span></button></div></div><div className="stg-row-col"><div className="stg-stat-wrap"><div className="stg-stat-pill"><span>{L.statBackend}</span><b style={{
+                  }} onClick={() => setDebugModeOpen(v => !v)}><Ico n="code" size={13} /><span>{L.debugBtn}</span></button></div></div><div className="stg-row" data-tip="setPerfPreset"><div className="stg-meta"><span className="stg-ico"><Ico n="bolt" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.perfPresetLabel}</span><span className="stg-sub">{L.perfPresetSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.perfPreset || 'auto'} on={set('perfPreset')} o={[['auto', L.presetAuto], ['saver', L.presetSaver], ['balanced', L.presetBalanced], ['quality', L.presetQuality]]} tip="setPerfPreset" /></div></div><div className="stg-row-col"><div className="stg-stat-wrap"><div className="stg-stat-pill"><span>{L.statBackend}</span><b style={{
                       color: 'var(--acc)'
-                    }}>{gpuOn ? snap.activeBackend : 'SVG DOM'}</b></div><div className="stg-stat-pill"><span>{L.statAA}</span><b>{aa.antialiasEnabled ? `MSAA ${aa.samples || 1}x` : renderCfg.aaMode.toUpperCase()}</b></div><div className="stg-stat-pill"><span>{L.statLOD}</span><b>L{snap.lodLevel} · ε={VE.rd(snap.currentEpsilon)}</b></div><div className="stg-stat-pill"><span>{L.statGeom}</span><b>{snap.totalVertices}v · {snap.fillTriangleCount + snap.strokeTriangleCount}Δ</b></div><div className="stg-stat-pill"><span>{L.statFrame}</span><b>{snap.renderPassMs} ms (p95 {PERF_TELEMETRY.state.p95} ms)</b></div><div className="stg-stat-pill"><span>{L.statCache}</span><b>{cacheStats.hits}H / {cacheStats.misses}M</b></div></div></div><div className="stg-row-col space-y-2.5" style={{
+                    }}>{gpuOn ? snap.activeBackend : 'SVG DOM'}</b></div><div className="stg-stat-pill"><span>{L.statAA}</span><b>{aa.antialiasEnabled ? `MSAA ${aa.samples || 1}x` : renderCfg.aaMode.toUpperCase()}</b></div><div className="stg-stat-pill"><span>{L.statLOD}</span><b>L{snap.lodLevel} · ε={VE.rd(snap.currentEpsilon)}</b></div><div className="stg-stat-pill"><span>{L.statGeom}</span><b>{snap.totalVertices}v · {snap.fillTriangleCount + snap.strokeTriangleCount}Δ</b></div><div className="stg-stat-pill"><span>{L.statFrame}</span><b>{snap.renderPassMs} ms (p95 {PERF_TELEMETRY.state.p95} ms)</b></div><div className="stg-stat-pill"><span>{L.statCache}</span><b>{cacheStats.hits}H / {cacheStats.misses}M</b></div><div className="stg-stat-pill" title={snap.deviceProfileApiUnknown ? L.statTierUnknown : ''}><span>{L.statTier}</span><b>{snap.deviceProfileTier}{snap.deviceProfileApiUnknown ? ' ?' : ''}{snap.deviceTierMode === 'manual' ? ' · M' : ''}</b></div><div className="stg-stat-pill"><span>{L.statRaf}</span><b>{snap.rafIntervalMs ? snap.rafIntervalMs.toFixed(2) + ' ms' : '—'}</b></div><div className="stg-stat-pill"><span>{L.statInteract}</span><b>{snap.interactionFrameP95 ? snap.interactionFrameP95.toFixed(2) + ' ms' : '—'}</b></div><div className="stg-stat-pill"><span>{L.statCpu}</span><b>{snap.cpuSubmitMs} ms</b></div><div className="stg-stat-pill" title={snap.gpuTimerQuerySupported ? '' : L.statGpuNA}><span>{L.statGpu}</span><b>{snap.gpuTimeMs != null ? snap.gpuTimeMs.toFixed(2) + ' ms' : '—'}</b></div><div className="stg-stat-pill"><span>{L.statLongTask}</span><b>{snap.longTaskCount}×{snap.longTaskMaxMs ? ' · ' + snap.longTaskMaxMs + ' ms' : ''}</b></div><div className="stg-stat-pill"><span>{L.statThumb}</span><b>{snap.thumbnailCount ? snap.thumbnailLastMs + ' ms (p95 ' + snap.thumbnailP95Ms + ' ms)' : '—'}</b></div></div></div><div className="stg-row-col space-y-2.5" style={{
                 display: advRenderOpen ? 'flex' : 'none',
                 background: 'color-mix(in srgb, var(--sub) 35%, var(--card))'
               }}><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-medium mut">{L.renderPath}</span><div className="stg-ctrl"><Seg v={renderCfg.backendOverride} on={v => setRenderCfg({

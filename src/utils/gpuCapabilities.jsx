@@ -169,35 +169,234 @@ const DEVICE_PROFILES = {
     maxHistoryBytes: 12 * 1024 * 1024,
     targetPixelError: 0.40,
     allowSsaa: false
+  },
+  /* P2-06 (Track 4): tier 'unknown' — dipakai ketika navigator.deviceMemory
+     dan/atau navigator.hardwareConcurrency TIDAK tersedia. BUKAN bukti
+     perangkat 4 GB/4 core; mulai dari profil konservatif (anggaran setara
+     low-mobile) sampai probe/benchmark memberi keyakinan lebih. */
+  'unknown': {
+    tier: 'unknown',
+    maxDpr: 1.5,
+    maxBackingPixels: 4000000,
+    // 4 MP
+    maxExportPixels: 16777216,
+    // 16 MP (4096x4096)
+    maxExportDimension: 4096,
+    maxVerticesPerObject: 16384,
+    maxVerticesPerFrame: 120000,
+    maxGeometryCacheBytes: 16 * 1024 * 1024,
+    maxVboCacheBytes: 16 * 1024 * 1024,
+    maxTextureCacheBytes: 24 * 1024 * 1024,
+    maxImageCachePixels: 12000000,
+    maxHistoryBytes: 12 * 1024 * 1024,
+    targetPixelError: 0.35,
+    allowSsaa: false,
+    apiUnknown: true
   }
 };
+/* P2-06 (Track 4): API yang tidak tersedia = 'unknown', BUKAN default 4.
+   Sebelumnya `Number(nav.deviceMemory) || 4` menebak 4 GB/4 core ketika API
+   tidak memberi data, sehingga perangkat terbatas bisa salah dikira
+   'desktop'. Sekarang: bila deviceMemory ATAU hardwareConcurrency hilang/
+   tidak valid, tier = 'unknown' (profil konservatif, lihat DEVICE_PROFILES).
+   Hasil deteksi membawa flag `apiUnknown` agar diagnostics bisa menampilkannya. */
 const detectDeviceProfile = (overrideTier = null) => {
   if (overrideTier && DEVICE_PROFILES[overrideTier]) {
     return {
       ...DEVICE_PROFILES[overrideTier],
       maxTextureSize: GPU_CAPS.maxTextureSize,
-      maxRenderbufferSize: GPU_CAPS.maxRenderbufferSize
+      maxRenderbufferSize: GPU_CAPS.maxRenderbufferSize,
+      apiUnknown: overrideTier === 'unknown'
     };
   }
   const nav = typeof navigator !== 'undefined' ? navigator : {};
-  const mem = Number(nav.deviceMemory) || 4;
-  const cores = Number(nav.hardwareConcurrency) || 4;
+  const memRaw = Number(nav.deviceMemory);
+  const coresRaw = Number(nav.hardwareConcurrency);
+  const mem = Number.isFinite(memRaw) && memRaw > 0 ? memRaw : null;
+  const cores = Number.isFinite(coresRaw) && coresRaw > 0 ? coresRaw : null;
+  const apiUnknown = mem === null || cores === null;
   const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || nav.maxTouchPoints > 0);
   const swRenderer = /SwiftShader|llvmpipe|Software|Basic Render/i.test(GPU_CAPS.renderer || '');
   let tier = 'desktop';
-  if (swRenderer || mem <= 2 || cores <= 2) tier = 'low-mobile';else if (isTouch && (mem <= 4 || cores <= 4)) tier = 'mid-mobile';else if (!isTouch && mem >= 8 && cores >= 8 && GPU_CAPS.webgl2 && GPU_CAPS.maxTextureSize >= 8192) tier = 'high-gpu';
+  if (apiUnknown) tier = 'unknown';else if (swRenderer || mem <= 2 || cores <= 2) tier = 'low-mobile';else if (isTouch && (mem <= 4 || cores <= 4)) tier = 'mid-mobile';else if (!isTouch && mem >= 8 && cores >= 8 && GPU_CAPS.webgl2 && GPU_CAPS.maxTextureSize >= 8192) tier = 'high-gpu';
   return {
     ...DEVICE_PROFILES[tier],
     maxTextureSize: GPU_CAPS.maxTextureSize,
-    maxRenderbufferSize: GPU_CAPS.maxRenderbufferSize
+    maxRenderbufferSize: GPU_CAPS.maxRenderbufferSize,
+    apiUnknown
   };
 };
 let ACTIVE_DEVICE_PROFILE = detectDeviceProfile();
-const setDeviceProfileTier = tier => {
+const setDeviceProfileTier = (tier, opts = {}) => {
   ACTIVE_DEVICE_PROFILE = detectDeviceProfile(tier);
   RENDER_CONFIG.vertexBudgetPerObject = ACTIVE_DEVICE_PROFILE.maxVerticesPerObject;
   RENDER_CONFIG.maxRenderDpr = ACTIVE_DEVICE_PROFILE.maxDpr;
+  RENDER_CONFIG.deviceProfileTier = ACTIVE_DEVICE_PROFILE.tier;
+  /* Beri tahu telemetri + UI (Settings diagnostics) bahwa tier berubah.
+     Telemetri mendengarkan event ini agar snapshot-nya tetap sinkron tanpa
+     import balik ke modul telemetri. */
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(new CustomEvent('geovanta-device-tier', {
+        detail: {
+          tier: ACTIVE_DEVICE_PROFILE.tier,
+          apiUnknown: !!ACTIVE_DEVICE_PROFILE.apiUnknown,
+          preset: opts.preset || null,
+          mode: opts.mode || null
+        }
+      }));
+    } catch (e) {}
+  }
   return ACTIVE_DEVICE_PROFILE;
+};
+
+/* -------------------------------------------------------------------------
+   P2-06 (Track 4): preset manual + hysteresis perubahan tier.
+   Preset: 'auto' (deteksi, hysteresis aktif) | 'saver' (battery-saver) |
+   'balanced' (desktop) | 'quality' (high-gpu). Preset manual mematikan
+   adaptasi otomatis (mode 'manual'); kembali ke 'auto' menghidupkannya lagi.
+   Hysteresis: tier TURUN hanya setelah 3 jendela p95 berturut-turut di atas
+   1,5x budget (dan jeda ≥5 dtk sejak perubahan terakhir); tier NAIK hanya
+   setelah p95 stabil di bawah 0,7x budget selama ≥30 dtk. Satu drag berat
+   tidak boleh membuat tier naik-turun cepat.
+   Urutan adaptasi (konservatif → agresif): battery-saver, unknown,
+   low-mobile, mid-mobile, desktop, high-gpu.
+   ------------------------------------------------------------------------- */
+const PERF_PRESETS = {
+  auto: null,
+  saver: 'battery-saver',
+  balanced: 'desktop',
+  quality: 'high-gpu'
+};
+const TIER_ADAPT_ORDER = ['battery-saver', 'unknown', 'low-mobile', 'mid-mobile', 'desktop', 'high-gpu'];
+const TIER_HYSTERESIS = (() => {
+  const BAD_WINDOWS_TO_DOWNGRADE = 3;
+  const DOWNGRADE_FACTOR = 1.5;
+  const UPGRADE_FACTOR = 0.7;
+  const MIN_DOWNGRADE_DWELL_MS = 5000;
+  const STABLE_MS_TO_UPGRADE = 30000;
+  let mode = 'auto';
+  let preset = 'auto';
+  let badWindows = 0;
+  let goodSinceMs = null;
+  let lastChangeMs = 0;
+  let lastDecision = {
+    tier: ACTIVE_DEVICE_PROFILE.tier,
+    changed: false,
+    reason: 'init'
+  };
+  const observe = (p95Ms, budgetMs, nowMs) => {
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    const cur = ACTIVE_DEVICE_PROFILE.tier;
+    const idx = TIER_ADAPT_ORDER.indexOf(cur);
+    if (mode !== 'auto' || idx < 0 || !Number.isFinite(p95Ms) || !Number.isFinite(budgetMs) || budgetMs <= 0) {
+      return {
+        tier: cur,
+        changed: false,
+        reason: mode !== 'auto' ? 'manual' : 'no-data'
+      };
+    }
+    if (p95Ms > budgetMs * DOWNGRADE_FACTOR) {
+      goodSinceMs = null;
+      badWindows++;
+      if (badWindows >= BAD_WINDOWS_TO_DOWNGRADE && idx > 0 && now - lastChangeMs >= MIN_DOWNGRADE_DWELL_MS) {
+        const next = TIER_ADAPT_ORDER[idx - 1];
+        badWindows = 0;
+        lastChangeMs = now;
+        lastDecision = {
+          tier: next,
+          changed: true,
+          reason: 'downgrade-p95'
+        };
+        return lastDecision;
+      }
+      return {
+        tier: cur,
+        changed: false,
+        reason: 'bad-window-' + badWindows
+      };
+    }
+    if (p95Ms < budgetMs * UPGRADE_FACTOR) {
+      badWindows = 0;
+      if (goodSinceMs === null) goodSinceMs = now;
+      if (idx < TIER_ADAPT_ORDER.length - 1 && now - goodSinceMs >= STABLE_MS_TO_UPGRADE && now - lastChangeMs >= STABLE_MS_TO_UPGRADE) {
+        const next = TIER_ADAPT_ORDER[idx + 1];
+        goodSinceMs = null;
+        lastChangeMs = now;
+        lastDecision = {
+          tier: next,
+          changed: true,
+          reason: 'upgrade-stable'
+        };
+        return lastDecision;
+      }
+      return {
+        tier: cur,
+        changed: false,
+        reason: 'good-stable'
+      };
+    }
+    badWindows = 0;
+    goodSinceMs = null;
+    return {
+      tier: cur,
+      changed: false,
+      reason: 'within-budget'
+    };
+  };
+  /* Dipanggil telemetri (recordRenderPass) setiap kali p95 diperbarui.
+     Hanya menerapkan perubahan bila hysteresis memutuskan begitu. */
+  const observeFrameHealth = (p95Ms, budgetMs, nowMs) => {
+    const d = observe(p95Ms, budgetMs, nowMs);
+    if (d.changed) setDeviceProfileTier(d.tier, {
+      preset,
+      mode
+    });
+    return d;
+  };
+  const getState = () => ({
+    mode,
+    preset,
+    badWindows,
+    goodSinceMs,
+    lastChangeMs,
+    tier: ACTIVE_DEVICE_PROFILE.tier,
+    lastDecision
+  });
+  const setMode = (nextMode, nextPreset) => {
+    if (nextMode) mode = nextMode;
+    if (nextPreset) preset = nextPreset;
+  };
+  const reset = () => {
+    badWindows = 0;
+    goodSinceMs = null;
+    lastChangeMs = 0;
+  };
+  return {
+    observe,
+    observeFrameHealth,
+    getState,
+    setMode,
+    reset
+  };
+})();
+const getPerfPreset = () => TIER_HYSTERESIS.getState().preset;
+const getTierMode = () => TIER_HYSTERESIS.getState().mode;
+const setPerfPreset = preset => {
+  const p = PERF_PRESETS[preset] !== undefined ? preset : 'auto';
+  if (p === 'auto') {
+    TIER_HYSTERESIS.setMode('auto', 'auto');
+    TIER_HYSTERESIS.reset();
+    return setDeviceProfileTier(null, {
+      preset: 'auto',
+      mode: 'auto'
+    });
+  }
+  TIER_HYSTERESIS.setMode('manual', p);
+  return setDeviceProfileTier(PERF_PRESETS[p], {
+    preset: p,
+    mode: 'manual'
+  });
 };
 
 /* GV-A06: Compute safe backing-store dimensions clamped by DPR, pixel budget, and GPU texture/renderbuffer limits */
@@ -234,4 +433,4 @@ const computeSafeFramebufferSize = (cssW, cssH, requestedDpr, profile = ACTIVE_D
      Tiered Antialiasing (MSAA / Analytic Edge Coverage / SSAA / FXAA), Backend Override, & 7 Debug Modes.
    ========================================================================= */
 
-export { probeGpuCapabilities, GPU_CAPS, detectGpuRenderer, GPU_INFO, DEVICE_PROFILES, detectDeviceProfile, ACTIVE_DEVICE_PROFILE, setDeviceProfileTier, computeSafeFramebufferSize };
+export { probeGpuCapabilities, GPU_CAPS, detectGpuRenderer, GPU_INFO, DEVICE_PROFILES, detectDeviceProfile, ACTIVE_DEVICE_PROFILE, setDeviceProfileTier, computeSafeFramebufferSize, PERF_PRESETS, TIER_ADAPT_ORDER, TIER_HYSTERESIS, getPerfPreset, getTierMode, setPerfPreset };

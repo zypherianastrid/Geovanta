@@ -9,6 +9,7 @@ import { parsePaintRgba01, formatColorWithAlpha, parseColorWithAlpha } from '../
 import { IMG_ELEMENT_CACHE, getObjectTessellationLOD } from './objectTessellationLod.jsx';
 import { SCENE_INTERACTING_ZOOM, buildObjectGpuBuffers, setSceneInteractingZoom } from './polygonTriangulatorAndStroke.jsx';
 import { GEOMETRY_CACHE } from './geometryCache.jsx';
+import { initGpuTimerQuery, beginGpuTimerQuery, endGpuTimerQuery, pollGpuTimerQueries } from '../utils/gpuTimerQuery.jsx';
 import { vinfo, isOpaquePaint, SEAM_STROKE_PX } from './pathWindingAndBatching.jsx';
 
 /* =========================================================================
@@ -36,12 +37,18 @@ class SceneRenderer {
     this._cachedRootAcc = undefined;
     this._lastRenderView = null; /* PANFIX: view (zoom/pan) saat canvas terakhir kali di-render; dipakai untuk CSS transform selama drag pan/zoom */
     this._cssTransformActive = false;
+    this.isLiveDrag = false; /* FOLLOWUP node-drag: true selama drag node/handle/obj via live(); render DPR 0.5x + throttle saat true */
+    this._gpuTimer = null; /* P2-05 wiring: state EXT_disjoint_timer_query_webgl2 (null bila extension tak tersedia) */
     this._lastObjDragRenderTs = 0; /* PANFIX2: timestamp render terakhir saat drag objek (throttle async) */
     this._frameBoxesRef = null;
     this._frameSet = new Set();
     this._frameRectMap = new Map();
     this.vboCache = new WeakMap();
-    this.gradTexCache = new WeakMap();
+    /* P1-03: gradTexCache kini Map terkelola { texture, bytes, lastUsed } dengan
+       key hash stops (murah, tanpa JSON.stringify) + budget + eviction LRU.
+       WeakMap lama tidak punya batas/eviction: tekstur GPU menumpuk sepanjang sesi. */
+    this.gradTexCache = new Map();
+    this._gradTexTotalBytes = 0;
     this.imgTexCache = new Map();
     this._glBuffers = new Set();
     this._glTextures = new Set();
@@ -49,6 +56,20 @@ class SceneRenderer {
     this._glShaders = new Set();
     this._vboCacheOrder = new Map();
     this._vboTotalBytes = 0;
+    /* P1-05: telemetri entri oversized. overBudgetBytes = byte yang saat ini
+       ditahan di atas budget (transient VBO + image oversized); oversizedEntryCount
+       = kumulatif entri yang teramati melebihi budget. */
+    this._overBudgetBytes = 0;
+    this._oversizedEntryCount = 0;
+    /* P1-05: buffer VBO transient (mesh oversized) — hanya untuk frame saat itu,
+       dilepas di akhir renderFrame via _flushTransientVbos(). */
+    this._transientVboPending = new Map();
+    /* P2-03: statistik prewarm (durasi, jumlah, pembatalan, urutan visible-first). */
+    this._prewarmStats = { startedAt: 0, durationMs: 0, warmed: 0, pending: 0, cancelled: 0, done: false, usedIdleCallback: false, warmedOrder: [] };
+    this._prewarmCancelledTotal = 0;
+    this._prewarmJob = null;
+    this._prewarmTimer = 0;
+    this._prewarmIdleId = 0;
     this._texTotalBytes = 0;
     this.contextLost = false;
     this.fallbackReason = 'none';
@@ -84,6 +105,14 @@ class SceneRenderer {
     if (options && (options.canvasEl || options.containerEl || options.gpu !== undefined)) {
       this.init(options.containerEl || null, options);
     }
+    /* Hook diagnostik/test (dipakai Playwright): renderer aktif bisa dibaca lewat
+       window.__geovantaSceneRenderer.getCacheStats() — pola yang sama dengan
+       window.__geovantaEditorApi yang sudah ada. */
+    if (typeof window !== 'undefined') {
+      try {
+        window.__geovantaSceneRenderer = this;
+      } catch (e) {}
+    }
   }
   init(containerEl, options = {}) {
     this.containerEl = containerEl;
@@ -99,7 +128,15 @@ class SceneRenderer {
     this._glShaders = new Set();
     this._vboCacheOrder = new Map(); // gpuMesh -> { entry, bytes }
     this._vboTotalBytes = 0;
+    this._gradTexTotalBytes = 0;
     this._texTotalBytes = 0;
+    this._overBudgetBytes = 0;
+    this._oversizedEntryCount = 0;
+    if (this._transientVboPending) this._transientVboPending.clear();
+    this._prewarmStats = { startedAt: 0, durationMs: 0, warmed: 0, pending: 0, cancelled: 0, done: false, usedIdleCallback: false, warmedOrder: [] };
+    this._prewarmJob = null;
+    this._prewarmTimer = 0;
+    this._prewarmIdleId = 0;
     this.fallbackReason = 'none';
     if (!this.gpuEnabled || RENDER_CONFIG.backendOverride === 'svg') {
       this.backend = 'SVG DOM (CPU Mode)';
@@ -239,6 +276,9 @@ class SceneRenderer {
       });
       if (gl && this._initWebGL2Pipeline(gl)) {
         this.gl = gl;
+        /* P2-05 wiring: init timer query GPU sekali (null bila tak didukung). */
+        this._gpuTimer = initGpuTimerQuery(gl);
+        PERF_TELEMETRY.setGpuTimerQuerySupported(!!this._gpuTimer);
         this.ctx2d = null;
         this.backend = 'WebGL2 Hardware Engine';
         this.fallbackReason = 'none';
@@ -284,7 +324,13 @@ class SceneRenderer {
       this.vboCache = new WeakMap();
       this._vboCacheOrder.clear();
       this._vboTotalBytes = 0;
-      this.gradTexCache = new WeakMap();
+      this.gradTexCache = new Map();
+      this._gradTexTotalBytes = 0;
+      this._overBudgetBytes = 0;
+      if (this._transientVboPending) this._transientVboPending.clear();
+      this._prewarmJob = null;
+      this._prewarmTimer = 0;
+      this._prewarmIdleId = 0;
       this.imgTexCache.clear();
       this._pixelTileTex = null;
       this._texTotalBytes = 0;
@@ -581,12 +627,67 @@ class SceneRenderer {
     }
     entry.earVbo = entry.fanVbo = entry.coverVbo = entry.strokeVbo = entry.edgeAaVbo = null;
   }
+  /* P1-04: sentuh urutan LRU — pindahkan key ke ujung MRU (delete + set).
+     Dipakai di SEMUA jalur hit, termasuk fast-path gpuMesh._vboEntry. */
+  _touchVboOrder(gpuMesh) {
+    const meta = this._vboCacheOrder.get(gpuMesh);
+    if (meta !== undefined) {
+      this._vboCacheOrder.delete(gpuMesh);
+      this._vboCacheOrder.set(gpuMesh, meta);
+    }
+  }
+  _vboBudgetBytes() {
+    return Math.max(16 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxVboCacheBytes || 96 * 1024 * 1024);
+  }
+  _evictVboEntry(gl, mesh) {
+    const meta = this._vboCacheOrder.get(mesh);
+    this._vboCacheOrder.delete(mesh);
+    this.vboCache.delete(mesh);
+    if (mesh) {
+      mesh._vboGl = null;
+      mesh._vboEntry = null;
+    }
+    if (meta) {
+      this._vboTotalBytes = Math.max(0, this._vboTotalBytes - (meta.bytes || 0));
+      this._deleteVboEntry(gl, meta.entry);
+    }
+  }
+  /* P1-05: lepas semua buffer VBO transient (mesh oversized) seusai satu frame.
+     Dipanggil di akhir renderFrame; fast-path _getMeshVbos juga membersihkan
+     sisa transient bila mesh itu dipakai lagi. */
+  _flushTransientVbos(gl) {
+    if (!this._transientVboPending || !this._transientVboPending.size) return;
+    for (const [mesh, entry] of this._transientVboPending) {
+      this._overBudgetBytes = Math.max(0, this._overBudgetBytes - (entry._overBudget || 0));
+      this._deleteVboEntry(gl || this.gl, entry);
+      if (mesh && mesh._vboEntry === entry) {
+        mesh._vboEntry = null;
+        mesh._vboGl = null;
+      }
+    }
+    this._transientVboPending.clear();
+  }
   _getMeshVbos(gl, gpuMesh) {
     if (gpuMesh._vboGl === gl && gpuMesh._vboEntry && !gpuMesh._vboEntry.disposed) {
-      return gpuMesh._vboEntry;
+      if (gpuMesh._vboEntry._transientOversized) {
+        /* Entri oversized hanya untuk frame saat itu: lepas buffer lamanya
+           sebelum dibuat ulang di bawah (pengaman bila flush akhir frame terlewat). */
+        const old = gpuMesh._vboEntry;
+        this._overBudgetBytes = Math.max(0, this._overBudgetBytes - (old._overBudget || 0));
+        if (this._transientVboPending) this._transientVboPending.delete(gpuMesh);
+        this._deleteVboEntry(gl, old);
+        gpuMesh._vboGl = null;
+        gpuMesh._vboEntry = null;
+      } else {
+        /* P1-04 (dulu FIFO): hit fast-path JUGA memindahkan entry ke MRU. */
+        this._touchVboOrder(gpuMesh);
+        return gpuMesh._vboEntry;
+      }
     }
     const cached = this.vboCache.get(gpuMesh);
     if (cached !== undefined && !cached.disposed && gpuMesh._vboGl === gl) {
+      /* P1-04: hit jalur WeakMap juga memindahkan entry ke MRU. */
+      this._touchVboOrder(gpuMesh);
       return cached;
     }
     let bytes = 0;
@@ -608,6 +709,21 @@ class SceneRenderer {
       edgeAaVbo: mk(gpuMesh.edgeAaArray),
       bytes
     };
+    const maxVboBytes = this._vboBudgetBytes();
+    /* P1-05: satu mesh melebihi budget -> JANGAN masuk cache permanen.
+       Buffer dibuat agar frame saat itu tetap tergambar, lalu dilepas di akhir
+       renderFrame (_flushTransientVbos); pemakaian berikutnya mengunggah ulang.
+       Kelebihan byte + jumlahnya tercatat di _overBudgetBytes/_oversizedEntryCount. */
+    if (bytes > maxVboBytes) {
+      entry._transientOversized = true;
+      entry._overBudget = bytes - maxVboBytes;
+      gpuMesh._vboGl = gl;
+      gpuMesh._vboEntry = entry;
+      if (this._transientVboPending) this._transientVboPending.set(gpuMesh, entry);
+      this._oversizedEntryCount++;
+      this._overBudgetBytes += entry._overBudget;
+      return entry;
+    }
     gpuMesh._vboGl = gl;
     gpuMesh._vboEntry = entry;
     this.vboCache.set(gpuMesh, entry);
@@ -616,29 +732,61 @@ class SceneRenderer {
       bytes
     });
     this._vboTotalBytes += bytes;
-    const maxVboBytes = Math.max(16 * 1024 * 1024, ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxVboCacheBytes || 96 * 1024 * 1024);
-    while (this._vboCacheOrder.size > 1 && (this._vboTotalBytes > maxVboBytes || this._vboCacheOrder.size > 32768)) {
+    /* P1-05: eviction boleh sampai cache kosong (tanpa guard size > 1). */
+    while (this._vboCacheOrder.size > 0 && (this._vboTotalBytes > maxVboBytes || this._vboCacheOrder.size > 32768)) {
       const oldestMesh = this._vboCacheOrder.keys().next().value;
-      const oldestMeta = this._vboCacheOrder.get(oldestMesh);
-      this._vboCacheOrder.delete(oldestMesh);
-      this.vboCache.delete(oldestMesh);
-      if (oldestMesh) {
-        oldestMesh._vboGl = null;
-        oldestMesh._vboEntry = null;
-      }
-      if (oldestMeta) {
-        this._vboTotalBytes = Math.max(0, this._vboTotalBytes - (oldestMeta.bytes || 0));
-        this._deleteVboEntry(gl, oldestMeta.entry);
-      }
+      this._evictVboEntry(gl, oldestMesh);
     }
     PERF_TELEMETRY.updateSceneMetrics({
       vboBytes: this._vboTotalBytes
     });
     return entry;
   }
+  _gradTexBudgetBytes() {
+    return ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxTextureCacheBytes || 64 * 1024 * 1024;
+  }
+  /* P1-03: key cache tekstur gradien yang MURAH (tanpa JSON.stringify per frame).
+     Isi ramp 256x1 hanya bergantung pada stops — geometri gradien (x1/y1/x2/y2,
+     cx/cy/r/fx/fy) TIDAK dibakar ke tekstur, melainkan dikirim sebagai uniform
+     di _setWebGLPaintUniforms. Jadi key = hash stops saja: dua gradien dengan
+     stops sama berbagi satu tekstur walau geometrinya beda.
+     Hash FNV-1a ganda (32+32 bit) atas offset/op/mid (dibulatkan) + string warna. */
+  _gradCacheKey(grad) {
+    const stops = grad.stops;
+    let h1 = 0x811c9dc5 >>> 0,
+      h2 = 0x01000193 >>> 0;
+    const mixNum = v => {
+      const n = v | 0;
+      h1 = Math.imul(h1 ^ (n & 0xffff), 16777619) >>> 0;
+      h1 = Math.imul(h1 ^ (n >> 16 & 0xffff), 16777619) >>> 0;
+      h2 = Math.imul(h2 ^ (n & 0xffff), 0x85ebca6b) >>> 0;
+      h2 = Math.imul(h2 ^ (n >> 16 & 0xffff), 0x85ebca6b) >>> 0;
+    };
+    for (let i = 0; i < stops.length; i++) {
+      const s = stops[i];
+      mixNum(Math.round((Number(s.offset) || 0) * 1e4));
+      mixNum(Math.round(((s.op == null ? 1 : Number(s.op)) || 0) * 1e3));
+      mixNum(Math.round(((s.mid == null ? 0.5 : Number(s.mid)) || 0) * 1e3));
+      const c = String(s.color || '');
+      for (let k = 0; k < c.length; k++) {
+        const ch = c.charCodeAt(k);
+        h1 = Math.imul(h1 ^ ch, 16777619) >>> 0;
+        h2 = Math.imul(h2 ^ ch, 0x85ebca6b) >>> 0;
+      }
+    }
+    return stops.length + ':' + h1.toString(36) + ':' + h2.toString(36);
+  }
   _getGradTexture(gl, grad) {
     if (!grad || !grad.stops || !grad.stops.length) return null;
-    if (this.gradTexCache.has(grad)) return this.gradTexCache.get(grad);
+    const key = this._gradCacheKey(grad);
+    const hit = this.gradTexCache.get(key);
+    if (hit) {
+      /* P1-03: hit memindahkan entry ke MRU (delete + set) agar eviction LRU. */
+      this.gradTexCache.delete(key);
+      this.gradTexCache.set(key, hit);
+      hit.lastUsed = Date.now();
+      return hit.texture;
+    }
     const W = 256;
     const data = new Uint8Array(W * 4);
     for (let i = 0; i < W; i++) {
@@ -658,8 +806,38 @@ class SceneRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.gradTexCache.set(grad, tex);
-    this._texTotalBytes += W * 4;
+    const bytes = W * 4;
+    this.gradTexCache.set(key, {
+      texture: tex,
+      bytes,
+      lastUsed: Date.now()
+    });
+    this._gradTexTotalBytes += bytes;
+    this._texTotalBytes += bytes;
+    /* P1-03: eviction LRU dengan byte budget profil perangkat. Eviction boleh
+       mengosongkan cache dari entri lama — kecuali entri yang baru dibuat di
+       call ini (teksturnya dipakai frame ini juga). */
+    const maxGradBytes = this._gradTexBudgetBytes();
+    while (this._gradTexTotalBytes > maxGradBytes) {
+      let lruKey = null;
+      for (const k of this.gradTexCache.keys()) {
+        if (k !== key) {
+          lruKey = k;
+          break;
+        }
+      }
+      if (lruKey === null) break;
+      const lru = this.gradTexCache.get(lruKey);
+      this.gradTexCache.delete(lruKey);
+      if (lru && lru.texture) {
+        this._glTextures.delete(lru.texture);
+        try {
+          if (gl && !this.contextLost) gl.deleteTexture(lru.texture);
+        } catch (e) {}
+        this._gradTexTotalBytes = Math.max(0, this._gradTexTotalBytes - (lru.bytes || 0));
+        this._texTotalBytes = Math.max(0, this._texTotalBytes - (lru.bytes || 0));
+      }
+    }
     PERF_TELEMETRY.updateSceneMetrics({
       textureBytes: this._texTotalBytes
     });
@@ -685,6 +863,8 @@ class SceneRenderer {
             this.gl.deleteTexture(old.tex);
           } catch (e) {}
           this._glTextures.delete(old.tex);
+          /* P1-05: kurangi kelebihan oversized bila tekstur lama melebihi budget. */
+          this._overBudgetBytes = Math.max(0, this._overBudgetBytes - (old.overBudget || 0));
           this._texTotalBytes = Math.max(0, this._texTotalBytes - (old.bytes || 0));
         }
         this.imgTexCache.delete(href);
@@ -708,16 +888,28 @@ class SceneRenderer {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       const texBytes = (imgEl.naturalWidth || 1) * (imgEl.naturalHeight || 1) * 4;
+      const maxTexBytes = ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxTextureCacheBytes || 64 * 1024 * 1024;
+      /* P1-05: satu gambar melebihi budget dicatat (kelebihan + jumlah), bukan
+         disembunyikan — teksturnya tetap dipakai frame ini, eviction di bawah
+         boleh mengeluarkannya pada insert berikutnya. */
+      const overBudget = Math.max(0, texBytes - maxTexBytes);
+      if (overBudget > 0) {
+        this._oversizedEntryCount++;
+        this._overBudgetBytes += overBudget;
+      }
       this.imgTexCache.set(href, {
         tex,
         bytes: texBytes,
+        overBudget,
         w: imgEl.naturalWidth,
         h: imgEl.naturalHeight
       });
       this._texTotalBytes += texBytes;
-      const maxTexBytes = ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxTextureCacheBytes || 64 * 1024 * 1024;
-      while (this.imgTexCache.size > 1 && (this._texTotalBytes > maxTexBytes || this.imgTexCache.size > 128)) {
+      /* P1-05: eviction boleh sampai cache kosong — kecuali entri yang baru dibuat
+         di call ini (teksturnya dipakai frame ini juga). */
+      while (this.imgTexCache.size > 0 && (this._texTotalBytes > maxTexBytes || this.imgTexCache.size > 128)) {
         const oldestHref = this.imgTexCache.keys().next().value;
+        if (oldestHref === href && this.imgTexCache.size === 1) break;
         const oldestItem = this.imgTexCache.get(oldestHref);
         this.imgTexCache.delete(oldestHref);
         if (oldestItem && oldestItem.tex) {
@@ -725,6 +917,7 @@ class SceneRenderer {
           try {
             if (!this.contextLost) gl.deleteTexture(oldestItem.tex);
           } catch (e) {}
+          this._overBudgetBytes = Math.max(0, this._overBudgetBytes - (oldestItem.overBudget || 0));
           this._texTotalBytes = Math.max(0, this._texTotalBytes - (oldestItem.bytes || 0));
         }
       }
@@ -770,36 +963,190 @@ class SceneRenderer {
     gl.uniform1i(P.u_mode, 0);
     gl.uniform4f(P.u_color, rgba[0], rgba[1], rgba[2], rgba[3]);
   }
+  /* Telemetri cache (P1-04/P1-03/P1-05/P2-03) untuk diagnostics & test.
+     PERF_TELEMETRY.updateSceneMetrics hanya menerima key yang sudah dikenal
+     (file telemetry di luar scope track ini), jadi angka oversized/prewarm
+     diekspos lewat sini + window.__geovantaSceneRenderer. */
+  getCacheStats() {
+    const geo = GEOMETRY_CACHE.getStats();
+    return {
+      vboEntries: this._vboCacheOrder.size,
+      vboBytes: this._vboTotalBytes,
+      vboBudgetBytes: this._vboBudgetBytes(),
+      gradEntries: this.gradTexCache ? this.gradTexCache.size : 0,
+      gradBytes: this._gradTexTotalBytes,
+      gradBudgetBytes: this._gradTexBudgetBytes(),
+      imageEntries: this.imgTexCache.size,
+      textureBytes: this._texTotalBytes,
+      textureBudgetBytes: this._gradTexBudgetBytes(),
+      overBudgetBytes: this._overBudgetBytes + (geo.overBudgetBytes || 0),
+      oversizedEntryCount: this._oversizedEntryCount + (geo.oversizedEntryCount || 0),
+      geometryCache: geo,
+      prewarm: {
+        ...this._prewarmStats,
+        cancelled: this._prewarmCancelledTotal,
+        warmedOrder: (this._prewarmStats.warmedOrder || []).slice(0, 50)
+      }
+    };
+  }
+  _schedulePrewarm(fn) {
+    /* P2-03: requestIdleCallback bila tersedia (timeout 100ms agar tetap maju
+       saat browser sibuk); fallback setTimeout 16ms seperti sebelumnya. */
+    if (typeof requestIdleCallback === 'function') {
+      this._prewarmIdleId = requestIdleCallback(fn, {
+        timeout: 100
+      });
+    } else {
+      this._prewarmTimer = setTimeout(() => fn(), 16);
+    }
+  }
+  /* P2-03: urutan visible-first — objek di viewport dulu, lalu tetangga
+     viewport (margin 1 viewport), baru sisanya dalam urutan dokumen. */
+  _prewarmVisibleFirstOrder(objs) {
+    const cam = this.camera || {};
+    const z = cam.zoom || 1;
+    const px = cam.panX || 0,
+      py = cam.panY || 0;
+    const cw = cam.width || 1280,
+      ch = cam.height || 800;
+    const vx0 = -px / z,
+      vy0 = -py / z,
+      vx1 = (cw - px) / z,
+      vy1 = (ch - py) / z;
+    const vw = vx1 - vx0,
+      vh = vy1 - vy0;
+    const vis = [],
+      near = [],
+      far = [];
+    for (let i = 0; i < objs.length; i++) {
+      const o = objs[i];
+      if (!o || o.hidden || o.img || o.text) {
+        far.push(o);
+        continue;
+      }
+      let bb = null;
+      try {
+        bb = vinfo(o).bb;
+      } catch (e) {
+        bb = null;
+      }
+      if (!bb || !Number.isFinite(bb[0]) || !Number.isFinite(bb[2])) {
+        near.push(o);
+        continue;
+      }
+      if (bb[2] >= vx0 && bb[0] <= vx1 && bb[3] >= vy0 && bb[1] <= vy1) {
+        vis.push(o);
+      } else if (bb[2] >= vx0 - vw && bb[0] <= vx1 + vw && bb[3] >= vy0 - vh && bb[1] <= vy1 + vh) {
+        near.push(o);
+      } else {
+        far.push(o);
+      }
+    }
+    return vis.concat(near, far);
+  }
   prewarmSceneLods(doc) {
+    /* P2-03: batalkan job sebelumnya (timer/idle) + tandai cancelled agar
+       step lamanya berhenti; pembatalan dihitung kumulatif. */
     if (this._prewarmTimer) {
       clearTimeout(this._prewarmTimer);
       this._prewarmTimer = 0;
     }
+    if (this._prewarmIdleId) {
+      if (typeof cancelIdleCallback === 'function') {
+        try {
+          cancelIdleCallback(this._prewarmIdleId);
+        } catch (e) {}
+      }
+      this._prewarmIdleId = 0;
+    }
+    if (this._prewarmJob && !this._prewarmJob.done) {
+      this._prewarmJob.cancelled = true;
+      this._prewarmCancelledTotal++;
+    }
     if (!doc || !Array.isArray(doc.objects) || !doc.objects.length) return;
-    const objs = doc.objects;
-    let idx = 0;
-    const step = () => {
+    const revisionId = this.revisionId;
+    const nowFn = () => typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const startedAt = nowFn();
+    const useIdle = typeof requestIdleCallback === 'function';
+    const order = this._prewarmVisibleFirstOrder(doc.objects);
+    const job = {
+      doc,
+      revisionId,
+      order,
+      idx: 0,
+      warmed: 0,
+      cancelled: false,
+      done: false,
+      startedAt
+    };
+    this._prewarmJob = job;
+    this._prewarmStats = {
+      startedAt,
+      durationMs: 0,
+      warmed: 0,
+      pending: order.length,
+      cancelled: this._prewarmCancelledTotal,
+      done: false,
+      usedIdleCallback: useIdle,
+      warmedOrder: []
+    };
+    const step = deadline => {
       this._prewarmTimer = 0;
-      if (this.disposed || this.doc !== doc) return;
-      if (SCENE_INTERACTING_ZOOM || this.isZooming || this.isPanning || this.dragOffset) {
-        this._prewarmTimer = setTimeout(step, 80);
+      this._prewarmIdleId = 0;
+      /* Batal bila dokumen/revision berubah atau job sudah diganti. */
+      if (job.cancelled || this.disposed || this.doc !== doc || this.revisionId !== revisionId || this._prewarmJob !== job) {
+        if (!job._cancelCounted) {
+          job._cancelCounted = true;
+          if (!job.cancelled) {
+            job.cancelled = true;
+            this._prewarmCancelledTotal++;
+          }
+          this._prewarmStats.cancelled = this._prewarmCancelledTotal;
+          this._prewarmStats.pending = job.order.length - job.idx;
+        }
+        return;
+      }
+      /* TETAP dipertahankan: defer saat interaksi (zoom/pan/drag) atau tab hidden. */
+      if (SCENE_INTERACTING_ZOOM || this.isZooming || this.isPanning || this.dragOffset || typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        this._prewarmTimer = setTimeout(() => step(), 80);
         return;
       }
       const glNow = !this.contextLost && this.gl && this.glProg ? this.gl : null;
-      const t0 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-      while (idx < objs.length) {
-        const o = objs[idx++];
+      const maxVbo = this._vboBudgetBytes();
+      const t0 = nowFn();
+      while (job.idx < job.order.length) {
+        const o = job.order[job.idx++];
         if (!o || o.hidden || o.img || o.text) continue;
         const gm0 = buildObjectGpuBuffers(o, 1);
-        if (glNow) this._getMeshVbos(glNow, gm0);
-        const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-        if (now - t0 > 4) break;
+        if (glNow) {
+          /* Jangan upload VBO mesh oversized saat prewarm (transient saat render). */
+          let mBytes = 0;
+          if (gm0) {
+            for (const a of [gm0.earArray, gm0.fanArray, gm0.coverArray, gm0.strokeArray, gm0.edgeAaArray]) mBytes += a ? a.byteLength || 0 : 0;
+          }
+          if (mBytes <= maxVbo) this._getMeshVbos(glNow, gm0);
+        }
+        job.warmed++;
+        if (this._prewarmStats.warmedOrder.length < 50) this._prewarmStats.warmedOrder.push(o.id || '');
+        const now = nowFn();
+        if (deadline && typeof deadline.timeRemaining === 'function') {
+          if (deadline.timeRemaining() <= 0.5 || now - t0 >= 8) break;
+        } else if (now - t0 > 4) break;
       }
-      if (idx < objs.length) {
-        this._prewarmTimer = setTimeout(step, 16);
+      this._prewarmStats.warmed = job.warmed;
+      this._prewarmStats.pending = job.order.length - job.idx;
+      this._prewarmStats.cancelled = this._prewarmCancelledTotal;
+      if (job.idx < job.order.length) {
+        this._schedulePrewarm(step);
+      } else {
+        job.done = true;
+        this._prewarmStats.durationMs = Math.round((nowFn() - startedAt) * 100) / 100;
+        this._prewarmStats.done = true;
+        this._prewarmStats.pending = 0;
+        if (this._prewarmJob === job) this._prewarmJob = null;
       }
     };
-    step();
+    this._schedulePrewarm(step);
   }
   setScene(doc, revisionId, opts = {}) {
     if (this.doc !== doc) {
@@ -963,7 +1310,7 @@ class SceneRenderer {
        canvas TIDAK berlaku (hanya objek yang diseret yang bergerak). Tapi render
        saat drag objek sama beratnya (1044 objek, ~667ms/frame), jadi DPR 0.5x,
        throttle & sub-pixel cull juga berlaku untuknya. */
-    const renderInteracting = interacting || !!this.dragOffset;
+    const renderInteracting = interacting || !!this.dragOffset || !!this.isLiveDrag;
     /* PANFIX: Selama drag pan/zoom (force + interacting), JANGAN render WebGL
        tiap frame — terapkan CSS transform saja dan lewati render. Render WebGL
        1044 objek ~300ms/frame (SwiftShader; berat di GPU lemah) adalah sumber
@@ -990,7 +1337,7 @@ class SceneRenderer {
        (>20ms), batasi ke 1 render per 50ms (~20fps) agar drag tidak hang.
        Posisi objek yang diseret tetap terasa responsif karena handle/seleksi
        SVG di-update via DOM langsung, bukan lewat render WebGL. */
-    if (!force && this.dragOffset && (this._lastRenderMs || 0) > 20) {
+    if (!force && (this.dragOffset || this.isLiveDrag) && (this._lastRenderMs || 0) > 20) {
       const nowT2 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
       if (this._lastObjDragRenderTs && nowT2 - this._lastObjDragRenderTs < 50) return;
       this._lastObjDragRenderTs = nowT2;
@@ -1055,6 +1402,12 @@ class SceneRenderer {
     const vx1 = (cssW - px) / z + padWorld,
       vy1 = (cssH - py) / z + padWorld;
     const useCanvas2D = RENDER_CONFIG.backendOverride === 'canvas2d' || !(this.gl && this.glProg);
+    /* P2-05 wiring: ukur waktu eksekusi GPU (bukan hanya CPU submit) via timer
+       query — hanya jalur WebGL; Canvas2D fallback tidak memakai query.
+       Poll dilakukan tiap frame; query frame berjalan belum tersedia dan
+       dibaca di frame berikutnya (non-blocking, pool maks 4). */
+    const useTimerQuery = !useCanvas2D && !!this._gpuTimer;
+    if (useTimerQuery) beginGpuTimerQuery(this._gpuTimer, this.gl);
     if (!useCanvas2D) {
       this.backend = 'WebGL2 Hardware Engine';
       this._renderWebGL2Primary(cssW, cssH, pixelRatio, pw, ph, z, px, py, vx0, vy0, vx1, vy1, cardCol, lineCol, accCol);
@@ -1062,11 +1415,22 @@ class SceneRenderer {
       this.backend = RENDER_CONFIG.backendOverride === 'canvas2d' ? 'Canvas2D Engine' : 'Canvas2D Fallback';
       this._renderCanvas2DFallback(cv, cssW, cssH, pixelRatio, z, px, py, vx0, vy0, vx1, vy1, cardCol, lineCol, accCol);
     }
+    if (useTimerQuery) {
+      endGpuTimerQuery(this._gpuTimer);
+      const gpuMs = pollGpuTimerQueries(this._gpuTimer, this.gl);
+      for (let i = 0; i < gpuMs.length; i++) PERF_TELEMETRY.recordGpuTimeMs(gpuMs[i]);
+    }
+    /* P1-05: lepas buffer VBO transient (mesh oversized) seusai frame ini —
+       mesh itu hanya diunggah untuk render saat itu, bukan di-cache. */
+    if (this._transientVboPending && this._transientVboPending.size) this._flushTransientVbos(this.gl);
     const gcStats = GEOMETRY_CACHE.getStats();
     PERF_TELEMETRY.updateSceneMetrics({
       cacheHits: gcStats.hits,
       cacheMisses: gcStats.misses,
-      cachedObjectsCount: gcStats.cachedObjectsCount
+      cachedObjectsCount: gcStats.cachedObjectsCount,
+      /* P1-05 followup: ekspos byte over-budget + jumlah entri oversized ke telemetri. */
+      overBudgetBytes: this._overBudgetBytes + (gcStats.overBudgetBytes || 0),
+      oversizedEntryCount: this._oversizedEntryCount + (gcStats.oversizedEntryCount || 0)
     });
     const tRender1 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     this._lastRenderMs = tRender1 - tRender0;
@@ -1621,7 +1985,7 @@ class SceneRenderer {
         /* PERF (zoom cepat): saat interaksi zoom/pan aktif, lewati objek yang ukurannya
            sub-piksel di layar (<0.75px di kedua dimensi) — tidak terlihat namun tetap
            menelan draw call + stencil. Render penuh dipulihkan saat settle. */
-        if ((this.isZooming || this.isPanning || this.dragOffset) && (bb[2] - bb[0]) * z < 0.75 && (bb[3] - bb[1]) * z < 0.75) {
+        if ((this.isZooming || this.isPanning || this.dragOffset || this.isLiveDrag) && (bb[2] - bb[0]) * z < 0.75 && (bb[3] - bb[1]) * z < 0.75) {
           culledCount++;
           return;
         }
@@ -2571,6 +2935,25 @@ class SceneRenderer {
       cancelAnimationFrame(this._rafId);
       this._rafId = 0;
     }
+    if (this._prewarmTimer) {
+      clearTimeout(this._prewarmTimer);
+      this._prewarmTimer = 0;
+    }
+    if (this._prewarmIdleId) {
+      if (typeof cancelIdleCallback === 'function') {
+        try {
+          cancelIdleCallback(this._prewarmIdleId);
+        } catch (e) {}
+      }
+      this._prewarmIdleId = 0;
+    }
+    if (this._prewarmJob) this._prewarmJob.cancelled = true;
+    this._prewarmJob = null;
+    if (typeof window !== 'undefined' && window.__geovantaSceneRenderer === this) {
+      try {
+        window.__geovantaSceneRenderer = null;
+      } catch (e) {}
+    }
     if (this.canvasEl && this._contextHandlersBound) {
       try {
         this.canvasEl.removeEventListener('webglcontextlost', this._onContextLost, false);
@@ -2610,7 +2993,11 @@ class SceneRenderer {
     this.vboCache = new WeakMap();
     this._vboCacheOrder.clear();
     this._vboTotalBytes = 0;
-    this.gradTexCache = new WeakMap();
+    this.gradTexCache = new Map();
+    this._gradTexTotalBytes = 0;
+    if (this._transientVboPending) this._transientVboPending.clear();
+    this._overBudgetBytes = 0;
+    this._oversizedEntryCount = 0;
     this.imgTexCache.clear();
     this._texTotalBytes = 0;
     this.gl = null;

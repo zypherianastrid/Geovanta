@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { loadPrefs, applyTheme, applyMotion, applyAccent, savePrefs } from './utils/themeAndPrefsManager.jsx';
+import { setPerfPreset } from './utils/gpuCapabilities.jsx';
 import { WorkspaceDB } from './workspace/workspaceDb.jsx';
 import { ProjectRepository } from './workspace/projectRepository.jsx';
 import { WorkspaceController } from './workspace/workspaceController.jsx';
@@ -29,6 +30,15 @@ function App() {
     applyMotion(prefs.motion);
     applyAccent(prefs.accent);
   }, [prefs.accent]);
+  /* P2-06 (Track 4): terapkan preset performa tersimpan saat startup agar
+     pilihan Hemat/Seimbang/Kualitas (atau Auto) berlaku sejak awal, bukan
+     hanya setelah Pengaturan dibuka. */
+  useEffect(() => {
+    try {
+      setPerfPreset(prefs.perfPreset || 'auto');
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (prefs.persist) savePrefs(prefs);
   }, [prefs]);
