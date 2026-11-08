@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/Tauri-v2-FFC131?style=flat-square&logo=tauri" alt="Tauri v2">
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react" alt="React 18">
   <img src="https://img.shields.io/badge/Offline-100%25-22c55e?style=flat-square" alt="100% Offline">
-  <img src="https://img.shields.io/badge/Version-1.0-13b152?style=flat-square" alt="Version 1.0">
+  <img src="https://img.shields.io/badge/Version-1.1-13b152?style=flat-square" alt="Version 1.1">
 </p>
 
 <p align="center">
@@ -173,5 +173,5 @@ SOFTWARE.
 ---
 
 <p align="center">
-  <b>Geovanta Vector Studio v1.0</b> — Precision Vector Studio · Hybrid WebGL2 Engine · Adaptive Bézier &amp; Topology
+  <b>Geovanta Vector Studio v1.1</b> — Precision Vector Studio · Hybrid WebGL2 Engine · Adaptive Bézier &amp; Topology
 </p>

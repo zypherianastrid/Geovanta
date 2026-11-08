@@ -17,7 +17,8 @@ const LayerTreeViewport = React.memo(({
   dragLayerIds,
   moveObjsToGroup,
   setDragLayerIds,
-  setOverFrameId
+  setOverFrameId,
+  L
 }) => {
   const [windowStartIdx, setWindowStartIdx] = useState(0);
   const [fastScroll, setFastScroll] = useState(false);
@@ -123,7 +124,7 @@ const LayerTreeViewport = React.memo(({
     moveObjsToGroup(dragLayerIds, null);
     setDragLayerIds(null);
     setOverFrameId(null);
-  }}>{!hasObjects && <div className="text-[11px] mut px-2 py-4 text-center">Belum ada layer — gambar dengan Frame/Pen/Shape atau impor file.</div>}{rows.map(row => renderRowFn(row, fastScroll))}</div>;
+  }}>{!hasObjects && <div className="text-[11px] mut px-2 py-4 text-center">{L ? L.edNoLayers : 'Belum ada layer — gambar dengan Frame/Pen/Shape atau impor file.'}</div>}{rows.map(row => renderRowFn(row, fastScroll))}</div>;
 });
 
 export { LAYER_ROW_EST_PX, LAYER_OVERSCAN, LAYER_WINDOW_SIZE, LAYER_SCROLL_STEP_ROWS, LayerTreeViewport };

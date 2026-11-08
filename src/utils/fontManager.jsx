@@ -40,6 +40,7 @@ const FontManager = (() => {
   const validateGoogleFontUrl = rawUrl => {
     if (!rawUrl || typeof rawUrl !== 'string') return {
       valid: false,
+      code: 'empty',
       error: 'Masukkan URL Google Fonts atau nama font terlebih dahulu'
     };
     let clean = rawUrl.trim().replace(/&amp;/gi, '&');
@@ -57,18 +58,21 @@ const FontManager = (() => {
       if (u.protocol !== 'https:' && u.protocol !== 'http:') {
         return {
           valid: false,
+          code: 'protocol',
           error: 'Protokol URL harus https://'
         };
       }
       if (!/^(fonts\.googleapis\.com)$/i.test(u.hostname)) {
         return {
           valid: false,
+          code: 'domain',
           error: 'Domain harus fonts.googleapis.com'
         };
       }
       if (!/^\/css2?$/i.test(u.pathname)) {
         return {
           valid: false,
+          code: 'path',
           error: 'Path harus /css atau /css2'
         };
       }
@@ -76,6 +80,7 @@ const FontManager = (() => {
       if (!famParams.length || !famParams[0].trim()) {
         return {
           valid: false,
+          code: 'family',
           error: 'Parameter family=... tidak ditemukan pada URL'
         };
       }
@@ -87,6 +92,7 @@ const FontManager = (() => {
     } catch (e) {
       return {
         valid: false,
+        code: 'format',
         error: 'Format URL Google Fonts tidak valid'
       };
     }

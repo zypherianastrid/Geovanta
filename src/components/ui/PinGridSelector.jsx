@@ -9,8 +9,12 @@ const PinGrid = ({
   value,
   on,
   tip,
-  label = 'Titik poros'
-}) => <div className="pin3" role="group" aria-label={label} data-tip={tip}>{[0, 0.5, 1].map(uy => [0, 0.5, 1].map(ux => <button key={ux + '-' + uy} type="button" className={value[0] === ux && value[1] === uy ? 'on' : ''} aria-label={label + ' ' + ux + ',' + uy} data-tip-text={label + ' ' + ux + ',' + uy} aria-pressed={value[0] === ux && value[1] === uy} onClick={() => on([ux, uy])} />))}</div>;
+  label,
+  L
+}) => {
+  const lbl = label || (L ? L.riPinPoint : 'Titik poros');
+  return <div className="pin3" role="group" aria-label={lbl} data-tip={tip}>{[0, 0.5, 1].map(uy => [0, 0.5, 1].map(ux => <button key={ux + '-' + uy} type="button" className={value[0] === ux && value[1] === uy ? 'on' : ''} aria-label={lbl + ' ' + ux + ',' + uy} data-tip-text={lbl + ' ' + ux + ',' + uy} aria-pressed={value[0] === ux && value[1] === uy} onClick={() => on([ux, uy])} />))}</div>;
+};
 
 /* Input angka kustom: tombol − / + , ketik langsung, panah atas/bawah */
 

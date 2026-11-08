@@ -22,6 +22,7 @@ import { GEOVANTA_BENCHMARK_SUITE } from '../../renderer/benchmarkSuite.jsx';
 import { LOGO_INNER } from '../../constants/brandAndIcons.jsx';
 import { SC, SC_EN } from '../../constants/keyboardShortcuts.jsx';
 import { getSettingsStr } from '../../constants/settingsI18n.jsx';
+import { getAppStr } from '../../constants/appI18n.jsx';
 
 const Settings = ({
   open,
@@ -122,11 +123,11 @@ const Settings = ({
         }}><div className="stg-sec"><div className="stg-sec-hdr"><span className="stg-sec-lbl"><Ico n="palette" size={13} /><span>{L.secAppearance}</span></span><span className="font-mono text-[10.5px] font-semibold px-2 py-0.5 rounded-md" style={{
                 background: 'var(--fig-sel)',
                 color: 'var(--acc)'
-              }}>{(prefs.accent || '#13b152').toUpperCase()}</span></div><div className="stg-group"><div className="stg-row" data-tip="setTheme"><div className="stg-meta"><span className="stg-ico"><Ico n="eye" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.themeLabel}</span><span className="stg-sub">{L.themeSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.theme} on={set('theme')} o={[['system', L.themeSystem], ['light', L.themeLight], ['dark', L.themeDark]]} tip="setTheme" /></div></div><div className="stg-row" data-tip="setLang"><div className="stg-meta"><span className="stg-ico"><Ico n="flow" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.langLabel}</span><span className="stg-sub">{L.langSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.lang === 'en' ? 'en' : 'id'} on={set('lang')} o={[['id', 'Indonesia'], ['en', 'English']]} tip="setLang" /></div></div><div className="stg-row-col"><div className="flex flex-wrap items-center justify-between gap-2"><div className="stg-meta"><span className="stg-ico"><Ico n="brush" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.accentLabel}</span><span className="stg-sub">{L.accentSub}</span></div></div><div className="stg-ctrl"><ColorField value={prefs.accent || '#13b152'} on={v => {
+              }}>{(prefs.accent || '#13b152').toUpperCase()}</span></div><div className="stg-group"><div className="stg-row" data-tip="setTheme"><div className="stg-meta"><span className="stg-ico"><Ico n="eye" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.themeLabel}</span><span className="stg-sub">{L.themeSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.theme} on={set('theme')} o={[['system', L.themeSystem], ['light', L.themeLight], ['dark', L.themeDark]]} tip="setTheme" /></div></div><div className="stg-row" data-tip="setLang"><div className="stg-meta"><span className="stg-ico"><Ico n="flow" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.langLabel}</span><span className="stg-sub">{L.langSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.lang === 'en' ? 'en' : 'id'} on={set('lang')} o={[['id', 'Indonesia'], ['en', 'English']]} tip="setLang" /></div></div><div className="stg-row-col"><div className="flex flex-wrap items-center justify-between gap-2"><div className="stg-meta"><span className="stg-ico"><Ico n="brush" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.accentLabel}</span><span className="stg-sub">{L.accentSub}</span></div></div><div className="stg-ctrl"><ColorField L={getAppStr(prefs && prefs.lang)} value={prefs.accent || '#13b152'} on={v => {
                       if (v && v !== 'none') set('accent')(parseColorWithAlpha(v).hex);
                     }} /><div style={{
                       width: 104
-                    }}><ColorText value={prefs.accent || '#13b152'} on={v => {
+                    }}><ColorText L={getAppStr(prefs && prefs.lang)} value={prefs.accent || '#13b152'} on={v => {
                         if (v && v !== 'none') set('accent')(parseColorWithAlpha(v).hex);
                       }} /></div><button type="button" className="btn sec text-[11px]" style={{
                       padding: '6px 10px',

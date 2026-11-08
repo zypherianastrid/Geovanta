@@ -8,7 +8,8 @@ import { CustomTextBox } from './CustomTextBox.jsx';
 
 const ColorText = ({
   value,
-  on
+  on,
+  L
 }) => {
   const commit = raw => {
     let s = String(raw || '').trim();
@@ -17,7 +18,7 @@ const ColorText = ({
   };
   return <div className="fld hexf" style={{
     minWidth: 0
-  }} data-tip="veColorText"><CustomTextBox value={value} ariaLabel="Warna CSS" onCommit={commit} /></div>;
+  }} data-tip="veColorText"><CustomTextBox value={value} ariaLabel={L ? L.cpCssColor : 'Warna CSS'} onCommit={commit} /></div>;
 };
 
 /* Grup 1: Alat Node & Handle — Set Ikon Geometris Terpadu (24x24, radius & stroke selaras) */

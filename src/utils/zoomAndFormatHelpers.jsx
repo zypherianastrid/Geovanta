@@ -48,19 +48,20 @@ const formatBytes = bytes => {
   if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
   return (b / (1024 * 1024)).toFixed(2) + ' MB';
 };
-const formatDateRel = ts => {
-  if (!ts) return 'Baru saja';
+const formatDateRel = (ts, lang = 'id') => {
+  const en = lang === 'en';
+  if (!ts) return en ? 'Just now' : 'Baru saja';
   const diff = Math.max(0, Date.now() - Number(ts));
   const sec = Math.floor(diff / 1000);
-  if (sec < 45) return 'Baru saja';
+  if (sec < 45) return en ? 'Just now' : 'Baru saja';
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} menit lalu`;
+  if (min < 60) return en ? `${min} min ago` : `${min} menit lalu`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} jam lalu`;
+  if (hr < 24) return en ? `${hr} hr ago` : `${hr} jam lalu`;
   const day = Math.floor(hr / 24);
-  if (day < 30) return `${day} hari lalu`;
+  if (day < 30) return en ? `${day} day${day === 1 ? '' : 's'} ago` : `${day} hari lalu`;
   try {
-    return new Date(ts).toLocaleDateString('id-ID', {
+    return new Date(ts).toLocaleDateString(en ? 'en-US' : 'id-ID', {
       day: 'numeric',
       month: 'short',
       year: 'numeric'
@@ -69,10 +70,10 @@ const formatDateRel = ts => {
     return new Date(ts).toLocaleDateString();
   }
 };
-const formatDateTimeFull = ts => {
+const formatDateTimeFull = (ts, lang = 'id') => {
   if (!ts) return '-';
   try {
-    return new Date(ts).toLocaleString('id-ID', {
+    return new Date(ts).toLocaleString(lang === 'en' ? 'en-US' : 'id-ID', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',

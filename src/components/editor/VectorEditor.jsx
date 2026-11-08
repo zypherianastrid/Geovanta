@@ -21,7 +21,7 @@ import { SceneRenderer } from '../../renderer/sceneRenderer.jsx';
 import { AssetManager } from '../../workspace/assetManager.jsx';
 import { shapeRect } from '../../utils/shapeGenerators.jsx';
 import { ICONS } from '../../constants/brandAndIcons.jsx';
-import { TIPS } from '../../constants/tooltipsCatalog.jsx';
+import { TIPS, TIPS_EN } from '../../constants/tooltipsCatalog.jsx';
 import { Vi, Chev, Ico } from '../ui/IconGlyphs.jsx';
 import { Float } from '../ui/FloatPopover.jsx';
 import { EditorActionRail } from './EditorActionRail.jsx';
@@ -90,6 +90,12 @@ const VectorEditor = ({
     };
   }, []);
   const L = getAppStr(prefs && prefs.lang);
+  const TT = prefs && prefs.lang === 'en' ? TIPS_EN : TIPS;
+  const unsSummary = d => {
+    if (d && d.unsupportedElements && d.unsupportedElements.length) return d.unsupportedElements.slice(0, 6).join(', ') + (d.unsupportedElements.length > 6 ? ' +' + (d.unsupportedElements.length - 6) + L.edUnsupportedMore : '');
+    const s = d && d.unsupportedSummary;
+    return s ? s.replace(' lainnya', L.edUnsupportedMore) : L.edUnsupportedDefault;
+  };
   const gpuOn = (!prefs || prefs.gpu !== false) && renderCfg.backendOverride !== 'svg';
   const say = m => {
     if (!full && flash) flash(m);
@@ -794,7 +800,7 @@ const VectorEditor = ({
     role: 'separator',
     'aria-orientation': 'vertical',
     tabIndex: 0,
-    'aria-label': k === 'a' ? 'Ubah lebar panel Aksi' : 'Ubah lebar panel Layer',
+    'aria-label': k === 'a' ? L.edResizeActions : L.edResizeLayers,
     'data-tip': 'veResizePanel',
     onPointerDown: e => {
       if (e.button !== 0) return;
@@ -1714,10 +1720,10 @@ const VectorEditor = ({
     return best;
   };
   const ADD_LBL = {
-    mid: 'Titik tengah',
-    grid: 'Garis grid',
-    node: 'Node objek lain',
-    edge: 'Tepi objek lain'
+    mid: L.edSnapLblMid,
+    grid: L.edSnapLblGrid,
+    node: L.edSnapLblNode,
+    edge: L.edSnapLblEdge
   };
   const addSnap = (sg, p, alt) => {
     const res = {
@@ -2060,7 +2066,7 @@ const VectorEditor = ({
     zoomRef.current = nz;
     panRef.current = np;
     flushView();
-    say(`Zoom Piksel ${Math.round(nz * 100).toLocaleString('id-ID')}% aktif (1 px = ${Math.round(nz)}×${Math.round(nz)} px layar)`);
+    say(`Zoom Piksel ${Math.round(nz * 100).toLocaleString(prefs.lang === 'en' ? 'en-US' : 'id-ID')}% aktif (1 px = ${Math.round(nz)}×${Math.round(nz)} px layar)`);
   };
   /* Section 7.2: Document Lifecycle Operations (createDocument, loadDocument, replaceDocument) */
   const replaceDocument = (nextDoc, nextViewState) => {
@@ -2221,7 +2227,7 @@ const VectorEditor = ({
       nodes: new Set()
     });
     requestAnimationFrame(() => api.current.fitView());
-    if (d.unsupported) say('Elemen SVG dilewati: ' + (d.unsupportedSummary || 'teks/filter/pattern/mask'));else if (note) say(note);
+    if (d.unsupported) say('Elemen SVG dilewati: ' + unsSummary(d));else if (note) say(note);
   };
   useEffect(() => {
     if (initialSvg && initialSvg !== loaded.current) {
@@ -2418,12 +2424,12 @@ const VectorEditor = ({
     if (bb) {
       if (bb[0] < vb[0] - 0.5 || bb[1] < vb[1] - 0.5 || bb[2] > vb[0] + vb[2] + 0.5 || bb[3] > vb[1] + vb[3] + 0.5) {
         setExportArea('content');
-        note = ' · area ekspor: semua konten';
+        note = prefs.lang === 'en' ? ' · export area: all content' : ' · area ekspor: semua konten';
       }
       if (empty || bb[2] - bb[0] > visW || bb[3] - bb[1] > visH) requestAnimationFrame(() => fitTo(empty ? Math.min(bb[0], vb[0]) : bb[0], empty ? Math.min(bb[1], vb[1]) : bb[1], Math.max(1e-6, empty ? Math.max(bb[2], vb[0] + vb[2]) - Math.min(bb[0], vb[0]) : bb[2] - bb[0]), Math.max(1e-6, empty ? Math.max(bb[3], vb[1] + vb[3]) - Math.min(bb[1], vb[1]) : bb[3] - bb[1]), 60));
     }
-    const warnDetails = items.map(it => it.d && it.d.unsupportedSummary).filter(Boolean).join(', ');
-    say(items.length + ' file ditambahkan' + (bad ? ' · ' + bad + ' dilewati' : '') + (warn ? ' · elemen dilewati: ' + (warnDetails || 'teks/filter/mask') : '') + note);
+    const warnDetails = items.map(it => it.d && unsSummary(it.d)).filter(Boolean).join(', ');
+    say(items.length + ' file ditambahkan' + (bad ? ' · ' + bad + ' dilewati' : '') + (warn ? ' · elemen dilewati: ' + (warnDetails || L.edUnsupportedDefault) : '') + note);
   };
   /* teks clipboard → objek internal / SVG / PostScript / data-URL gambar. true bila ditangani */
   const pasteText = (tx, at) => {
@@ -4298,7 +4304,7 @@ const VectorEditor = ({
         pixelHoverRectRef.current.setAttribute('stroke-width', String(1.5 / zoomRef.current));
       }
       if (pixelCoordReadoutRef.current) {
-        pixelCoordReadoutRef.current.textContent = `Piksel [${pxX}, ${pxY}]`;
+        pixelCoordReadoutRef.current.textContent = `${L.edPixel} [${pxX}, ${pxY}]`;
       }
     }
     if (!dg) {
@@ -5244,7 +5250,7 @@ const VectorEditor = ({
       slideEdges: alOpt.slide,
       collapse: alOpt.collapse
     }) : o, 'node-al');
-    say(ok ? `${selNodes.size} node disejajarkan (${mode === 'custom' ? deg + '°' : mode === 'perp' ? '⊥ 90° Batang' : mode === 'parallel' ? '∥ Seberang' : 'Auto'})` : 'Node sudah sejajar pada sudut tersebut');
+    say(ok ? `${selNodes.size} node disejajarkan (${mode === 'custom' ? deg + '°' : mode === 'perp' ? (prefs.lang === 'en' ? '⊥ 90° Perpendicular' : '⊥ 90° Batang') : mode === 'parallel' ? (prefs.lang === 'en' ? '∥ Parallel' : '∥ Seberang') : 'Auto'})` : 'Node sudah sejajar pada sudut tersebut');
   };
   const applySharpen = () => {
     if (!selObjs.length) return say('Pilih objek / node sudut dulu');
@@ -5278,7 +5284,7 @@ const VectorEditor = ({
     });
     if (al) say(selNodes.size + ' node dijadikan corner & diluruskan');
   };
-  const MIRROR_OPTS = [['corner', 'veMirrorNone', 'No mirroring (Bebas)', 'M4.5 7.5L10 11 M14 11l5.5-3.5 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M3 6.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0 M18 6.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0'], ['freeCurve', 'veMirrorCurve', 'No mirroring + Buat Lengkung', 'M4 16.5C6.5 8.5 9.5 8.5 10.5 11 M13.5 13C15 16 18 16 20 7.5 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0'], ['smooth', 'veMirrorAngle', 'Mirror angle', 'M3.5 14.5L10 12.4 M14 11.6L19.5 9.8 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M2.5 15a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0'], ['symmetric', 'veMirrorAL', 'Mirror angle and length', 'M4.5 14.5L10 12.6 M14 11.4L19.5 9.5 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M3 15a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0 M18 9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0']];
+  const MIRROR_OPTS = [['corner', 'veMirrorNone', L.edMirrorFree, 'M4.5 7.5L10 11 M14 11l5.5-3.5 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M3 6.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0 M18 6.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0'], ['freeCurve', 'veMirrorCurve', L.edMirrorCurve, 'M4 16.5C6.5 8.5 9.5 8.5 10.5 11 M13.5 13C15 16 18 16 20 7.5 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0'], ['smooth', 'veMirrorAngle', 'Mirror angle', 'M3.5 14.5L10 12.4 M14 11.6L19.5 9.8 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M2.5 15a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0'], ['symmetric', 'veMirrorAL', 'Mirror angle and length', 'M4.5 14.5L10 12.6 M14 11.4L19.5 9.5 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M3 15a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0 M18 9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0']];
   const applyMirror = m => {
     setMirrorOpen(false);
     if (!selNodes.size) return say('Pilih node atau handle dulu untuk mengatur mirroring');
@@ -5906,7 +5912,7 @@ const VectorEditor = ({
     const s = d.objects.filter(o => S.has(o.id) && !o.isFrameBg && !o.isAutoFrame);
     const g0 = s.length && s[0].group;
     if (noToggle !== true && g0 && s.every(o => o.group === g0) && d.objects.filter(o => o.group === g0 && !o.isFrameBg && !o.isAutoFrame).length === s.length) {
-      return ungroupIds(new Set([g0]), (isFrameGid(d, g0) ? 'Frame "' : 'Grup "') + g0 + '"');
+      return ungroupIds(new Set([g0]), (isFrameGid(d, g0) ? 'Frame "' : L.edGroupWord + ' "') + g0 + '"');
     }
     if (!s.length) return say('Pilih objek untuk dikelompokkan');
     const gu = new Set(d.objects.map(o => o.group).filter(Boolean));
@@ -5968,7 +5974,7 @@ const VectorEditor = ({
     });
     if (!gids.size) return say('Seleksi tidak berada di dalam Grup atau Frame');
     const g1 = [...gids][0];
-    ungroupIds(gids, gids.size === 1 ? (isFrameGid(d, g1) ? 'Frame "' : 'Grup "') + g1 + '"' : null);
+    ungroupIds(gids, gids.size === 1 ? (isFrameGid(d, g1) ? 'Frame "' : L.edGroupWord + ' "') + g1 + '"' : null);
   };
   const onCtx = e => {
     if (viewPend.current) flushView();
@@ -6220,7 +6226,7 @@ const VectorEditor = ({
     act: dup
   }, {
     k: 'del',
-    label: selNodes.size ? 'Hapus Node' : 'Delete',
+    label: selNodes.size ? L.edCtxDelNode : 'Delete',
     ic: ICONS.trash,
     kbd: 'Del',
     tip: 'veDelObj',
@@ -6773,7 +6779,7 @@ const VectorEditor = ({
   const hasObj = selObjs.length > 0;
   const railGroups = [{
     id: 'visGrp',
-    title: 'Penampil Node & Handle (Global)',
+    title: L.edRailVis,
     items: [{
       tip: 'veShowNodeGlobal',
       d: ND + (showSelNodes ? '' : SL),
@@ -6789,7 +6795,7 @@ const VectorEditor = ({
     }]
   }, {
     id: 'objGrp',
-    title: 'Aksi Objek & Urutan Layer',
+    title: L.edRailObj,
     items: [{
       tip: 'veDup',
       d: 'M8 8h12v12H8z M4 16V4h12',
@@ -6813,7 +6819,7 @@ const VectorEditor = ({
     }]
   }, {
     id: 'pathGrp',
-    title: 'Operasi Path & Tipe Node',
+    title: L.edRailPath,
     items: [{
       tip: 'veClose',
       d: 'M4 18L10 5L20 13L16 19Z',
@@ -6875,18 +6881,18 @@ const VectorEditor = ({
     const curItem = items.find(x => x.tip === lastRailAct[id]) || items.find(x => x.on) || items[0];
     const isOpen = openRailGrp === id;
     const btnRef = railGrpRefs[id];
-    return <React.Fragment key={id}><div ref={btnRef} className="fig-rail-grp"><button type="button" className={'dk-b' + (curItem.on ? ' on' : '')} data-tip={curItem.tip} aria-label={TIPS[curItem.tip] ? TIPS[curItem.tip].t : curItem.tip} onClick={() => {
+    return <React.Fragment key={id}><div ref={btnRef} className="fig-rail-grp"><button type="button" className={'dk-b' + (curItem.on ? ' on' : '')} data-tip={curItem.tip} aria-label={TT[curItem.tip] ? TT[curItem.tip].t : curItem.tip} onClick={() => {
           if (curItem.dis) {
             setOpenRailGrp(isOpen ? null : id);
           } else {
             curItem.act();
             setOpenRailGrp(null);
           }
-        }}><Vi d={curItem.d} s={19} /></button><button type="button" className="dk-b chev-b" aria-label={'Pilih ' + title} data-tip-text={'Pilih ' + title} aria-expanded={isOpen} onClick={e => {
+        }}><Vi d={curItem.d} s={19} /></button><button type="button" className="dk-b chev-b" aria-label={L.edChoose + ' ' + title} data-tip-text={L.edChoose + ' ' + title} aria-expanded={isOpen} onClick={e => {
           e.stopPropagation();
           setOpenRailGrp(isOpen ? null : id);
         }}><Chev open={isOpen} /></button></div><Float anchor={btnRef} open={isOpen} onClose={() => setOpenRailGrp(null)} w={252}><div className="text-[10.5px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">{title}</div>{items.map(it => {
-          const info = TIPS[it.tip] || {
+          const info = TT[it.tip] || {
             t: it.tip
           };
           const isCur = curItem.tip === it.tip;
@@ -6905,7 +6911,7 @@ const VectorEditor = ({
   });
   return <div ref={rootRef} className={'ved-root' + (full ? ' ved-full' : '')}><div className="fig-workspace"><div className="flex h-full min-h-0 relative select-none order-2 lg:order-none" style={{
         '--lw': pw.l + 'px'
-      }}><EditorActionRail renderRailDropdowns={renderRailDropdowns} />{leftOpen && <EditorLeftSidebar L={L} lang={prefs && prefs.lang || 'id'} onBackToWorkspace={onBackToWorkspace} docRef={docRef} zoomRef={zoomRef} panRef={panRef} saveStatus={saveStatus} onRetrySave={onRetrySave} onRenameProject={onRenameProject} projectName={projectName} doc={doc} nTotal={nTotal} sel={sel} selNodes={selNodes} createFrameSel={createFrameSel} groupSel={groupSel} clipFrames={clipFrames} setClipFrames={setClipFrames} groupSameColor={groupSameColor} setGroupSameColor={setGroupSameColor} layerScrollRef={layerScrollRef} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} tool={tool} pen={pen} penSty={penSty} setPenSty={setPenSty} penRef={penRef} commitObjs={commitObjs} finishPen={finishPen} selObjs={selObjs} autoSel={autoSel} autoAll={autoAll} ahOpt={ahOpt} setAhOpt={setAhOpt} primary={primary} alOpt={alOpt} setAlOpt={setAlOpt} applyNodeAngleAlign={applyNodeAngleAlign} selHandles={selHandles} applyStraight={applyStraight} applyAutoRefine={applyAutoRefine} applyPruneNodes={applyPruneNodes} pruneOpt={pruneOpt} setPruneOpt={setPruneOpt} sOpt={sOpt} setSOpt={setSOpt} vcSimp={vcSimp} vcSimpRetain={vcSimpRetain} openVcSimplify={openVcSimplify} triggerAutoSimplifyLevel={triggerAutoSimplifyLevel} openVcMoreOptions={openVcMoreOptions} updateVcSimplify={updateVcSimplify} cancelVcSimplify={cancelVcSimplify} confirmVcSimplify={confirmVcSimplify} virtualLayerRows={virtualLayerRows} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} layerAnchor={layerAnchor} layerFlatIds={layerFlatIds} setSel={setSel} setLayerIns={setLayerIns} renameVal={renameVal} setRenameVal={setRenameVal} renameSkip={renameSkip} setRenamingId={setRenamingId} renamingId={renamingId} layerIns={layerIns} openLayerCtx={openLayerCtx} overFrameId={overFrameId} reorderLayerTo={reorderLayerTo} layerClickSkipExpandRef={layerClickSkipExpandRef} commitRename={commitRename} say={say} dropFrameId={dropFrameId} toggleCollapseGrp={toggleCollapseGrp} ungroupIds={ungroupIds} rzProps={rzProps} />}<button type="button" className={'fig-sidebar-edge-toggle' + (leftOpen ? ' on' : '')} data-tip={leftOpen ? 'veSidebarHide' : 'veSidebarShow'} aria-label={leftOpen ? 'Sembunyikan Panel Layer' : 'Tampilkan Panel Layer'} aria-expanded={leftOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
+      }}><EditorActionRail L={L} renderRailDropdowns={renderRailDropdowns} />{leftOpen && <EditorLeftSidebar L={L} lang={prefs && prefs.lang || 'id'} onBackToWorkspace={onBackToWorkspace} docRef={docRef} zoomRef={zoomRef} panRef={panRef} saveStatus={saveStatus} onRetrySave={onRetrySave} onRenameProject={onRenameProject} projectName={projectName} doc={doc} nTotal={nTotal} sel={sel} selNodes={selNodes} createFrameSel={createFrameSel} groupSel={groupSel} clipFrames={clipFrames} setClipFrames={setClipFrames} groupSameColor={groupSameColor} setGroupSameColor={setGroupSameColor} layerScrollRef={layerScrollRef} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} tool={tool} pen={pen} penSty={penSty} setPenSty={setPenSty} penRef={penRef} commitObjs={commitObjs} finishPen={finishPen} selObjs={selObjs} autoSel={autoSel} autoAll={autoAll} ahOpt={ahOpt} setAhOpt={setAhOpt} primary={primary} alOpt={alOpt} setAlOpt={setAlOpt} applyNodeAngleAlign={applyNodeAngleAlign} selHandles={selHandles} applyStraight={applyStraight} applyAutoRefine={applyAutoRefine} applyPruneNodes={applyPruneNodes} pruneOpt={pruneOpt} setPruneOpt={setPruneOpt} sOpt={sOpt} setSOpt={setSOpt} vcSimp={vcSimp} vcSimpRetain={vcSimpRetain} openVcSimplify={openVcSimplify} triggerAutoSimplifyLevel={triggerAutoSimplifyLevel} openVcMoreOptions={openVcMoreOptions} updateVcSimplify={updateVcSimplify} cancelVcSimplify={cancelVcSimplify} confirmVcSimplify={confirmVcSimplify} virtualLayerRows={virtualLayerRows} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} layerAnchor={layerAnchor} layerFlatIds={layerFlatIds} setSel={setSel} setLayerIns={setLayerIns} renameVal={renameVal} setRenameVal={setRenameVal} renameSkip={renameSkip} setRenamingId={setRenamingId} renamingId={renamingId} layerIns={layerIns} openLayerCtx={openLayerCtx} overFrameId={overFrameId} reorderLayerTo={reorderLayerTo} layerClickSkipExpandRef={layerClickSkipExpandRef} commitRename={commitRename} say={say} dropFrameId={dropFrameId} toggleCollapseGrp={toggleCollapseGrp} ungroupIds={ungroupIds} rzProps={rzProps} />}<button type="button" className={'fig-sidebar-edge-toggle' + (leftOpen ? ' on' : '')} data-tip={leftOpen ? 'veSidebarHide' : 'veSidebarShow'} aria-label={leftOpen ? L.edSidebarHide : L.edSidebarShow} aria-expanded={leftOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
           e.stopPropagation();
           setLeftOpen(o => !o);
         }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M9.5 4v16" /><path d={leftOpen ? 'M15 9.5L12.5 12l2.5 2.5' : 'M13 9.5L15.5 12 13 14.5'} /></svg></button></div><div className={'min-w-0 relative order-1 lg:order-none' + (full ? ' ved-fmid' : '')}><div ref={boxRef} className="ved-canvas" data-gpu={gpuOn ? 'on' : 'off'} data-fast-render={gpuOn && (panning || !!dragRef.current || nTotal > 800) ? '1' : '0'} style={full ? {
@@ -7312,7 +7318,7 @@ const VectorEditor = ({
                 zIndex: 55,
                 background: 'var(--card)',
                 border: '1.5px solid var(--acc)'
-              }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><CustomTextBox autoFocus={true} selectOnFocus={true} value={renameVal} ariaLabel="Nama Frame atau Group" onChange={v => setRenameVal(v)} onCommit={v => commitRename(fid, true, v)} onCancel={() => {
+              }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><CustomTextBox autoFocus={true} selectOnFocus={true} value={renameVal} ariaLabel={L.edRenameFrameGroup} onChange={v => setRenameVal(v)} onCommit={v => commitRename(fid, true, v)} onCancel={() => {
                   renameSkip.current = true;
                   setRenamingId(null);
                 }} /></div>;
@@ -7356,7 +7362,7 @@ const VectorEditor = ({
               transformOrigin: '0 0',
               boxSizing: 'border-box',
               overflow: 'visible'
-            }} data-doc-x={wx} data-doc-y={wy} data-base-font-size={rawFs} data-scale-x={effScaleX} data-scale-y={effScaleY} data-box-width={mb.w * effScaleX} data-box-height={mb.h * effScaleY} data-measured-width={mb.w} data-letter-spacing={Number(t.letterSpacing) || 0} data-word-spacing={Number(t.wordSpacing) || 0} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><CustomTextBox cls="ct-canvas-inline" canvasScaleX={effScaleX} canvasScaleY={effScaleY} canvasWidth={mb.w} canvasZoom={zNow} canvasLetterSpacing={Number(t.letterSpacing) || 0} canvasWordSpacing={Number(t.wordSpacing) || 0} autoFocus={true} selectOnFocus={true} multiline={true} value={renameVal} ariaLabel="Ketik teks di kanvas" onChange={v => {
+            }} data-doc-x={wx} data-doc-y={wy} data-base-font-size={rawFs} data-scale-x={effScaleX} data-scale-y={effScaleY} data-box-width={mb.w * effScaleX} data-box-height={mb.h * effScaleY} data-measured-width={mb.w} data-letter-spacing={Number(t.letterSpacing) || 0} data-word-spacing={Number(t.wordSpacing) || 0} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><CustomTextBox cls="ct-canvas-inline" canvasScaleX={effScaleX} canvasScaleY={effScaleY} canvasWidth={mb.w} canvasZoom={zNow} canvasLetterSpacing={Number(t.letterSpacing) || 0} canvasWordSpacing={Number(t.wordSpacing) || 0} autoFocus={true} selectOnFocus={true} multiline={true} value={renameVal} ariaLabel={L.edInlineTextPh} onChange={v => {
                 setRenameVal(v);
                 commitObjs(o => o.id === tid && o.text ? VE.updateTextObj(o, {
                   content: v || ' '
@@ -7378,7 +7384,7 @@ const VectorEditor = ({
                 setZ: zf => setZ(zf),
                 getZoom: () => zoomRef.current,
                 runAutomatedBenchmarks: () => {
-                  const suites = [['Test 01 — Lingkaran', () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildCircleSvg()), 1], ['Test 02 — Bézier & Cusp', () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildBezierSvg()), 2], ['Test 03 — Diagonal & Sudut', () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildDiagonalSvg()), 1], ['Test 04 — Compound & Lubang', () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildCompoundSvg()), 1], ['Density — 1.000 Node', () => GEOVANTA_BENCHMARK_SUITE.buildNodeDensityDoc(1000), 1], ['Density — 10.000 Node', () => GEOVANTA_BENCHMARK_SUITE.buildNodeDensityDoc(10000), 1], ['Extreme Zoom 25.600% (256×)', () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildCircleSvg()), 256], ['Coord Offset 100.000.000', () => GEOVANTA_BENCHMARK_SUITE.buildExtremeCoordinateDoc(100000000), 1], ['Stress — 240 Objek Mosaic', () => GEOVANTA_BENCHMARK_SUITE.buildSeamMosaicDoc(240), 1]];
+                  const suites = [[L.edBenchTest01, () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildCircleSvg()), 1], [L.edBenchTest02, () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildBezierSvg()), 2], [L.edBenchTest03, () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildDiagonalSvg()), 1], [L.edBenchTest04, () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildCompoundSvg()), 1], [L.edBenchDensity1k, () => GEOVANTA_BENCHMARK_SUITE.buildNodeDensityDoc(1000), 1], [L.edBenchDensity10k, () => GEOVANTA_BENCHMARK_SUITE.buildNodeDensityDoc(10000), 1], [L.edBenchZoom, () => VE.parseSVG(GEOVANTA_BENCHMARK_SUITE.buildCircleSvg()), 256], [L.edBenchCoord, () => GEOVANTA_BENCHMARK_SUITE.buildExtremeCoordinateDoc(100000000), 1], [L.edBenchStress, () => GEOVANTA_BENCHMARK_SUITE.buildSeamMosaicDoc(240), 1]];
                   const rows = [];
                   suites.forEach(([name, makeFn, zTest]) => {
                     const d = makeFn();
@@ -7466,7 +7472,7 @@ const VectorEditor = ({
             }}><Ico n="grid" size={13} /><span ref={pixelModeZoomLblRef}>{renderCfg.pixelPreviewMode === 'hard' ? 'Hard Pixel Solid' : renderCfg.pixelPreviewMode === 'coverage' ? 'Pixel Coverage AA' : 'Smooth Vector'} ({Math.max(1, Math.round(zoom))}×)</span></span><span ref={pixelCoordReadoutRef} className="text-[10.5px] font-mono px-2 py-0.5 rounded-full" style={{
               background: 'var(--sub)',
               border: '1px solid var(--line)'
-            }}>Piksel [0, 0]</span><div className="ved-pills" style={{
+            }}>{L.edPixel} [0, 0]</span><div className="ved-pills" style={{
               gap: 4
             }}><button type="button" className={'ved-pill text-[10px]' + (renderCfg.pixelPreviewMode === 'smooth' ? ' on' : '')} data-tip="vePxSmooth" onClick={() => setRenderCfg({
                 pixelPreviewMode: 'smooth'
@@ -7517,7 +7523,7 @@ const VectorEditor = ({
             color: 'var(--acc)'
           }}><Ico n="upload" size={22} /></div><div className="text-xs font-semibold">{L.impDrop}</div><div className="text-[11px] mut">{L.impSupports}</div></div><div className="mt-3 space-y-2"><div className="text-[11px] mut font-medium">{L.impPaste}</div><div className="fld p-2" style={{
             minHeight: 42
-          }}><CustomTextBox value={pasteSvgDraft} ariaLabel="Kode SVG" onChange={setPasteSvgDraft} onCommit={v => setPasteSvgDraft(v)} /></div><div className="flex gap-2"><button type="button" className="btn sec flex-1 text-xs" onClick={() => {
+          }}><CustomTextBox value={pasteSvgDraft} ariaLabel={L.impCodeAria} onChange={setPasteSvgDraft} onCommit={v => setPasteSvgDraft(v)} /></div><div className="flex gap-2"><button type="button" className="btn sec flex-1 text-xs" onClick={() => {
               pasteFromSystem();
               setImportModalOpen(false);
             }}><Ico n="copy" size={14} />{L.impPasteClip}</button><button type="button" className="btn pri flex-1 text-xs" disabled={!pasteSvgDraft.trim()} onClick={() => {
@@ -7525,7 +7531,7 @@ const VectorEditor = ({
                 setPasteSvgDraft('');
                 setImportModalOpen(false);
               } else say('Kode SVG tidak valid');
-            }}>Muat Kode SVG</button></div></div></div></div>, document.body)}<CtxMenu menu={ctx} items={ctxItems} onClose={() => setCtx(null)} />{full && lmsg && <div className="ved-toast">{lmsg}</div>}</div>;
+            }}>{L.impLoadCode}</button></div></div></div></div>, document.body)}<CtxMenu menu={ctx} items={ctxItems} onClose={() => setCtx(null)} />{full && lmsg && <div className="ved-toast">{lmsg}</div>}</div>;
 };
 /* ============================================================================
    GEOVANTA WORKSPACE — CORE STORAGE & DATA LAYER (PHASE 1, 2, 3, 7, 9, 10, 11)

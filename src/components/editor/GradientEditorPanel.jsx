@@ -193,12 +193,12 @@ const GradientEditorPanel = ({
     const st = (g.stops || []).map(s => `${s.color} ${Math.round(s.offset * 1000) / 10}%`).join(', ');
     return `linear-gradient(90deg, ${st})`;
   }, [g]);
-  return <div className="space-y-3"><div><div className="text-[11px] mut mb-1.5">{L.gradMode}</div><GradChoice value={fillMode} on={setMode} cols={2} options={[['solid', 'Solid'], ['linear', 'Linear'], ['radial', 'Radial'], ['none', 'Kosong']]} tip="veGradMode" tips={{
+  return <div className="space-y-3"><div><div className="text-[11px] mut mb-1.5">{L.gradMode}</div><GradChoice value={fillMode} on={setMode} cols={2} options={[['solid', 'Solid'], ['linear', 'Linear'], ['radial', 'Radial'], ['none', L.gradNone]]} tip="veGradMode" tips={{
         solid: 'veGradSolid',
         linear: 'veGradLinear',
         radial: 'veGradRadial',
         none: 'veGradNone'
-      }} /></div>{(fillMode === 'linear' || fillMode === 'radial') && g && <div className="space-y-3 fade"><div><div className="flex items-center justify-between text-[11px] mut mb-1"><span>Stop Gradien ({rawStops.length})</span><span className="text-[10px]">{L.gradBarHint}</span></div><div ref={barRef} onClick={onBarClick} data-tip="veGradBar" className="chk relative h-7 rounded-xl cursor-copy select-none" style={{
+      }} /></div>{(fillMode === 'linear' || fillMode === 'radial') && g && <div className="space-y-3 fade"><div><div className="flex items-center justify-between text-[11px] mut mb-1"><span>{L.gradStopsN.replace('{n}', rawStops.length)}</span><span className="text-[10px]">{L.gradBarHint}</span></div><div ref={barRef} onClick={onBarClick} data-tip="veGradBar" className="chk relative h-7 rounded-xl cursor-copy select-none" style={{
           border: '1px solid var(--line)',
           boxShadow: 'inset 0 1px 2px rgba(0,0,0,.08)'
         }}><div className="absolute inset-0 rounded-xl" style={{
@@ -279,12 +279,12 @@ const GradientEditorPanel = ({
               cursor: 'grab',
               zIndex: on ? 3 : 1
             }} />;
-          })}</div>}{many && <div className="mt-2 space-y-1.5"><div className="flex items-center justify-between text-[10px] mut"><span>Daftar stop ({rawStops.length}) · ketuk untuk memilih</span></div><div className="gstop-list">{rawStops.slice().sort((a, b) => a.offset - b.offset).map(s => <button key={'ch-' + s.id} type="button" className={'gstop-chip' + (curStop && curStop.id === s.id ? ' on' : '')} data-tip-text={'Stop gradasi · ' + cssToHex(s.color) + ' · ' + Math.round(s.offset * 100) + '%'} onClick={() => setActiveStopId(s.id)}><i style={{
+          })}</div>}{many && <div className="mt-2 space-y-1.5"><div className="flex items-center justify-between text-[10px] mut"><span>{L.gradStopList.replace('{n}', rawStops.length)}</span></div><div className="gstop-list">{rawStops.slice().sort((a, b) => a.offset - b.offset).map(s => <button key={'ch-' + s.id} type="button" className={'gstop-chip' + (curStop && curStop.id === s.id ? ' on' : '')} data-tip-text={L.gradStopTip.replace('{hex}', cssToHex(s.color)).replace('{pct}', Math.round(s.offset * 100))} onClick={() => setActiveStopId(s.id)}><i style={{
                 background: s.color
               }} /><span className="truncate">{Math.round(s.offset * 100)}%</span></button>)}</div><div className="flex items-center gap-1.5 flex-wrap"><span className="text-[10px] mut">{L.gradCondense}</span>{[4, 6, 8].filter(n => n < rawStops.length).map(n => <button key={n} type="button" className="ved-pill" onClick={() => simplifyStopsAction(n)}>{n}</button>)}</div></div>}</div>{curStop && <div className="p-2.5 rounded-xl space-y-2.5" style={{
         background: 'var(--sub)',
         border: '1px solid var(--line)'
-      }}><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2 min-w-0 flex-1"><ColorField tip="veGradStopColor" value={cssToHex(curStop.color)} opacity={curStop.op ?? 1} onOpacity={op => applyGrad(o => {
+      }}><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2 min-w-0 flex-1"><ColorField L={L} tip="veGradStopColor" value={cssToHex(curStop.color)} opacity={curStop.op ?? 1} onOpacity={op => applyGrad(o => {
               const m = VE.ensureGradModel(o);
               return VE.updateGradStops(m, m.grad.rawStops.map(s => s.id === curStop.id ? {
                 ...s,
@@ -304,7 +304,7 @@ const GradientEditorPanel = ({
               } : s));
             }, 'grad-col')} /><span className="text-[11px] font-mono uppercase truncate">{cssToHex(curStop.color)}</span></div><span className="text-[11px] font-mono mut">{Math.round(curStop.offset * 100)}%</span><button type="button" className="btn sec text-[10px]" style={{
             padding: '4px 8px'
-          }} disabled={rawStops.length <= 2} onClick={() => deleteStop(curStop.id)} data-tip="veGradDelStop"><Ico n="trash" size={12} /></button></div><Range tip="veGradStopPos" l="Posisi Stop" v={Math.round(curStop.offset * 100)} min={0} max={100} step={1} on={v => applyGrad(o => {
+          }} disabled={rawStops.length <= 2} onClick={() => deleteStop(curStop.id)} data-tip="veGradDelStop"><Ico n="trash" size={12} /></button></div><Range tip="veGradStopPos" l={L.gradStopPos} v={Math.round(curStop.offset * 100)} min={0} max={100} step={1} on={v => applyGrad(o => {
           const m = VE.ensureGradModel(o);
           return VE.updateGradStops(m, m.grad.rawStops.map(s => s.id === curStop.id ? {
             ...s,
@@ -316,12 +316,12 @@ const GradientEditorPanel = ({
             ...s,
             op: v / 100
           } : s));
-        }, 'grad-op')} f={v => v + '%'} /></div>}{fillMode === 'linear' && <div className="space-y-2"><Range tip="veGradAngle" l="Sudut Gradien" v={VE.gradAngleDeg(g)} min={-180} max={180} step={1} on={deg => applyGrad(o => VE.setGradAngleDeg(VE.ensureGradModel(o), deg), 'grad-ang')} f={v => v + '°'} /><div className="ved-pills">{[-90, -45, 0, 45, 90, 135, 180].map(d => <button key={d} type="button" data-tip="veGradAnglePreset" className={'ved-pill' + (Math.round(VE.gradAngleDeg(g)) === d ? ' on' : '')} onClick={() => applyGrad(o => VE.setGradAngleDeg(VE.ensureGradModel(o), d))}>{d}°</button>)}</div></div>}<div><div className="text-[11px] mut mb-1.5">{L.gradInterp}</div><GradChoice cols={2} value={g.oklab === false ? 'srgb' : 'oklab'} on={k => applyGrad(o => {
+        }, 'grad-op')} f={v => v + '%'} /></div>}{fillMode === 'linear' && <div className="space-y-2"><Range tip="veGradAngle" l={L.gradAngle} v={VE.gradAngleDeg(g)} min={-180} max={180} step={1} on={deg => applyGrad(o => VE.setGradAngleDeg(VE.ensureGradModel(o), deg), 'grad-ang')} f={v => v + '°'} /><div className="ved-pills">{[-90, -45, 0, 45, 90, 135, 180].map(d => <button key={d} type="button" data-tip="veGradAnglePreset" className={'ved-pill' + (Math.round(VE.gradAngleDeg(g)) === d ? ' on' : '')} onClick={() => applyGrad(o => VE.setGradAngleDeg(VE.ensureGradModel(o), d))}>{d}°</button>)}</div></div>}<div><div className="text-[11px] mut mb-1.5">{L.gradInterp}</div><GradChoice cols={2} value={g.oklab === false ? 'srgb' : 'oklab'} on={k => applyGrad(o => {
           const m = VE.ensureGradModel(o);
           return VE.updateGradStops(m, m.grad.rawStops, {
             oklab: k === 'oklab'
           });
-        })} options={[['oklab', 'OKLab Halus'], ['srgb', 'sRGB']]} tip="veGradInterp" tips={{
+        })} options={[['oklab', L.gradOklab], ['srgb', 'sRGB']]} tip="veGradInterp" tips={{
           oklab: 'veGradOk',
           srgb: 'veGradSrgb'
         }} /></div><div><div className="text-[11px] mut mb-1.5">Spread Method</div><GradChoice cols={3} value={g.spread || 'pad'} on={sp => applyGrad(o => ({

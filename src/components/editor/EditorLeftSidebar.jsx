@@ -4,7 +4,6 @@
  */
 import React from 'react';
 import { LOGO_INNER } from '../../constants/brandAndIcons.jsx';
-import { SAVE_STATUS_LABELS } from '../../constants/workspaceConstants.jsx';
 import { Ico, Vi } from '../ui/IconGlyphs.jsx';
 import { ColorField } from '../ui/ColorPickerField.jsx';
 import { Range } from '../ui/RangeField.jsx';
@@ -199,7 +198,7 @@ const EditorLeftSidebar = ({
   const ejectChild = o => moveObjsToGroup([o.id], null);
   const toggleGroupLock = (item, allLocked) => commitObjs(q => q.group === item.id ? { ...q, locked: !allLocked } : q);
   const toggleGroupHide = (item, allHidden) => commitObjs(q => q.group === item.id ? { ...q, hidden: !allHidden } : q);
-  const ungroup = item => ungroupIds(new Set([item.id]), (item.isFrame ? 'Frame "' : 'Grup "') + item.id + '"');
+  const ungroup = item => ungroupIds(new Set([item.id]), (item.isFrame ? 'Frame "' : L.edGroupWord + ' "') + item.id + '"');
   const bgClick = bgId => setSel({ objs: new Set([bgId]), nodes: new Set() });
   const startRenameObj = o => {
     renameSkip.current = false;
@@ -220,13 +219,20 @@ const EditorLeftSidebar = ({
   const bucketPick = (bucket, e, bucketSel) => {
     layerClickSkipExpandRef.current = true;
     pick(bucket.ids, e, bucketSel);
-    const label = bucket.hex === 'IMAGE' ? 'Gambar' : bucket.hex === 'NONE' ? 'Tanpa Fill' : bucket.hex.toUpperCase();
+    const label = bucket.hex === 'IMAGE' ? L.edBucketImage : bucket.hex === 'NONE' ? L.edBucketNoFill : bucket.hex.toUpperCase();
     say(bucket.ids.length + ' objek (' + label + ') dipilih');
   };
   const ejectBucket = bucket => moveObjsToGroup(bucket.ids, null);
   return (<aside className="fig-left-sidebar"><style>{`
   .fig-layers-scroll .fig-row .fig-eject:not(.act) { display: inline-flex !important; visibility: hidden !important; opacity: 0 !important; }
   .fig-layers-scroll .fig-row:hover .fig-eject:not(.act), .fig-layers-scroll .fig-row:focus-within .fig-eject:not(.act) { visibility: visible !important; opacity: 1 !important; }
+  /* SAVEFIX: baris atas header tidak boleh wrap — dulu saat label status
+     memanjang (Tersimpan -> Menyimpan...) pill jatuh ke baris kedua lalu
+     kembali ke atas. Lebar pill dibuat tetap (min-width menutup seluruh
+     siklus autosave umum: Tersimpan/Belum tersimpan/Menyimpan...) agar
+     posisinya tidak bergeser saat status berubah. */
+  .ws-ed-top-row { flex-wrap: nowrap !important; }
+  .ws-save-pill { flex: none !important; min-width: 120px !important; justify-content: center !important; }
 `}</style><div className="fig-doc-hdr"><div className="ws-ed-proj-bar min-w-0 flex-1"><div className="ws-ed-top-row">{onBackToWorkspace ? <button type="button" className="ws-back-btn" data-tip="veBackWorkspace" onClick={() => onBackToWorkspace(docRef.current, {
           zoom: zoomRef.current,
           pan: {
@@ -241,7 +247,7 @@ const EditorLeftSidebar = ({
           __html: LOGO_INNER
         }} />}<span className={'ws-save-pill st-' + (saveStatus || 'saved')} data-tip={saveStatus === 'error' ? 'veSaveError' : 'veSaveOk'} onClick={() => {
           if (saveStatus === 'error' && onRetrySave) onRetrySave();
-        }}><span className="ws-save-dot" /><span>{SAVE_STATUS_LABELS[saveStatus] || 'Tersimpan'}</span></span></div><div className="flex items-center justify-between gap-1.5 min-w-0"><button type="button" className="ws-ed-proj-name-btn" data-tip="veRenameProject" onClick={() => onRenameProject && onRenameProject()}><span className="truncate">{projectName || 'Untitled Project'}</span><Ico n="pencil" size={11} /></button></div><div className="text-[11px] mut truncate" data-tip="veStats">{doc.objects.length} objek · {nTotal} node · {sel.objs.size} dipilih{selNodes.size ? ' · ' + selNodes.size + 'n' : ''}</div></div></div><div className="fig-sec-hdr flex-wrap gap-1.5"><span className="whitespace-nowrap" data-tip="veLayers">Layers ({doc.objects.length})</span><div className="flex flex-wrap items-center gap-1"><button type="button" className="ved-pill text-[10.5px]" style={{
+        }}><span className="ws-save-dot" /><span>{({clean: L.edSaveClean, dirty: L.edSaveDirty, saving: L.edSaveSaving, saved: L.edSaveClean, error: L.edSaveError, recovery: L.edSaveRecovery, 'session-ram': L.edSaveSession})[saveStatus] || L.edSaveClean}</span></span></div><div className="flex items-center justify-between gap-1.5 min-w-0"><button type="button" className="ws-ed-proj-name-btn" data-tip="veRenameProject" onClick={() => onRenameProject && onRenameProject()}><span className="truncate">{projectName || 'Untitled Project'}</span><Ico n="pencil" size={11} /></button></div><div className="text-[11px] mut truncate" data-tip="veStats">{doc.objects.length} {L.edStatsObj} · {nTotal} node · {sel.objs.size} {L.edStatsSel}{selNodes.size ? ' · ' + selNodes.size + 'n' : ''}</div></div></div><div className="fig-sec-hdr flex-wrap gap-1.5"><span className="whitespace-nowrap" data-tip="veLayers">{L.edLayers} ({doc.objects.length})</span><div className="flex flex-wrap items-center gap-1"><button type="button" className="ved-pill text-[10.5px]" style={{
         padding: '3px 7px'
       }} data-tip="veFrameTool" onClick={createFrameSel}>{L.edAddFrame}</button><button type="button" className="ved-pill text-[10.5px]" style={{
         padding: '3px 7px'
@@ -259,7 +265,7 @@ const EditorLeftSidebar = ({
       const treeEl = layerTreeDomRef.current;
       ctrl.syncScroll(Math.max(0, st - (treeEl ? treeEl.offsetTop : 0)));
     }
-  }}>{tool === 'addnode' && <div className="ved-panel fade"><div className="text-xs mut mb-1.5 font-medium">{L.edAddNode}</div><div className="text-[11px] mut leading-relaxed">Arahkan kursor ke garis objek mana pun, lalu klik untuk menambah node. Seret setelah klik untuk langsung memindahkannya.</div></div>}{tool === 'addhandle' && <div className="ved-panel fade"><div className="text-xs mut mb-1.5 font-medium">{L.edAddHandle}</div><div className="text-[11px] mut leading-relaxed">Arahkan kursor ke sebuah node pada objek mana pun, lalu klik untuk menambahkan handle Bézier.</div></div>}{tool === 'pen' && <div className="ved-panel fade"><div className="text-xs mut mb-2 font-medium">Pen Tool{pen ? ' · menggambar' : ''}</div><div className="text-[11px] mut leading-relaxed"><b>Klik</b> = node sudut. <b>Seret</b> = kurva halus. <b>Alt</b> = patahkan sudut. <b>Enter/Esc</b> = selesai.</div><div className="space-y-2.5 mt-2.5"><div className="flex flex-wrap gap-1.5"><button type="button" data-tip="vePenNoFill" className={'ved-pill' + (penSty.fill === 'none' ? ' on' : '')} onClick={() => {
+  }}>{tool === 'addnode' && <div className="ved-panel fade"><div className="text-xs mut mb-1.5 font-medium">{L.edAddNode}</div><div className="text-[11px] mut leading-relaxed">{L.edAddNodeHelp}</div></div>}{tool === 'addhandle' && <div className="ved-panel fade"><div className="text-xs mut mb-1.5 font-medium">{L.edAddHandle}</div><div className="text-[11px] mut leading-relaxed">{L.edAddHandleHelp}</div></div>}{tool === 'pen' && <div className="ved-panel fade"><div className="text-xs mut mb-2 font-medium">Pen Tool{pen ? L.edPenDrawing : ''}</div><div className="text-[11px] mut leading-relaxed"><b>{L.edPenClick}</b> = {L.edPenCorner}. <b>{L.edPenDrag}</b> = {L.edPenCurve}. <b>Alt</b> = {L.edPenBreak}. <b>Enter/Esc</b> = {L.edPenDone}.</div><div className="space-y-2.5 mt-2.5"><div className="flex flex-wrap gap-1.5"><button type="button" data-tip="vePenNoFill" className={'ved-pill' + (penSty.fill === 'none' ? ' on' : '')} onClick={() => {
             setPenSty(s => ({
               ...s,
               fill: 'none'
@@ -278,7 +284,7 @@ const EditorLeftSidebar = ({
               ...o,
               fill: nf
             } : o, 'pen-sty');
-          }}>{L.edWithContent}</button></div><div><div className="text-[11px] mut mb-1">Fill</div><ColorField tip="veFill" value={penSty.fill} on={v => {
+          }}>{L.edWithContent}</button></div><div><div className="text-[11px] mut mb-1">Fill</div><ColorField L={L} tip="veFill" value={penSty.fill} on={v => {
             setPenSty(s => ({
               ...s,
               fill: v
@@ -287,7 +293,7 @@ const EditorLeftSidebar = ({
               ...o,
               fill: v
             } : o, 'pen-sty');
-          }} /></div><div><div className="text-[11px] mut mb-1">Stroke</div><ColorField tip="veStroke" value={penSty.stroke} on={v => {
+          }} /></div><div><div className="text-[11px] mut mb-1">Stroke</div><ColorField L={L} tip="veStroke" value={penSty.stroke} on={v => {
             setPenSty(s => ({
               ...s,
               stroke: v
@@ -318,10 +324,10 @@ const EditorLeftSidebar = ({
           }} disabled={!doc.objects.length} data-tip="veAhDelAll" onClick={() => autoAll(true)}>{L.edDelAll}</button></div><Range l={L.edTension} v={ahOpt.tau} min={0} max={0.5} step={0.01} on={v => setAhOpt(o => ({
           ...o,
           tau: v
-        }))} tip="veAhTension" f={v => v < 0.005 ? '0 (tajam)' : v.toFixed(2)} /><Range l={L.edSkipSharp} v={ahOpt.minAng} min={0} max={150} step={5} on={v => setAhOpt(o => ({
+        }))} tip="veAhTension" f={v => v < 0.005 ? L.edSharp0 : v.toFixed(2)} /><Range l={L.edSkipSharp} v={ahOpt.minAng} min={0} max={150} step={5} on={v => setAhOpt(o => ({
           ...o,
           minAng: v
-        }))} tip="veAhAngle" f={v => v ? '< ' + v + '°' : 'Mati'} /><div className="flex gap-1.5"><button type="button" data-tip="veAhScopeSub" className={'ved-pill' + (ahOpt.scope === 'sub' ? ' on' : '')} onClick={() => setAhOpt(o => ({
+        }))} tip="veAhAngle" f={v => v ? '< ' + v + '°' : L.edOff} /><div className="flex gap-1.5"><button type="button" data-tip="veAhScopeSub" className={'ved-pill' + (ahOpt.scope === 'sub' ? ' on' : '')} onClick={() => setAhOpt(o => ({
             ...o,
             scope: 'sub'
           }))}>Subpath</button><button type="button" data-tip="veAhScopeObj" className={'ved-pill' + (ahOpt.scope === 'obj' ? ' on' : '')} onClick={() => setAhOpt(o => ({
@@ -332,7 +338,7 @@ const EditorLeftSidebar = ({
             }}>{VE.measureSelectedNodesAngle(primary, selNodes)}°</span>}</div><Seg v={alOpt.mode} on={m => setAlOpt(o => ({
             ...o,
             mode: m
-          }))} o={[['auto', 'Auto'], ['custom', 'Derajat'], ['perp', '⊥ 90°'], ['parallel', '∥']]} tip="veAlMode" tips={{
+          }))} o={[['auto', 'Auto'], ['custom', L.edDegrees], ['perp', '⊥ 90°'], ['parallel', '∥']]} tip="veAlMode" tips={{
             auto: 'veAlAuto',
             custom: 'veAlCustom',
             perp: 'veAlPerp',
@@ -350,26 +356,26 @@ const EditorLeftSidebar = ({
                 deg: d
               }));
               if (selNodes.size >= 2) applyNodeAngleAlign(d, 'custom');
-            }}>{d}°</button>)}</div></div>}<div><div className="text-[11px] mut mb-1 whitespace-nowrap" data-tip="veAlAnchor">Titik patokan</div><Seg v={alOpt.anchor} on={a => setAlOpt(o => ({
+            }}>{d}°</button>)}</div></div>}<div><div className="text-[11px] mut mb-1 whitespace-nowrap" data-tip="veAlAnchor">{L.edAnchorPoint}</div><Seg v={alOpt.anchor} on={a => setAlOpt(o => ({
             ...o,
             anchor: a
-          }))} o={[['center', 'Tengah'], ['first', 'Awal'], ['last', 'Akhir']]} tip="veAlAnchor" tips={{
+          }))} o={[['center', L.edAnchorCenter], ['first', L.edAnchorFirst], ['last', L.edAnchorLast]]} tip="veAlAnchor" tips={{
             center: 'veAlAncCenter',
             first: 'veAlAncFirst',
             last: 'veAlAncLast'
           }} /></div><div><div className="text-[11px] mut mb-1 whitespace-nowrap" data-tip="veAlSlide">{L.edDragTip}</div><Seg v={alOpt.slide ? 'slide' : 'ortho'} on={k => setAlOpt(o => ({
             ...o,
             slide: k === 'slide'
-          }))} o={[['slide', 'Rel Sisi'], ['ortho', 'Tegak Lurus']]} tip="veAlSlide" tips={{
+          }))} o={[['slide', L.edSlideRail], ['ortho', L.edSlideOrtho]]} tip="veAlSlide" tips={{
             slide: 'veAlSlideOn',
             ortho: 'veAlSlideOff'
           }} /></div>{selNodes.size >= 3 && <div><div className="text-[11px] mut mb-1 whitespace-nowrap" data-tip="veAlCollapse">{L.edMidNode}</div><Seg v={alOpt.collapse ? 'on' : 'off'} on={k => setAlOpt(o => ({
             ...o,
             collapse: k === 'on'
-          }))} o={[['off', 'Simpan'], ['on', 'Lebur']]} tip="veAlCollapse" tips={{
+          }))} o={[['off', L.edKeep], ['on', L.edMerge]]} tip="veAlCollapse" tips={{
             off: 'veAlKeep',
             on: 'veAlMerge'
-          }} /></div>}<div className="ved-straight-acts"><button type="button" className="btn pri text-xs" data-tip="veApplyStraight" disabled={!selObjs.length} onClick={() => selNodes.size >= 2 || selHandles.size ? applyNodeAngleAlign() : applyStraight()}>{selHandles.size ? 'Luruskan ' + selHandles.size + ' handle' : selNodes.size >= 2 ? 'Sejajarkan ' + selNodes.size + ' node' : 'Luruskan seluruh path'}</button><button type="button" className="btn sec text-xs" data-tip="veAutoRefine" disabled={!selObjs.length} onClick={applyAutoRefine}>{L.edAutoTidy}</button><button type="button" className="btn sec text-xs" data-tip="vePruneNodes" disabled={!selObjs.length} onClick={applyPruneNodes}>{L.edDelNonCorner}</button></div><Range l={L.edTolDelete} v={pruneOpt.tol} min={0.2} max={3} step={0.05} on={v => setPruneOpt(o => ({
+          }} /></div>}<div className="ved-straight-acts"><button type="button" className="btn pri text-xs" data-tip="veApplyStraight" disabled={!selObjs.length} onClick={() => selNodes.size >= 2 || selHandles.size ? applyNodeAngleAlign() : applyStraight()}>{selHandles.size ? L.edStraightenHandles.replace('{n}', selHandles.size) : selNodes.size >= 2 ? L.edAlignNodesN.replace('{n}', selNodes.size) : L.edStraightenAll}</button><button type="button" className="btn sec text-xs" data-tip="veAutoRefine" disabled={!selObjs.length} onClick={applyAutoRefine}>{L.edAutoTidy}</button><button type="button" className="btn sec text-xs" data-tip="vePruneNodes" disabled={!selObjs.length} onClick={applyPruneNodes}>{L.edDelNonCorner}</button></div><Range l={L.edTolDelete} v={pruneOpt.tol} min={0.2} max={3} step={0.05} on={v => setPruneOpt(o => ({
           ...o,
           tol: v
         }))} tip="vePruneTol" f={v => v.toFixed(2)} /><Range l={L.edMinAngle} v={pruneOpt.cornerDeg} min={12} max={70} step={1} on={v => setPruneOpt(o => ({
@@ -428,15 +434,15 @@ const EditorLeftSidebar = ({
                 preview: !s.preview
               });
             }}><span className="c-chk-box">{s.preview && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>Preview</span></button></div><div className="flex gap-1.5 pt-1">{vcSimp ? <><button type="button" className="btn sec flex-1 text-xs" onClick={cancelVcSimplify}>Cancel</button><button type="button" className="btn pri flex-1 text-xs" data-tip="veApplySimplify" onClick={confirmVcSimplify}>OK</button></> : <button type="button" className="btn pri w-full text-xs" data-tip="veApplySimplify" onClick={() => openVcSimplify()}>{L.edOpenSimplify}</button>}</div></div></div>;
-    })()}<LayerTreeViewport virtualLayerRows={virtualLayerRows} hasObjects={doc.objects.length > 0} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} renderRowFn={(row, fastScroll) => {
+    })()}<LayerTreeViewport L={L} virtualLayerRows={virtualLayerRows} hasObjects={doc.objects.length > 0} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} renderRowFn={(row, fastScroll) => {
       if (row.kind === 'single') return <LayerObjRow key={row.obj.id} o={row.obj} child={false} nodeCount={row.nodeCount} selected={sel.objs.has(row.obj.id)} renaming={renamingId === row.obj.id} renameVal={renameVal} layerInsPos={layerIns && layerIns.id === row.obj.id ? layerIns.pos : null} layerNameLabel={L.edLayerName} clickSkipRef={layerClickSkipExpandRef} onPick={pick} onDragStart={dStart} onDragEnd={dEnd} onRowDragOver={rowDragOver} onRowDragLeave={rowDragLeave} onRowDrop={rowDrop} onOpenCtx={openLayerCtx} onToggleLock={toggleObjLock} onToggleHide={toggleObjHide} onEjectChild={ejectChild} onStartRename={startRenameObj} onRenameVal={setRenameVal} onRenameCommit={renameCommitObj} onRenameCancel={renameCancel} fastScroll={fastScroll} />;
       if (row.kind === 'child') return <LayerObjRow key={row.obj.id} o={row.obj} child={true} nodeCount={row.nodeCount} selected={sel.objs.has(row.obj.id)} renaming={renamingId === row.obj.id} renameVal={renameVal} layerInsPos={layerIns && layerIns.id === row.obj.id ? layerIns.pos : null} layerNameLabel={L.edLayerName} clickSkipRef={layerClickSkipExpandRef} onPick={pick} onDragStart={dStart} onDragEnd={dEnd} onRowDragOver={rowDragOver} onRowDragLeave={rowDragLeave} onRowDrop={rowDrop} onOpenCtx={openLayerCtx} onToggleLock={toggleObjLock} onToggleHide={toggleObjHide} onEjectChild={ejectChild} onStartRename={startRenameObj} onRenameVal={setRenameVal} onRenameCommit={renameCommitObj} onRenameCancel={renameCancel} fastScroll={fastScroll} />;
       if (row.kind === 'group-empty') return <LayerEmptyRow key={row.key} label={L.edEmptyFrame} />;
       if (row.kind === 'bucket') {
         const b = row.bucket;
         const bucketSel = b.ids.every(id => sel.objs.has(id));
-        const label = b.hex === 'IMAGE' ? 'Gambar' : b.hex === 'NONE' ? 'Tanpa Fill' : b.hex.toUpperCase();
-        return <LayerBucketRow key={row.key} bucket={b} label={'Warna ' + label} selected={bucketSel} onPickBucket={bucketPick} onEjectBucket={ejectBucket} onDragStart={dStart} onDragEnd={dEnd} />;
+        const label = b.hex === 'IMAGE' ? L.edBucketImage : b.hex === 'NONE' ? L.edBucketNoFill : b.hex.toUpperCase();
+        return <LayerBucketRow key={row.key} bucket={b} label={L.edBucketColor + ' ' + label} selected={bucketSel} onPickBucket={bucketPick} onEjectBucket={ejectBucket} onDragStart={dStart} onDragEnd={dEnd} />;
       }
       const {
         item,

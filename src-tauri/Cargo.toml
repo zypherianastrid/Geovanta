@@ -1,6 +1,6 @@
 [package]
 name = "geovanta-desktop"
-version = "1.0.0"
+version = "1.1.0"
 description = "Geovanta — Professional Vector Studio & SVG Editor (64-Bit Windows Desktop App)"
 authors = ["Geovanta Studio"]
 license = "MIT"

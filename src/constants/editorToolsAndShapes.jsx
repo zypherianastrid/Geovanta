@@ -93,6 +93,7 @@ const DEFAULT_SNAP_CFG = {
   grid: false,
   pixel: false
 };
+const SNAP_OPTS_EN = [['bbox', 'Smart Guides (Box & Center)', '#f43f5e'], ['spacing', 'Equal Spacing', '#ec4899'], ['artboard', 'Artboard Edges & Center', '#6366f1'], ['node', 'Node & Handle Points', '#f43f5e'], ['axial', 'Node Axis Alignment (X/Y)', '#fb7185'], ['midpoint', 'Segment Midpoint', '#10b981'], ['edge', 'Path Contour / Edges', '#10b981'], ['perp', 'Right Angle (90°) & Line Extension', '#f59e0b'], ['grid', 'Adaptive Grid Lines (needs Grid on)', '#6366f1'], ['pixel', 'Snap to Pixel (1 px)', '#71717a']];
 const SNAP_OPTS = [['bbox', 'Smart Guides (Kotak & Pusat)', '#f43f5e'], ['spacing', 'Jarak Sama Rata (Equal Spacing)', '#ec4899'], ['artboard', 'Tepi & Pusat Artboard', '#6366f1'], ['node', 'Titik Node & Handle', '#f43f5e'], ['axial', 'Sejajar Sumbu Node (X/Y)', '#fb7185'], ['midpoint', 'Titik Tengah Segmen (Midpoint)', '#10b981'], ['edge', 'Kontur / Tepi Path', '#10b981'], ['perp', 'Siku (90°) & Perpanjangan Garis', '#f59e0b'], ['grid', 'Garis Grid Adaptif (butuh Grid aktif)', '#6366f1'], ['pixel', 'Bulatkan ke Piksel (1 px)', '#71717a']];
 const SNAP_TOOL_CAPABILITIES = {
   select: {
@@ -237,4 +238,4 @@ const ALN_BTNS = [['left', 'veAlnLeft', 'M4 3v18 M8 7h12 M8 14h7'], ['hcenter', 
 /* Preset Gradien Kurasi (OKLab-ready) */
 const GRAD_PRESETS = [['Indigo Sunset', [['#4f46e5', 0], ['#ec4899', 0.52], ['#f59e0b', 1]]], ['Emerald Ocean', [['#06b6d4', 0], ['#10b981', 0.5], ['#047857', 1]]], ['Cyber Violet', [['#0f172a', 0], ['#6d28d9', 0.5], ['#f43f5e', 1]]], ['Aurora Lime', [['#14b8a6', 0], ['#84cc16', 0.55], ['#fef08a', 1]]], ['Chrome Silver', [['#f8fafc', 0], ['#94a3b8', 0.48], ['#334155', 0.52], ['#e2e8f0', 1]]], ['Peach Flame', [['#fb7185', 0], ['#fb923c', 0.5], ['#fde047', 1]]]];
 
-export { SHAPE_EN, VE_NODE_GROUP, VE_GEO_GROUP, VE_TOOLS, SHAPES, DEFAULT_SNAP_CFG, SNAP_OPTS, SNAP_TOOL_CAPABILITIES, ALN_BTNS, GRAD_PRESETS };
+export { SHAPE_EN, VE_NODE_GROUP, VE_GEO_GROUP, VE_TOOLS, SHAPES, DEFAULT_SNAP_CFG, SNAP_OPTS, SNAP_OPTS_EN, SNAP_TOOL_CAPABILITIES, ALN_BTNS, GRAD_PRESETS };

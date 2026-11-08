@@ -77,7 +77,7 @@ const LayerObjRow = React.memo(({
       width: 15,
       height: 15,
       background: o.fill === 'none' ? 'transparent' : o.fill
-    }} />{renaming ? <RenInput renameVal={renameVal} layerNameLabel={layerNameLabel} onRenameVal={onRenameVal} onRenameCommit={v => onRenameCommit(o, v)} onRenameCancel={onRenameCancel} /> : <span className="truncate flex-1" onDoubleClick={e => {
+    }} />{renaming ? <RenInput renameVal={renameVal} layerNameLabel={layerNameLabel} onRenameVal={onRenameVal} onRenameCommit={v => onRenameCommit(o, v)} onRenameCancel={onRenameCancel} /> : <span className="truncate" style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 150 }} onDoubleClick={e => {
       e.preventDefault();
       e.stopPropagation();
       clickSkipRef.current = true;
@@ -142,7 +142,7 @@ const LayerGroupRow = React.memo(({
       e.stopPropagation();
       clickSkipRef.current = true;
       onBgClick(item.bg.id);
-    }} />}{renaming ? <RenInput renameVal={renameVal} layerNameLabel={layerNameLabel} onRenameVal={onRenameVal} onRenameCommit={v => onRenameCommitGroup(item.id, v)} onRenameCancel={onRenameCancel} /> : <span className="truncate flex-1" onDoubleClick={e => {
+    }} />}{renaming ? <RenInput renameVal={renameVal} layerNameLabel={layerNameLabel} onRenameVal={onRenameVal} onRenameCommit={v => onRenameCommitGroup(item.id, v)} onRenameCancel={onRenameCancel} /> : <span className="truncate" style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 150 }} onDoubleClick={e => {
       e.preventDefault();
       e.stopPropagation();
       clickSkipRef.current = true;
@@ -173,7 +173,7 @@ const LayerBucketRow = React.memo(({
       width: 15,
       height: 15,
       background: bucket.fill === 'none' ? 'transparent' : bucket.fill
-    }} /><span className="truncate flex-1">{label}</span><button type="button" className="fig-eject" data-tip="layEjectBucket" onClick={e => {
+    }} /><span className="truncate" style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 150 }}>{label}</span><button type="button" className="fig-eject" data-tip="layEjectBucket" onClick={e => {
       e.stopPropagation();
       onEjectBucket(bucket);
     }}><Vi s={14} d="M7 17L17 7M9 7h8v8" /></button><span className="fig-badge">{bucket.ids.length}</span></div>);

@@ -5,7 +5,7 @@
 import React from 'react';
 import { ICONS } from '../../constants/brandAndIcons.jsx';
 import { SHAPES } from '../../constants/editorToolsAndShapes.jsx';
-import { TIPS } from '../../constants/tooltipsCatalog.jsx';
+import { TIPS, TIPS_EN } from '../../constants/tooltipsCatalog.jsx';
 
 const Ico = ({
   n,
@@ -44,7 +44,8 @@ const IconBtn = ({
   d,
   s = 14,
   dis,
-  act
-}) => <button type="button" className={'tool-btn' + (on ? ' on' : '')} disabled={dis} data-tip={tip} aria-label={TIPS[tip] ? TIPS[tip].t : undefined} onClick={act}><Vi d={d} s={s} /></button>;
+  act,
+  lang
+}) => <button type="button" className={'tool-btn' + (on ? ' on' : '')} disabled={dis} data-tip={tip} aria-label={(lang === 'en' ? TIPS_EN : TIPS)[tip] ? (lang === 'en' ? TIPS_EN : TIPS)[tip].t : undefined} onClick={act}><Vi d={d} s={s} /></button>;
 
 export { Ico, Chev, Keys, ShapeGlyph, Vi, IconBtn };

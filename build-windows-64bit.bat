@@ -38,7 +38,7 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo ============================================================================
 echo   SELESAI! File installer Windows 64-bit tersedia di:
-echo   - src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Studio_1.0.0_x64-setup.exe
-echo   - src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Studio_1.0.0_x64_en-US.msi
+echo   - src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Studio_1.1.0_x64-setup.exe
+echo   - src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Studio_1.1.0_x64_en-US.msi
 echo ============================================================================
 pause

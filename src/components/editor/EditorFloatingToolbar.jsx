@@ -3,8 +3,8 @@
  * @description Komponen bilah alat melayang utama di bagian bawah kanvas (EditorFloatingToolbar)
  */
 import React from 'react';
-import { VE_TOOLS, SHAPES, SHAPE_EN, SNAP_OPTS, SNAP_TOOL_CAPABILITIES } from '../../constants/editorToolsAndShapes.jsx';
-import { TIPS } from '../../constants/tooltipsCatalog.jsx';
+import { VE_TOOLS, SHAPES, SHAPE_EN, SNAP_OPTS, SNAP_OPTS_EN, SNAP_TOOL_CAPABILITIES } from '../../constants/editorToolsAndShapes.jsx';
+import { TIPS, TIPS_EN } from '../../constants/tooltipsCatalog.jsx';
 import { Vi, Chev, ShapeGlyph, IconBtn } from '../ui/IconGlyphs.jsx';
 import { Float } from '../ui/FloatPopover.jsx';
 import { VE } from '../../engine/vectorEngine.jsx';
@@ -76,6 +76,7 @@ const EditorFloatingToolbar = ({
   const canBool = (selObjs || []).filter(o => !o.img && !o.text).length >= 2;
   const canOutline = (selObjs || []).some(o => !o.img && o.stroke && o.stroke !== 'none' && o.strokeWidth > 0);
   const canOffset = (selObjs || []).some(o => !o.img);
+  const TT = lang === 'en' ? TIPS_EN : TIPS;
   const BOOL_ITEMS = [['union', 'veBoolUnion', L.edBoolUnion, 'M3 3h10v10H3z M11 11h10v10H11z', 'Ctrl+Alt+U', !canBool, () => applyBoolean('union')], ['subtract', 'veBoolSubtract', L.edBoolSubtract, 'M3 3h18v18H3z M10 10h8v8h-8z', 'Ctrl+Alt+S', !canBool, () => applyBoolean('subtract')], ['intersect', 'veBoolIntersect', L.edBoolIntersect, 'M8 3h8v18H8z M3 8h18v8H3z', 'Ctrl+Alt+I', !canBool, () => applyBoolean('intersect')], ['exclude', 'veBoolExclude', L.edBoolExclude, 'M3 3h8v8H3z M13 13h8v8h-8z', 'Ctrl+Alt+X', !canBool, () => applyBoolean('exclude')], ['outline', 'veOutlineStroke', L.edOutlineStroke, 'M4 4h16v16H4z M8 8h8v8H8z', 'Ctrl+Alt+O', !canOutline, applyOutlineStroke], ['offset', 'veOffsetPath', L.edOffsetPath, 'M7 7h10v10H7z M3 3h18v18H3z', '', !canOffset, openOffsetStrip]];
   return <div className="fig-floating-bar" style={{
   background: 'var(--card)',
@@ -98,7 +99,7 @@ const EditorFloatingToolbar = ({
 `}</style>{VE_TOOLS.map(entry => {
     if (entry.type === 'single') {
       const [k, tip, d] = entry.item;
-      return <button key={k} type="button" className={'tool-btn' + (tool === k ? ' on' : '')} data-tip={tip} aria-label={TIPS[tip] ? TIPS[tip].t : k} onClick={() => {
+      return <button key={k} type="button" className={'tool-btn' + (tool === k ? ' on' : '')} data-tip={tip} aria-label={TT[tip] ? TT[tip].t : k} onClick={() => {
         setOpenGrp(null);
         setTool(k);
       }}><Vi d={d} s={24} /></button>;
@@ -112,7 +113,7 @@ const EditorFloatingToolbar = ({
     const [curK, curTip, curD] = currentItem;
     const isOpen = openGrp === id;
     const btnRef = grpBtnRefs[id];
-    return <React.Fragment key={id}><div ref={btnRef} className="inline-flex items-center"><button type="button" className={'tool-btn' + (activeInGroup ? ' on' : '')} data-tip={curTip} aria-label={TIPS[curTip] ? TIPS[curTip].t : curK} onClick={() => {
+    return <React.Fragment key={id}><div ref={btnRef} className="inline-flex items-center"><button type="button" className={'tool-btn' + (activeInGroup ? ' on' : '')} data-tip={curTip} aria-label={TT[curTip] ? TT[curTip].t : curK} onClick={() => {
           if (activeInGroup) {
             if (curK === 'simplify' && !vcSimpRef.current) openVcSimplify();else setOpenGrp(isOpen ? null : id);
           } else {
@@ -120,11 +121,11 @@ const EditorFloatingToolbar = ({
             setOpenGrp(null);
             if (curK === 'simplify') openVcSimplify();
           }
-        }}><Vi d={curD} s={24} /></button><button type="button" className="tool-btn chev-btn" aria-label="Pilih alat dalam grup" data-tip="veToolGroup" aria-expanded={isOpen} onClick={e => {
+        }}><Vi d={curD} s={24} /></button><button type="button" className="tool-btn chev-btn" aria-label={L.ftPickToolGroup} data-tip="veToolGroup" aria-expanded={isOpen} onClick={e => {
           e.stopPropagation();
           setOpenGrp(isOpen ? null : id);
-        }}><Chev open={isOpen} /></button></div><Float anchor={btnRef} open={isOpen} onClose={() => setOpenGrp(null)} w={236} preferUp={true}><div className="text-[10.5px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">{id === 'nodeGrp' ? 'Alat Node & Bézier' : 'Geometri & Optimasi'}</div>{items.map(([k, tip, d]) => {
-          const info = TIPS[tip] || {
+        }}><Chev open={isOpen} /></button></div><Float anchor={btnRef} open={isOpen} onClose={() => setOpenGrp(null)} w={236} preferUp={true}><div className="text-[10.5px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">{id === 'nodeGrp' ? L.ftNodeGroup : L.ftGeoGroup}</div>{items.map(([k, tip, d]) => {
+          const info = TT[tip] || {
             t: k
           };
           const on = tool === k;
@@ -140,7 +141,7 @@ const EditorFloatingToolbar = ({
       if (!canBool) return;
       setBoolOpen(false);
       applyBoolean('union');
-    }}><Vi d="M3 3h10v10H3z M11 11h10v10H11z" s={22} /></button><button type="button" className="tool-btn chev-btn" data-tip="veBoolUnion" aria-label="Pilih operasi Boolean" aria-expanded={boolOpen} onClick={e => {
+    }}><Vi d="M3 3h10v10H3z M11 11h10v10H11z" s={22} /></button><button type="button" className="tool-btn chev-btn" data-tip="veBoolUnion" aria-label={L.ftPickBool} aria-expanded={boolOpen} onClick={e => {
       e.stopPropagation();
       setBoolOpen(o => !o);
     }}><Chev open={boolOpen} /></button></div><Float anchor={boolBtn} open={boolOpen} onClose={() => setBoolOpen(false)} w={268} preferUp={true}><div className="text-[10.5px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">Boolean / Pathfinder</div>{BOOL_ITEMS.map(([k, tip, label, d, kbd, dis, act]) => <div key={k} role="option" aria-disabled={dis} className="opt" data-tip={tip} style={dis ? {
@@ -165,8 +166,8 @@ const EditorFloatingToolbar = ({
         setShapeKind(k);
         setTool('shape');
         setShapeOpen(false);
-        say(lb + ': seret di kanvas untuk menggambar');
-      }}><ShapeGlyph k={k} s={22} /></button>)}</div></Float><span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center"><IconBtn s={22} on={snapOn} tip="veSnap" act={() => setSnapOn(s => !s)} d="M6 4v6a6 6 0 0 0 12 0V4 M6 7.5h3.5 M14.5 7.5H18" /><button type="button" className="tool-btn chev-btn" data-tip="veSnapMenu" aria-label="Opsi Checklist Snap" aria-expanded={snapMenuOpen} onClick={() => setSnapMenuOpen(o => !o)}><Chev open={snapMenuOpen} /></button></div><Float anchor={snapMenuBtn} open={snapMenuOpen} onClose={() => setSnapMenuOpen(false)} w={272} cls="cp" preferUp={true}><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold">{L.ftSnapChecklist}</span><div className="flex gap-1"><button type="button" className="ved-pill" data-tip="veSnapPresetAll" onClick={() => setSnapCfg({
+        say((lang === 'en' ? (SHAPE_EN[k] || lb) : lb) + (lang === 'en' ? ': drag on the canvas to draw' : ': seret di kanvas untuk menggambar'));
+      }}><ShapeGlyph k={k} s={22} /></button>)}</div></Float><span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center"><IconBtn lang={lang} s={22} on={snapOn} tip="veSnap" act={() => setSnapOn(s => !s)} d="M6 4v6a6 6 0 0 0 12 0V4 M6 7.5h3.5 M14.5 7.5H18" /><button type="button" className="tool-btn chev-btn" data-tip="veSnapMenu" aria-label={L.ftSnapOpts} aria-expanded={snapMenuOpen} onClick={() => setSnapMenuOpen(o => !o)}><Chev open={snapMenuOpen} /></button></div><Float anchor={snapMenuBtn} open={snapMenuOpen} onClose={() => setSnapMenuOpen(false)} w={272} cls="cp" preferUp={true}><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold">{L.ftSnapChecklist}</span><div className="flex gap-1"><button type="button" className="ved-pill" data-tip="veSnapPresetAll" onClick={() => setSnapCfg({
           bbox: true,
           spacing: true,
           artboard: true,
@@ -192,7 +193,7 @@ const EditorFloatingToolbar = ({
       overflowY: 'auto',
       margin: '0 -4px',
       padding: '0 4px'
-    }}>{SNAP_OPTS.map(([k, label, col]) => {
+    }}>{(lang === 'en' ? SNAP_OPTS_EN : SNAP_OPTS).map(([k, label, col]) => {
         const toolCap = SNAP_TOOL_CAPABILITIES[tool] || SNAP_TOOL_CAPABILITIES.select;
         const activeInTool = !!toolCap[k];
         return <button key={k} type="button" role="switch" data-tip={'veSnap_' + k} aria-checked={!!snapCfg[k]} className={'snp-row' + (snapCfg[k] ? ' on' : '')} style={{
@@ -200,18 +201,18 @@ const EditorFloatingToolbar = ({
           opacity: activeInTool ? 1 : 0.65
         }} onClick={() => setSnapCfg(c => ({
           [k]: !c[k]
-        }))}><SnapIcon k={k} /><span className="snp-lb">{label}{!activeInTool ? ' · (Alat lain)' : ''}</span><span className="snp-sw" aria-hidden="true" /></button>;
-      })}</div></Float><IconBtn s={22} on={gridOn} tip="veGrid" act={() => setGridOn(g => !g)} d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" /><span className="fig-bar-sep" /><div ref={mirrorBtn} className="inline-flex items-center"><button type="button" className={'tool-btn' + (mirrorCur ? ' on' : '')} disabled={!selNodes.size} data-tip="veMirror" aria-label="Mirroring Handle" aria-haspopup="listbox" aria-expanded={mirrorOpen} onClick={() => setMirrorOpen(o => !o)}><Vi d={(MIRROR_OPTS.find(q => q[0] === (mirrorCur || 'symmetric')) || MIRROR_OPTS[3])[3]} s={22} /></button><button type="button" className="tool-btn chev-btn" disabled={!selNodes.size} data-tip="veMirror" aria-label="Pilih mode mirroring" aria-expanded={mirrorOpen} onClick={e => {
+        }))}><SnapIcon k={k} /><span className="snp-lb">{label}{!activeInTool ? L.ftOtherTool : ''}</span><span className="snp-sw" aria-hidden="true" /></button>;
+      })}</div></Float><IconBtn lang={lang} s={22} on={gridOn} tip="veGrid" act={() => setGridOn(g => !g)} d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" /><span className="fig-bar-sep" /><div ref={mirrorBtn} className="inline-flex items-center"><button type="button" className={'tool-btn' + (mirrorCur ? ' on' : '')} disabled={!selNodes.size} data-tip="veMirror" aria-label="Mirroring Handle" aria-haspopup="listbox" aria-expanded={mirrorOpen} onClick={() => setMirrorOpen(o => !o)}><Vi d={(MIRROR_OPTS.find(q => q[0] === (mirrorCur || 'symmetric')) || MIRROR_OPTS[3])[3]} s={22} /></button><button type="button" className="tool-btn chev-btn" disabled={!selNodes.size} data-tip="veMirror" aria-label={L.ftPickMirror} aria-expanded={mirrorOpen} onClick={e => {
       e.stopPropagation();
       setMirrorOpen(o => !o);
-    }}><Chev open={mirrorOpen} /></button></div><IconBtn s={22} on={curveDragOn} tip="veCurveDrag" act={() => {
+    }}><Chev open={mirrorOpen} /></button></div><IconBtn lang={lang} s={22} on={curveDragOn} tip="veCurveDrag" act={() => {
     const next = !curveDragOn;
     setCurveDragOn(next);
     if (next && selNodes.size) commitObjs(o => sel.objs.has(o.id) ? VE.mirrorNodes(o, selNodes, 'freeCurve', selHandles) : o);
     say(next ? 'Geser Handle Melengkung: AKTIF' : 'Geser Handle Melengkung: MATI');
   }} d="M4 17C7 7 17 7 20 17 M10 9.5a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M5 9.5h5 M14 9.5h5" /><Float anchor={mirrorBtn} open={mirrorOpen && selNodes.size > 0} onClose={() => setMirrorOpen(false)} w={268} preferUp={true}><div className="text-[10.5px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">Mirroring Handle</div>{MIRROR_OPTS.map(([k, tip, label, d]) => <div key={k} role="option" aria-selected={mirrorCur === k} className={'opt' + (mirrorCur === k ? ' on' : '')} data-tip={tip} onClick={() => applyMirror(k)}><span className="sel-l"><Vi d={d} s={17} /><span>{label}</span></span><svg className="ck" style={{
         opacity: mirrorCur === k ? 1 : 0
-      }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></div>)}{!mirrorCur && <div className="text-[10.5px] mut px-2.5 py-1">{L.ftMixed}</div>}</Float><span className="fig-bar-sep" /><IconBtn s={22} tip="settings" act={onSettings} d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></div>;
+      }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></div>)}{!mirrorCur && <div className="text-[10.5px] mut px-2.5 py-1">{L.ftMixed}</div>}</Float><span className="fig-bar-sep" /><IconBtn lang={lang} s={22} tip="settings" act={onSettings} d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></div>;
 };
 
 export { EditorFloatingToolbar };

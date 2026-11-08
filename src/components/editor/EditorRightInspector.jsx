@@ -8,7 +8,7 @@ import { zFmt, vzToSl, vslToZ } from '../../utils/zoomAndFormatHelpers.jsx';
 import { Slider } from '../ui/Slider.jsx';
 import { isPixelBoxModeActive } from '../../utils/renderConfigAndTelemetry.jsx';
 import { ALN_BTNS } from '../../constants/editorToolsAndShapes.jsx';
-import { TIPS } from '../../constants/tooltipsCatalog.jsx';
+import { TIPS, TIPS_EN } from '../../constants/tooltipsCatalog.jsx';
 import { XfField } from '../ui/TransformField.jsx';
 import { PinGrid } from '../ui/PinGridSelector.jsx';
 import { Seg } from '../ui/SegmentedControl.jsx';
@@ -152,7 +152,7 @@ const EditorRightInspector = ({
         textAlign: 'center'
       }} data-tip="veZoomFit" onClick={fitView}>{L.riFit}</button></div></div><div className="fig-r-scroll"><div className="fig-isec" data-tip="veXfPanel"><div className="fig-isec-title"><span>Position & Transform</span></div><div className="fig-sub-lbl" data-tip="veAlnPanel">{L.riAlignDist}</div><div className="flex items-center gap-1 mb-2.5"><div className="fig-aln-bar flex-1">{[0, 1, 2, 3, 4, 5].map(ix => {
             const [k, tip, d] = ALN_BTNS[ix];
-            return <button key={k} type="button" data-tip={tip} aria-label={TIPS[tip].t} disabled={!selObjs.length || selNodes.size === 1} onClick={() => alignDo(k)}><Vi d={d} s={14} /></button>;
+            return <button key={k} type="button" data-tip={tip} aria-label={(lang === 'en' ? TIPS_EN : TIPS)[tip].t} disabled={!selObjs.length || selNodes.size === 1} onClick={() => alignDo(k)}><Vi d={d} s={14} /></button>;
           })}</div><button type="button" className="fig-ibtn" style={{
           background: 'var(--sub)',
           width: 30,
@@ -165,15 +165,15 @@ const EditorRightInspector = ({
               background: 'var(--sub)',
               width: 30,
               height: 30
-            }} data-tip="veXfLock" aria-label="Kunci proporsi" aria-pressed={lockAR} onClick={() => setLockAR(v => !v)}><Vi s={14} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></button></div></div><div><div className="fig-sub-lbl">Rotation & Flip</div><div className="grid grid-cols-[1fr_auto] gap-1.5 items-center"><XfField label="∠" value={xm.rot} step={1} dis={!!xfNodes} on={setXfRot} tip="veXfRot" /><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" style={{
+            }} data-tip="veXfLock" aria-label={L.riLockAR} aria-pressed={lockAR} onClick={() => setLockAR(v => !v)}><Vi s={14} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></button></div></div><div><div className="fig-sub-lbl">Rotation & Flip</div><div className="grid grid-cols-[1fr_auto] gap-1.5 items-center"><XfField label="∠" value={xm.rot} step={1} dis={!!xfNodes} on={setXfRot} tip="veXfRot" /><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" style={{
                 background: 'var(--sub)',
                 width: 30,
                 height: 30
-              }} data-tip="veXfFlipH" aria-label="Flip horizontal" disabled={!!xfNodes} onClick={() => flipXf('h')}><Vi s={15} d="M12 3v18 M8 7 3 12l5 5V7z M16 7l5 5-5 5V7z" /></button><button type="button" className="fig-ibtn" style={{
+              }} data-tip="veXfFlipH" aria-label={L.riFlipH} disabled={!!xfNodes} onClick={() => flipXf('h')}><Vi s={15} d="M12 3v18 M8 7 3 12l5 5V7z M16 7l5 5-5 5V7z" /></button><button type="button" className="fig-ibtn" style={{
                 background: 'var(--sub)',
                 width: 30,
                 height: 30
-              }} data-tip="veXfFlipV" aria-label="Flip vertikal" disabled={!!xfNodes} onClick={() => flipXf('v')}><Vi s={15} d="M3 12h18 M7 8l5-5 5 5H7z M7 16l5 5 5-5H7z" /></button></div></div></div><div className="flex items-start gap-2.5 pt-0.5"><PinGrid value={pin} on={setPin} tip="veXfPin" /><div className="flex-1 space-y-1.5 min-w-0"><Seg o={[['center', 'Pusat'], ['pin', 'Poros']]} v={rotPivot} on={setRotPivot} tip="veXfPivot" tips={{
+              }} data-tip="veXfFlipV" aria-label={L.riFlipV} disabled={!!xfNodes} onClick={() => flipXf('v')}><Vi s={15} d="M3 12h18 M7 8l5-5 5 5H7z M7 16l5 5 5-5H7z" /></button></div></div></div><div className="flex items-start gap-2.5 pt-0.5"><PinGrid L={L} value={pin} on={setPin} tip="veXfPin" /><div className="flex-1 space-y-1.5 min-w-0"><Seg o={[['center', L.riPivotCenter], ['pin', L.riPivotPin]]} v={rotPivot} on={setRotPivot} tip="veXfPivot" tips={{
               center: 'veXfPivC',
               pin: 'veXfPivP'
             }} /><button type="button" className={'ved-pill w-full' + (scaleStk ? ' on' : '')} data-tip="veXfStroke" aria-pressed={scaleStk} onClick={() => setScaleStk(v => !v)}>{L.riStrokeScale}</button></div></div></div>}</div>{(() => {
@@ -257,7 +257,7 @@ const EditorRightInspector = ({
         if (!res.ok) {
           setFontUrlStatus({
             ok: false,
-            msg: res.error || 'URL Google Fonts tidak valid'
+            msg: res.code ? L['riFontErr_' + res.code] : L.riFontUrlInvalid
           });
           return;
         }
@@ -265,7 +265,7 @@ const EditorRightInspector = ({
         setFontUrlInput('');
         setFontUrlStatus({
           ok: true,
-          msg: `Font "${res.added.map(a => a.name).join(', ')}" berhasil dimuat & disimpan`
+          msg: L.riFontLoaded.replace('{names}', res.added.map(a => a.name).join(', '))
         });
         if (firstAdded && textObjs.length) {
           const nextW = firstAdded.weights.includes(Number(tData.fontWeight)) ? Number(tData.fontWeight) : firstAdded.weights.includes(400) ? 400 : firstAdded.weights[0];
@@ -311,7 +311,7 @@ const EditorRightInspector = ({
                 content: v
               }, 'p:text-content')} onCommit={v => updateSelText({
                 content: v
-              }, 'p:text-content')} /></div></div><div className="space-y-1.5"><div className="flex items-center justify-between"><span className="fig-sub-lbl mb-0">A. Font Family</span><span className="text-[10px] mut">{filteredFonts.length}/{allFonts.length} font</span></div><div className="fld px-2.5 py-1"><CustomTextBox value={fontSearch} selectOnFocus={false} placeholder="Cari font (mis. Inter, Poppins, Serif)..." onChange={v => setFontSearch(v)} />{fontSearch && <button type="button" className="fig-ibtn" style={{
+              }, 'p:text-content')} /></div></div><div className="space-y-1.5"><div className="flex items-center justify-between"><span className="fig-sub-lbl mb-0">A. Font Family</span><span className="text-[10px] mut">{filteredFonts.length}/{allFonts.length} font</span></div><div className="fld px-2.5 py-1"><CustomTextBox value={fontSearch} selectOnFocus={false} placeholder={L.riFontSearchPh} onChange={v => setFontSearch(v)} />{fontSearch && <button type="button" className="fig-ibtn" style={{
                 width: 18,
                 height: 18
               }} data-tip="veFontSearchReset" onClick={() => setFontSearch('')}><Ico n="x" size={11} /></button>}</div><Select value={tData.fontFamily} on={fam => {
@@ -344,7 +344,7 @@ const EditorRightInspector = ({
                   fontFamily: cf.family
                 }} onClick={() => updateSelText({
                   fontFamily: cf.family
-                }, 'p:font-family')}>{cf.name}</button><span className="fig-badge text-[9.5px] text-nowrap">{cf.status === 'error' ? 'Gagal' : cf.status === 'loading' ? 'Memuat' : (cf.weights || []).length + 'w'}</span><button type="button" className="fig-ibtn" style={{
+                }, 'p:font-family')}>{cf.name}</button><span className="fig-badge text-[9.5px] text-nowrap">{cf.status === 'error' ? L.riFontFail : cf.status === 'loading' ? L.riFontLoading : (cf.weights || []).length + 'w'}</span><button type="button" className="fig-ibtn" style={{
                   width: 20,
                   height: 20
                 }} data-tip="veFontRemove" onClick={() => {
@@ -370,11 +370,11 @@ const EditorRightInspector = ({
               fontSize: sz
             }, 'p:font-size')}>{sz}px</button>)}</div><div className="flex flex-wrap gap-2"><div className="flex-1" style={{
               minWidth: '100%'
-            }}><div className="fig-sub-lbl text-nowrap">{L.riFontStyle}</div><div className="fig-wrap-tabs" role="group" aria-label="Gaya Huruf">{[['normal', 'Normal'], ['italic', 'Italic'], ['oblique', 'Oblique']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.fontStyle || 'normal') === k ? ' on' : '')} onClick={() => updateSelText({
+            }}><div className="fig-sub-lbl text-nowrap">{L.riFontStyle}</div><div className="fig-wrap-tabs" role="group" aria-label={L.riFontStyle}>{[['normal', 'Normal'], ['italic', 'Italic'], ['oblique', 'Oblique']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.fontStyle || 'normal') === k ? ' on' : '')} onClick={() => updateSelText({
                   fontStyle: k
                 }, 'p:font-style')}><span className="text-nowrap whitespace-nowrap">{lbl}</span></button>)}</div></div><div className="flex-1" style={{
               minWidth: '100%'
-            }}><div className="fig-sub-lbl text-nowrap">{L.riTextAlign}</div><div className="fig-wrap-tabs" role="group" aria-label="Perataan Teks">{[['start', 'Kiri'], ['middle', 'Tengah'], ['end', 'Kanan']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.textAnchor || 'start') === k ? ' on' : '')} onClick={() => handleAnchorChange(k)}><span className="text-nowrap whitespace-nowrap">{lbl}</span></button>)}</div></div></div><div><div className="fig-sub-lbl text-nowrap">{L.riTextDecor}</div><div className="fig-wrap-tabs" role="group" aria-label="Dekorasi Teks">{[['none', 'None'], ['underline', 'Under'], ['overline', 'Over'], ['line-through', 'Strike']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.textDecoration || 'none') === k ? ' on' : '')} onClick={() => updateSelText({
+            }}><div className="fig-sub-lbl text-nowrap">{L.riTextAlign}</div><div className="fig-wrap-tabs" role="group" aria-label={L.riTextAlign}>{[['start', L.riAlignLeft], ['middle', L.riAlignCenter], ['end', L.riAlignRight]].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.textAnchor || 'start') === k ? ' on' : '')} onClick={() => handleAnchorChange(k)}><span className="text-nowrap whitespace-nowrap">{lbl}</span></button>)}</div></div></div><div><div className="fig-sub-lbl text-nowrap">{L.riTextDecor}</div><div className="fig-wrap-tabs" role="group" aria-label={L.riTextDecor}>{[['none', 'None'], ['underline', 'Under'], ['overline', 'Over'], ['line-through', 'Strike']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.textDecoration || 'none') === k ? ' on' : '')} onClick={() => updateSelText({
                 textDecoration: k
               }, 'p:text-decoration')}><span className="text-nowrap whitespace-nowrap">{lbl}</span></button>)}</div></div><div className="space-y-1.5"><div className="fig-sub-lbl text-nowrap">{L.riCharSpacing}</div><div className="grid grid-cols-3 gap-1.5"><XfField label="AV" value={tData.letterSpacing || 0} step={0.5} on={v => updateSelText({
                 letterSpacing: v
@@ -382,7 +382,7 @@ const EditorRightInspector = ({
                 wordSpacing: v
               }, 'p:word-spacing')} /><XfField label="LH" value={tData.lineHeight || 1.2} min={0.5} step={0.1} on={v => updateSelText({
                 lineHeight: Math.max(0.5, v)
-              }, 'p:line-height')} /></div><div className="fig-sub-lbl pt-0.5 text-nowrap">{L.riLetterTransform}</div><div className="fig-wrap-tabs" role="group" aria-label="Transformasi Huruf">{[['none', 'Asli'], ['uppercase', 'UPPER'], ['lowercase', 'lower'], ['capitalize', 'Title']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.textTransform || 'none') === k ? ' on' : '')} onClick={() => updateSelText({
+              }, 'p:line-height')} /></div><div className="fig-sub-lbl pt-0.5 text-nowrap">{L.riLetterTransform}</div><div className="fig-wrap-tabs" role="group" aria-label={L.riLetterTransform}>{[['none', L.riTransformOrig], ['uppercase', 'UPPER'], ['lowercase', 'lower'], ['capitalize', 'Title']].map(([k, lbl]) => <button key={k} type="button" className={'text-nowrap whitespace-nowrap' + ((tData.textTransform || 'none') === k ? ' on' : '')} onClick={() => updateSelText({
                 textTransform: k
               }, 'p:text-transform')}><span className="text-nowrap whitespace-nowrap">{lbl}</span></button>)}</div></div><div className="space-y-1.5"><div className="fig-sub-lbl text-nowrap">{L.riTextScale}</div><div className="space-y-1.5"><XfField label="SX%" value={Math.round((tData.scaleX || 1) * 100)} min={10} step={5} on={v => updateSelText({
                 scaleX: Math.max(0.1, v / 100)
@@ -401,12 +401,12 @@ const EditorRightInspector = ({
         }}><div className="flex items-center justify-between gap-1"><span className="text-[11px] font-semibold">Individual Radius ({detectedCorners.length} {lang === 'en' ? 'corners' : 'sudut'})</span></div><Seg v={cornerMode} on={m => {
             setCornerMode(m);
             if (activeCorners.length) applyRadiusToCorners(activeCorners, curR, 'cr-mode');
-          }} o={[['circular', 'Circular'], ['bezier', 'Squircle'], ['chamfer', 'Bevel']]} tip="veCornerMode" />{detectedCorners.length === 0 ? <div className="text-[11px] mut">{L.riNoCorners}</div> : <div className="space-y-2"><div className="flex flex-wrap gap-1"><button type="button" className={'ved-pill text-[10px]' + (activeCorners.length === detectedCorners.length ? ' on' : '')} onClick={() => setPickedCornerKeys(new Set(detectedCorners.map(c => c.key)))}>Semua ({detectedCorners.length})</button><button type="button" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 0).map(c => c.key)))}>{L.riOdd}</button><button type="button" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 1).map(c => c.key)))}>{L.riEven}</button><button type="button" className="ved-pill text-[10px]" onClick={() => applyRadiusToCorners(activeCorners.length ? activeCorners : detectedCorners, 0, 'cr-reset')}>{L.riSharpen}</button></div><div className="text-[10.5px] mut">{L.riCornerPick}</div><div className="grid grid-cols-3 gap-1.5" style={{
+          }} o={[['circular', 'Circular'], ['bezier', 'Squircle'], ['chamfer', 'Bevel']]} tip="veCornerMode" />{detectedCorners.length === 0 ? <div className="text-[11px] mut">{L.riNoCorners}</div> : <div className="space-y-2"><div className="flex flex-wrap gap-1"><button type="button" className={'ved-pill text-[10px]' + (activeCorners.length === detectedCorners.length ? ' on' : '')} onClick={() => setPickedCornerKeys(new Set(detectedCorners.map(c => c.key)))}>{L.riAllN.replace('{n}', detectedCorners.length)}</button><button type="button" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 0).map(c => c.key)))}>{L.riOdd}</button><button type="button" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 1).map(c => c.key)))}>{L.riEven}</button><button type="button" className="ved-pill text-[10px]" onClick={() => applyRadiusToCorners(activeCorners.length ? activeCorners : detectedCorners, 0, 'cr-reset')}>{L.riSharpen}</button></div><div className="text-[10.5px] mut">{L.riCornerPick}</div><div className="grid grid-cols-3 gap-1.5" style={{
               maxHeight: 132,
               overflowY: 'auto'
             }}>{detectedCorners.map(c => {
                 const on = pickedCornerKeys.has(c.key);
-                return <button key={c.key} type="button" className={'crn-chip' + (on ? ' on' : '')} data-tip-text={`Sudut #${c.idx} (${c.dir}) · Radius saat ini: ${c.r}`} onClick={e => {
+                return <button key={c.key} type="button" className={'crn-chip' + (on ? ' on' : '')} data-tip-text={L.riCornerTip.replace('{idx}', c.idx).replace('{dir}', c.dir).replace('{r}', c.r)} onClick={e => {
                   setPickedCornerKeys(prev => {
                     const next = new Set(prev);
                     if (e.shiftKey) {
@@ -417,7 +417,7 @@ const EditorRightInspector = ({
                     return next;
                   });
                 }}><span className="truncate min-w-0">#{c.idx}{c.dir}</span><span className="font-mono text-[10px] opacity-80 flex-none">{c.r}</span></button>;
-              })}</div><Range l={`Radius (${activeCorners.length} sudut)`} v={curR} min={0} max={100} step={0.5} on={r => applyRadiusToCorners(activeCorners.length ? activeCorners : detectedCorners, r, 'cr-sel')} f={v => v ? v + ' u' : 'Tajam (0)'} /><div className="text-[10.5px] mut pt-1">{L.riCornerTitle}</div><div className="grid grid-cols-2 gap-1.5" style={{
+              })}</div><Range l={L.riRadiusN.replace('{n}', activeCorners.length)} v={curR} min={0} max={100} step={0.5} on={r => applyRadiusToCorners(activeCorners.length ? activeCorners : detectedCorners, r, 'cr-sel')} f={v => v ? v + ' u' : L.riSharp0} /><div className="text-[10.5px] mut pt-1">{L.riCornerTitle}</div><div className="grid grid-cols-2 gap-1.5" style={{
               maxHeight: 168,
               overflowY: 'auto'
             }}>{detectedCorners.map(c => <XfField key={'xf-' + c.key} label={'#' + c.idx + c.dir} value={c.r} min={0} step={1} on={v => applyRadiusToCorners([c], v, 'cr-one-' + c.key)} />)}</div></div>}</div>}{!primary.img && <div><div className="fig-sub-lbl" data-tip="veFillRule">{L.riFillRule}</div><Seg o={[['nonzero', 'Nonzero'], ['evenodd', 'Even-odd']]} v={primary.fillRule} on={v => setProp('fillRule', v)} tip="veFillRule" tips={{
@@ -436,11 +436,11 @@ const EditorRightInspector = ({
               ...o,
               fill: nf
             } : o, 'p:fill');
-          }}><Ico n={cp.fill !== 'none' ? 'minus' : 'plus'} size={14} /></button></div></div><div className="space-y-2.5"><GradientEditorPanel L={L} obj={cp} selObjs={paintObjs} commitObjs={commitObjs} say={say} activeStopId={activeStopId} setActiveStopId={setActiveStopId} />{!VE.gradOn(cp) && <div className="flex items-center gap-2"><ColorField tip="veFill" value={cp.fill} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
+          }}><Ico n={cp.fill !== 'none' ? 'minus' : 'plus'} size={14} /></button></div></div><div className="space-y-2.5"><GradientEditorPanel L={L} obj={cp} selObjs={paintObjs} commitObjs={commitObjs} say={say} activeStopId={activeStopId} setActiveStopId={setActiveStopId} />{!VE.gradOn(cp) && <div className="flex items-center gap-2"><ColorField L={L} tip="veFill" value={cp.fill} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
             ...o,
             fill: v,
             grad: null
-          } : o, 'p:fill')} /><ColorText value={cp.fill} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
+          } : o, 'p:fill')} /><ColorText L={L} value={cp.fill} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
             ...o,
             fill: v,
             grad: null
@@ -455,11 +455,11 @@ const EditorRightInspector = ({
             ...o,
             stroke: cp.stroke === 'none' ? '#000000' : 'none',
             strokeWidth: cp.stroke === 'none' ? o.strokeWidth || 1 : o.strokeWidth
-          } : o, 'p:stroke')}><Ico n={cp.stroke !== 'none' ? 'minus' : 'plus'} size={14} /></button></div></div><div className="space-y-2"><div className="flex items-center gap-2"><ColorField tip="veStroke" value={cp.stroke} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
+          } : o, 'p:stroke')}><Ico n={cp.stroke !== 'none' ? 'minus' : 'plus'} size={14} /></button></div></div><div className="space-y-2"><div className="flex items-center gap-2"><ColorField L={L} tip="veStroke" value={cp.stroke} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
             ...o,
             stroke: v,
             strokeWidth: v !== 'none' && !o.strokeWidth ? 1 : o.strokeWidth
-          } : o, 'p:stroke')} /><ColorText value={cp.stroke} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
+          } : o, 'p:stroke')} /><ColorText L={L} value={cp.stroke} on={v => commitObjs(o => paintTargetIds.has(o.id) && !o.img ? {
             ...o,
             stroke: v,
             strokeWidth: v !== 'none' && !o.strokeWidth ? 1 : o.strokeWidth
@@ -467,9 +467,9 @@ const EditorRightInspector = ({
           ...o,
           stroke: v > 0 && o.stroke === 'none' ? '#000000' : o.stroke,
           strokeWidth: v
-        } : o, 'p:sw')} tip="veStrokeW" />}</div></div>}{selectionColors.length > 0 && <div className="fig-isec fade"><div className="fig-isec-title"><span>Selection colors ({selectionColors.length})</span><span className="text-[10px] mut font-normal">◎ = pilih</span></div><div className="sel-col-list space-y-1.5">{selectionColors.slice(0, 40).map(sc => <div key={sc.stableKey} className="flex items-center gap-2 p-1.5 rounded-xl" style={{
+        } : o, 'p:sw')} tip="veStrokeW" />}</div></div>}{selectionColors.length > 0 && <div className="fig-isec fade"><div className="fig-isec-title"><span>Selection colors ({selectionColors.length})</span><span className="text-[10px] mut font-normal">{L.riSelColorHint}</span></div><div className="sel-col-list space-y-1.5">{selectionColors.slice(0, 40).map(sc => <div key={sc.stableKey} className="flex items-center gap-2 p-1.5 rounded-xl" style={{
           background: 'var(--sub)'
-        }}><ColorField tip="veSelColor" value={sc.raw || sc.hex} on={v => replaceSelectionColor(sc, v)} /><span className="text-[11px] font-mono flex-1 truncate">{(sc.raw || sc.hex).toUpperCase()}</span><span className="fig-badge">{sc.kind === 'grad' ? 'Gradien' : sc.kind === 'fill' ? 'Fill' : 'Stroke'} · {sc.ids.length}</span><button type="button" className="ved-pill text-[10px]" style={{
+        }}><ColorField L={L} tip="veSelColor" value={sc.raw || sc.hex} on={v => replaceSelectionColor(sc, v)} /><span className="text-[11px] font-mono flex-1 truncate">{(sc.raw || sc.hex).toUpperCase()}</span><span className="fig-badge">{sc.kind === 'grad' ? L.riKindGrad : sc.kind === 'fill' ? 'Fill' : 'Stroke'} · {sc.ids.length}</span><button type="button" className="ved-pill text-[10px]" style={{
             padding: '2px 6px'
           }} data-tip="veSelPick" onClick={() => {
             setSel({
@@ -487,34 +487,34 @@ const EditorRightInspector = ({
           dir: 'wrap'
         })}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg><span>Grid</span></button></div>{lay.dir === 'wrap' && <div className="mb-2.5"><Range l={L.riColsPerRow} v={lay.cols} min={1} max={10} step={1} on={v => layUpd({
           cols: v
-        })} tip="veLayCols" /></div>}<div className="grid grid-cols-[auto_1fr] gap-2.5 items-start mb-2.5"><div><div className="fig-sub-lbl">Alignment</div><PinGrid value={[lay.ax, lay.ay]} on={p => layUpd({
+        })} tip="veLayCols" /></div>}<div className="grid grid-cols-[auto_1fr] gap-2.5 items-start mb-2.5"><div><div className="fig-sub-lbl">Alignment</div><PinGrid L={L} value={[lay.ax, lay.ay]} on={p => layUpd({
             ax: p[0],
             ay: p[1]
-          })} tip="veLayAlign" label="Perataan" /></div><div><div className="fig-sub-lbl">{L.riGap}</div><XfField label="][ " value={lay.gap} min={0} on={v => layUpd({
+          })} tip="veLayAlign" label={L.riAlignLbl} /></div><div><div className="fig-sub-lbl">{L.riGap}</div><XfField label="][ " value={lay.gap} min={0} on={v => layUpd({
             gap: v
           })} tip="veLayGap" /></div></div><div className="flex items-center justify-between mb-1"><span className="fig-sub-lbl mb-0" data-tip="veLayPad">Padding</span><button type="button" className={'ved-pill text-[10px]' + (lay.split ? ' on' : '')} style={{
           padding: '1px 6px'
         }} data-tip="veLayPadMode" aria-pressed={lay.split} onClick={() => setLay(l => ({
           ...l,
           split: !l.split
-        }))}>{lay.split ? '4 sisi' : 'Simetris'}</button></div>{lay.split ? <div className="grid grid-cols-2 gap-1.5 mb-2.5 fade"><XfField label="T" value={lay.pt} min={0} on={v => layPad('pt', v)} tip="veLayPadT" /><XfField label="R" value={lay.pr} min={0} on={v => layPad('pr', v)} tip="veLayPadR" /><XfField label="B" value={lay.pb} min={0} on={v => layPad('pb', v)} tip="veLayPadB" /><XfField label="L" value={lay.pl} min={0} on={v => layPad('pl', v)} tip="veLayPadL" /></div> : <div className="mb-2.5"><Range l="Semua sisi" v={lay.pt === lay.pr && lay.pr === lay.pb && lay.pb === lay.pl ? lay.pt : Math.max(lay.pt, lay.pr, lay.pb, lay.pl)} min={0} max={120} step={1} on={v => layPad('all', v)} tip="veLayPad" f={v => v + ' unit'} /></div>}<div className="space-y-2"><div className="flex items-center justify-between"><span className="text-[11px] mut" data-tip="veLayFrame">{L.riFrameBg}</span><Seg cls="eq" o={[['on', 'Aktif'], ['off', 'Tanpa']]} v={lay.frame ? 'on' : 'off'} on={v => layUpd({
+        }))}>{lay.split ? L.riPad4Sides : L.riPadSym}</button></div>{lay.split ? <div className="grid grid-cols-2 gap-1.5 mb-2.5 fade"><XfField label="T" value={lay.pt} min={0} on={v => layPad('pt', v)} tip="veLayPadT" /><XfField label="R" value={lay.pr} min={0} on={v => layPad('pr', v)} tip="veLayPadR" /><XfField label="B" value={lay.pb} min={0} on={v => layPad('pb', v)} tip="veLayPadB" /><XfField label="L" value={lay.pl} min={0} on={v => layPad('pl', v)} tip="veLayPadL" /></div> : <div className="mb-2.5"><Range l={L.riPadAll} v={lay.pt === lay.pr && lay.pr === lay.pb && lay.pb === lay.pl ? lay.pt : Math.max(lay.pt, lay.pr, lay.pb, lay.pl)} min={0} max={120} step={1} on={v => layPad('all', v)} tip="veLayPad" f={v => v + ' unit'} /></div>}<div className="space-y-2"><div className="flex items-center justify-between"><span className="text-[11px] mut" data-tip="veLayFrame">{L.riFrameBg}</span><Seg cls="eq" o={[['on', L.riFrameOn], ['off', L.riFrameOff]]} v={lay.frame ? 'on' : 'off'} on={v => layUpd({
             frame: v === 'on'
-          })} tip="veLayFrame" /></div>{lay.frame && <Range l="Radius frame" v={lay.radius} min={0} max={60} step={1} on={v => layUpd({
+          })} tip="veLayFrame" /></div>{lay.frame && <Range l={L.riFrameRadius} v={lay.radius} min={0} max={60} step={1} on={v => layUpd({
           radius: v
-        })} tip="veLayRadius" f={v => v ? v + ' unit' : 'Tajam'} />}<div className="flex gap-2 pt-1.5"><button type="button" className="btn pri fig-cta-btn flex-1" data-tip="veLayApply" disabled={!layItems.length} onClick={() => runLayout(lay, true)}>Terapkan{layItems.length ? ' (' + layItems.length + ')' : ''}</button><button type="button" className="btn sec fig-cta-btn" data-tip="veLayArtboard" disabled={!doc.objects.length} onClick={padToArtboard}>{L.riToArtboard}</button></div></div></div><div className="fig-isec" data-tip="veBg"><div className="fig-isec-title"><span>{L.riCanvas}</span></div><div className="space-y-2.5"><Seg o={[['transparent', 'Transparan'], ['solid', 'Solid']]} v={bg.mode} on={v => setBg(b => ({
+        })} tip="veLayRadius" f={v => v ? v + ' unit' : L.riSharp} />}<div className="flex gap-2 pt-1.5"><button type="button" className="btn pri fig-cta-btn flex-1" data-tip="veLayApply" disabled={!layItems.length} onClick={() => runLayout(lay, true)}>{L.riApply}{layItems.length ? ' (' + layItems.length + ')' : ''}</button><button type="button" className="btn sec fig-cta-btn" data-tip="veLayArtboard" disabled={!doc.objects.length} onClick={padToArtboard}>{L.riToArtboard}</button></div></div></div><div className="fig-isec" data-tip="veBg"><div className="fig-isec-title"><span>{L.riCanvas}</span></div><div className="space-y-2.5"><Seg o={[['transparent', L.riBgTransparent], ['solid', 'Solid']]} v={bg.mode} on={v => setBg(b => ({
           ...b,
           mode: v
         }))} tip="veBg" tips={{
           transparent: 'veBgTr',
           solid: 'veBgSolid'
-        }} /><div className="flex items-center gap-2 fade" data-tip="veBgColor"><ColorField tip="veBgColor" value={bg.mode === 'transparent' ? 'none' : bg.color} on={v => setBg(b => v === 'none' ? {
+        }} /><div className="flex items-center gap-2 fade" data-tip="veBgColor"><ColorField L={L} tip="veBgColor" value={bg.mode === 'transparent' ? 'none' : bg.color} on={v => setBg(b => v === 'none' ? {
             ...b,
             mode: 'transparent'
           } : {
             ...b,
             mode: 'solid',
             color: v
-          })} /><ColorText value={bg.mode === 'transparent' ? 'none' : bg.color} on={v => setBg(b => v === 'none' ? {
+          })} /><ColorText L={L} value={bg.mode === 'transparent' ? 'none' : bg.color} on={v => setBg(b => v === 'none' ? {
             ...b,
             mode: 'transparent'
           } : {
@@ -525,11 +525,11 @@ const EditorRightInspector = ({
             1: 'veExpS_1',
             2: 'veExpS_2',
             4: 'veExpS_4'
-          }} /></div>}<div><div className="fig-sub-lbl">{L.riExportArea}</div><Seg o={[['board', 'Artboard'], ['content', 'Semua'], ['sel', 'Seleksi']]} v={exportArea} on={setExportArea} tip="veArea" tips={{
+          }} /></div>}<div><div className="fig-sub-lbl">{L.riExportArea}</div><Seg o={[['board', 'Artboard'], ['content', L.riAreaAll], ['sel', L.riAreaSel]]} v={exportArea} on={setExportArea} tip="veArea" tips={{
             board: 'veAreaBoard',
             content: 'veAreaAll',
             sel: 'veAreaSel'
-          }} /></div><div className="flex gap-2 pt-1"><button type="button" className="btn sec fig-cta-btn flex-1" data-tip="veCopy" onClick={exportSvg}><Ico n="copy" size={14} />Salin {expFmt.toUpperCase()}</button><button type="button" className="btn pri fig-cta-btn flex-1" data-tip="veDownload" onClick={downloadSvg}><Ico n="download" size={14} />Unduh .{expFmt.toUpperCase()}</button></div>{onExportBackup && <button type="button" className="btn sec fig-cta-btn w-full mt-1.5 text-xs" onClick={() => onExportBackup()}><Ico n="database" size={13} /><span>{L.riExportBackup}</span></button>}</div></div></div></aside>;
+          }} /></div><div className="flex gap-2 pt-1"><button type="button" className="btn sec fig-cta-btn flex-1" data-tip="veCopy" onClick={exportSvg}><Ico n="copy" size={14} />{L.riCopy} {expFmt.toUpperCase()}</button><button type="button" className="btn pri fig-cta-btn flex-1" data-tip="veDownload" onClick={downloadSvg}><Ico n="download" size={14} />{L.riDownload} .{expFmt.toUpperCase()}</button></div>{onExportBackup && <button type="button" className="btn sec fig-cta-btn w-full mt-1.5 text-xs" onClick={() => onExportBackup()}><Ico n="database" size={13} /><span>{L.riExportBackup}</span></button>}</div></div></div></aside>;
 
 export { EditorRightInspector };
 export default EditorRightInspector;

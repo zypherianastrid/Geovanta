@@ -274,7 +274,7 @@ function App() {
       setRecoveryDialog(null);
       const cands = await ProjectRepository.checkAllRecoveryCandidates();
       setRecoveryCandidates(cands);
-      flash(`Proyek "${project.name}" berhasil dipulihkan ke checkpoint (${formatDateTimeFull(snapshot.savedAt)})`);
+      flash(`Proyek "${project.name}" berhasil dipulihkan ke checkpoint (${formatDateTimeFull(snapshot.savedAt, prefs.lang)})`);
       if (navState.screen === 'editor' && navState.activeProjectId === project.id) {
         await handleOpenProject(project.id);
       }
@@ -364,14 +364,14 @@ function App() {
             });
             const fname = await WorkspaceController.triggerBackupDownload(navState.activeProjectId);
             if (fname) flash(`Backup "${fname}" berhasil diunduh`);
-          }} onRetrySave={() => WorkspaceController.retryFailedSave()} flash={flash} active={true} full={true} prefs={prefs} onHelp={() => setHelp(true)} onSettings={() => setSettings(true)} /></div>}</div></div>{recoveryDialog && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label="Pemulihan Dokumen (Crash Recovery)" style={{
+          }} onRetrySave={() => WorkspaceController.retryFailedSave()} flash={flash} active={true} full={true} prefs={prefs} onHelp={() => setHelp(true)} onSettings={() => setSettings(true)} /></div>}</div></div>{recoveryDialog && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label={L.appDlgRecovery} style={{
         maxWidth: 460
       }}><div className="flex items-center gap-2.5 mb-2"><span className="inline-flex items-center justify-center w-9 h-9 rounded-xl" style={{
             background: 'rgba(245, 158, 11, 0.16)',
             color: '#f59e0b'
           }}><Ico n="refresh" size={18} /></span><div><div className="text-sm font-semibold">{L.appRecoveryTitle}</div><div className="text-[11px] mut">{L.appProject} <b>{recoveryDialog.project.name}</b></div></div></div><div className="text-xs mut leading-relaxed mb-3">{L.appRecoveryQ}</div><div className="space-y-1.5 text-xs mb-4"><div className="ws-stat-row"><span className="mut">{L.appLastCheckpoint}</span><span className="font-mono font-semibold" style={{
               color: 'var(--acc)'
-            }}>{formatDateTimeFull(recoveryDialog.snapshot.savedAt)}</span></div><div className="ws-stat-row"><span className="mut">{L.appLastMainSave}</span><span className="font-mono">{formatDateTimeFull(recoveryDialog.project.updatedAt)}</span></div><div className="ws-stat-row"><span className="mut">{L.appCheckpointVsMain}</span><span className="font-mono">Rev #{recoveryDialog.snapshot.revision} vs Rev #{recoveryDialog.project.revision || 1}</span></div></div><div className="flex justify-end gap-2"><button type="button" className="btn sec text-xs px-3.5 py-2" onClick={handleIgnoreRecovery}>{L.appIgnoreOld}</button><button type="button" className="btn pri text-xs px-4 py-2" onClick={handleRestoreRecovery}><Ico n="check" size={14} /><span>Restore Checkpoint</span></button></div></div></div>, document.body)}{unsavedNavDialog && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label="Peringatan Gagal Menyimpan Sebelum Navigasi" style={{
+            }}>{formatDateTimeFull(recoveryDialog.snapshot.savedAt, prefs.lang)}</span></div><div className="ws-stat-row"><span className="mut">{L.appLastMainSave}</span><span className="font-mono">{formatDateTimeFull(recoveryDialog.project.updatedAt, prefs.lang)}</span></div><div className="ws-stat-row"><span className="mut">{L.appCheckpointVsMain}</span><span className="font-mono">Rev #{recoveryDialog.snapshot.revision} vs Rev #{recoveryDialog.project.revision || 1}</span></div></div><div className="flex justify-end gap-2"><button type="button" className="btn sec text-xs px-3.5 py-2" onClick={handleIgnoreRecovery}>{L.appIgnoreOld}</button><button type="button" className="btn pri text-xs px-4 py-2" onClick={handleRestoreRecovery}><Ico n="check" size={14} /><span>Restore Checkpoint</span></button></div></div></div>, document.body)}{unsavedNavDialog && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label={L.appDlgUnsaved} style={{
         maxWidth: 460
       }}><div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold text-red-400">{L.appSaveFailed}</div><button type="button" data-tip="uiClose" className="btn sec" style={{
             padding: 0,
@@ -407,7 +407,7 @@ function App() {
             } else {
               flash('Penyimpanan masih gagal — silakan unduh pemulihan darurat terlebih dahulu');
             }
-          }}><Ico n="refresh" size={13} /><span>{L.appRetrySave2}</span></button></div></div></div>, document.body)}{quotaErrorInfo && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label="Peringatan Kuota Penyimpanan Penuh" style={{
+          }}><Ico n="refresh" size={13} /><span>{L.appRetrySave2}</span></button></div></div></div>, document.body)}{quotaErrorInfo && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label={L.appDlgQuota} style={{
         maxWidth: 460
       }}><div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold text-red-400">{L.appQuotaTitle}</div><button type="button" data-tip="uiClose" className="btn sec" style={{
             padding: 0,
@@ -429,7 +429,7 @@ function App() {
             await WorkspaceController.retryFailedSave();
           }}><Ico n="refresh" size={13} /><span>{L.appRetrySave}</span></button></div></div></div>, document.body)}{editorRenameOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
       if (e.target === e.currentTarget) setEditorRenameOpen(false);
-    }}><div className="hp" role="dialog" aria-label="Ganti Nama Proyek Aktif" style={{
+    }}><div className="hp" role="dialog" aria-label={L.appDlgRename} style={{
         maxWidth: 400
       }}><div className="flex items-center justify-between mb-3"><div className="text-sm font-semibold">{L.wsRename}</div><button type="button" data-tip="uiClose" className="btn sec" style={{
             padding: 0,
