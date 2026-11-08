@@ -20,6 +20,10 @@
 </p>
 
 <p align="center">
+  <a href="https://geovanta.netlify.app/"><b>🌐 Coba Geovanta langsung — tanpa instalasi</b></a>
+</p>
+
+<p align="center">
   <img src="assets/screenshots/05-editor-fill-solid.png" alt="Geovanta Vector Studio — mengedit artwork Have a Good Day" width="100%">
   <br><em>Mengedit artwork di Geovanta — layer, warna, dan kanvas dalam satu layar.</em>
 </p>
