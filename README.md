@@ -20,6 +20,10 @@
 </p>
 
 <p align="center">
+  <a href="https://geovanta.netlify.app/"><b>🌐 Try Geovanta live — no install needed</b></a>
+</p>
+
+<p align="center">
   <img src="assets/screenshots/05-editor-fill-solid.png" alt="Geovanta Vector Studio — editing the Have a Good Day artwork" width="100%">
   <br><em>Editing artwork in Geovanta — layers, colors, and canvas on one screen.</em>
 </p>
