@@ -83,4 +83,18 @@ const applyMotion = motion => {
   if (motion === 'off') root.setAttribute('data-motion', 'off');else if (motion === 'on') root.setAttribute('data-motion', 'on');else root.removeAttribute('data-motion');
 };
 
-export { applyAccent, loadPrefs, savePrefs, applyTheme, applyMotion };
+/* Bahasa antarmuka tab Pengaturan ('id' | 'en'); dibaca langsung dari
+   localStorage agar komponen di luar pohon prefs (mis. TipHost) bisa
+   mengikutinya tanpa prop drilling. */
+const readLangPref = () => {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return 'id';
+    const p = JSON.parse(raw);
+    return p.lang === 'en' ? 'en' : 'id';
+  } catch (e) {
+    return 'id';
+  }
+};
+
+export { applyAccent, loadPrefs, savePrefs, applyTheme, applyMotion, readLangPref };

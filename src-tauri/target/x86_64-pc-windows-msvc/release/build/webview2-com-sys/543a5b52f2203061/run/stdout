@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\webview2-com-sys/543a5b52f2203061\out\x64
+cargo:rustc-link-lib=advapi32

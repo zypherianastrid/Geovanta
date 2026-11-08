@@ -72,10 +72,14 @@ const Float = ({
     const kd = e => {
       if (e.key === 'Escape') onClose();
     };
-    document.addEventListener('pointerdown', dn);
+    /* Capture phase: klik di dalam .fig-floating-bar dihentikan propagasinya
+       (onPointerDown stopPropagation) sehingga listener bubble di document
+       tidak pernah menerima klik tombol Pengaturan — dropdown harus tetap
+       tertutup saat Pengaturan diklik. Capture jalan sebelum fase bubble. */
+    document.addEventListener('pointerdown', dn, true);
     document.addEventListener('keydown', kd);
     return () => {
-      document.removeEventListener('pointerdown', dn);
+      document.removeEventListener('pointerdown', dn, true);
       document.removeEventListener('keydown', kd);
     };
   }, [open]);

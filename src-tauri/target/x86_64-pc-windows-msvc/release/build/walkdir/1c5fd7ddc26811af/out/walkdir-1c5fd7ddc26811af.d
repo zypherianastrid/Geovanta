@@ -1,0 +1,10 @@
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\walkdir/1c5fd7ddc26811af\out\walkdir-1c5fd7ddc26811af.d: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\dent.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\error.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\util.rs
+
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\walkdir/1c5fd7ddc26811af\out\libwalkdir-1c5fd7ddc26811af.rlib: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\dent.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\error.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\util.rs
+
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\walkdir/1c5fd7ddc26811af\out\libwalkdir-1c5fd7ddc26811af.rmeta: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\dent.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\error.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\util.rs
+
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\lib.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\dent.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\error.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\walkdir-2.5.0\src\util.rs:

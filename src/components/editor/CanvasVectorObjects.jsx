@@ -16,9 +16,17 @@ import { RENDER_CONFIG } from '../../utils/renderConfigAndTelemetry.jsx';
    ============================================================================ */
 const LAYER_PREVIEW_JSX_CACHE = new WeakMap();
 const LayerSvgPreview = React.memo(({
-  o
+  o,
+  /* SCROLLFIX: true selama scroll layer aktif — dicek SEBELUM cache, supaya
+     baris yang masuk kembali ke window saat scroll juga mount ikon generik
+     (bukan preview penuh dari cache). Prop ini juga yang menginvalidasi memo
+     saat settle, jadi preview penuh benar-benar kembali setelah scroll
+     berhenti (sebelumnya: memo bail-out membuat ikon generik menempel
+     permanen pada baris yang ke-mount saat fast-scroll). */
+  fastScroll
 }) => {
   if (!o) return null;
+  if (fastScroll) return <Ico n="shapes" size={15} />;
   const cachedEl = LAYER_PREVIEW_JSX_CACHE.get(o);
   if (cachedEl !== undefined) return cachedEl;
   if (o.img) {
@@ -39,9 +47,6 @@ const LayerSvgPreview = React.memo(({
     }}><text x="12" y="17.5" textAnchor="middle" fontFamily={t.fontFamily || 'Inter, sans-serif'} fontWeight={t.fontWeight || 700} fontStyle={t.fontStyle || 'normal'} fontSize="14.5" fill={fillCol} opacity={Math.max(0.35, o.opacity ?? 1)}>{raw}</text></svg>;
     LAYER_PREVIEW_JSX_CACHE.set(o, el);
     return el;
-  }
-  if (typeof window !== 'undefined' && window.__gvLayerFastScroll) {
-    return <Ico n="shapes" size={15} />;
   }
   const info = vinfo(o);
   const bb = info && info.bb;
@@ -70,7 +75,7 @@ const LayerSvgPreview = React.memo(({
   }}><path d={info.d} fill={fillCol} fillRule={o.fillRule || 'nonzero'} stroke={strokeCol} strokeWidth={swVb} strokeLinejoin={o.strokeLinejoin || 'round'} strokeLinecap={o.strokeLinecap || 'round'} opacity={Math.max(0.35, o.opacity ?? 1)} /></svg>;
   LAYER_PREVIEW_JSX_CACHE.set(o, el);
   return el;
-}, (prev, next) => prev.o === next.o);
+}, (prev, next) => prev.o === next.o && prev.fastScroll === next.fastScroll);
 const CanvasObj = React.memo(({
   o,
   clipAttr,

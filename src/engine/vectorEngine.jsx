@@ -18,12 +18,14 @@ import { parsePath } from './svgPathParser.jsx';
 import { straighten, alignNodes, alignHandles, alignNodesAtAngle, measureSelectedNodesAngle } from './straightenAndAlignNodes.jsx';
 import { fillet, refillet, hasFillet, restoreFillets, setSelectedNodesRadius, setCornerRadius } from './cornerFilletEngine.jsx';
 import { insertNode, insertMid, segPoint, translate, moveNodes, cloneObj } from './bezierSubdivisionAndMove.jsx';
-import { snapPt, snapMany, snapOutline, rebuildHandle, snapHandleCurve, buildSnapCache, solveMultiSnap } from './multiSnapSolver.jsx';
+import { SNAP_PX, snapPt, snapMany, snapOutline, rebuildHandle, snapHandleCurve, buildSnapCache, solveMultiSnap } from './multiSnapSolver.jsx';
 import { parsePSorAI, exportEPS, exportAI, exportRaster } from './postscriptAiRasterIo.jsx';
 import { uid, dist, nrm, sub, add, mul, dot, cross, lerp, rd } from './vectorPrimitives.jsx';
 import { arcToCubics } from './arcToBezier.jsx';
 import { kasaFit, schneiderFit, detectAnomalies, EMPTY_INSPECTION } from './curveFittingAndAnomalies.jsx';
 import { fixAnomaly, fixAllAnomalies, SIMPLIFY_LEVEL, simplifyLevelTolerance, autoSimplifyLevel, simplifyWith, simplifySubpath, simplifyPart, simplifyDoc } from './topologicalCurveSimplifier.jsx';
+import { booleanDoc } from './pathBoolean.jsx';
+import { outlineStrokeDoc, offsetDoc } from './pathOffset.jsx';
 
 const VE = {
   computeViewBoxTransform,
@@ -120,6 +122,7 @@ const VE = {
   translate,
   moveNodes,
   cloneObj,
+  SNAP_PX,
   snapPt,
   snapMany,
   snapOutline,
@@ -169,7 +172,10 @@ const VE = {
   simplifyWith,
   simplifySubpath,
   simplifyPart,
-  simplifyDoc
+  simplifyDoc,
+  booleanDoc,
+  outlineStrokeDoc,
+  offsetDoc
 };
 
 export { VE };

@@ -1,0 +1,9 @@
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\webview2-com-sys/f7f94556c7d2ed1a\out\webview2_com_sys-f7f94556c7d2ed1a.d: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\declared_interfaces.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\bindings.rs
+
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\webview2-com-sys/f7f94556c7d2ed1a\out\libwebview2_com_sys-f7f94556c7d2ed1a.rlib: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\declared_interfaces.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\bindings.rs
+
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\webview2-com-sys/f7f94556c7d2ed1a\out\libwebview2_com_sys-f7f94556c7d2ed1a.rmeta: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\declared_interfaces.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\bindings.rs
+
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\lib.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\declared_interfaces.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\webview2-com-sys-0.39.1\src\bindings.rs:

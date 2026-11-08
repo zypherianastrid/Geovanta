@@ -510,21 +510,62 @@ const TIPS = {
     t: 'Zoom',
     d: 'Memperbesar atau memperkecil kanvas tanpa batas praktis (0,05% sampai 500.000%). Scroll mouse mengikuti posisi kursor; tombol ± ke pusat.'
   },
-  veInspect: {
-    k: 'I',
-    t: 'Inspeksi Geometri',
-    d: 'Deteksi otomatis anomali (garis meleyot, faset, sudut menumpuk, node redundan) secara non-destruktif.',
-    w: 'Periksa kebersihan path sebelum ekspor atau sebelum mengedit.'
-  },
   veSimplify: {
     k: 'S',
     t: 'Simplify',
     d: 'Menyederhanakan path kurva Bézier dengan algoritma least-squares cubic fitting VectorCraft (Object › Path › Simplify).',
     w: 'Mengurangi jumlah anchor point sambil menjaga presisi bentuk dan sudut.'
   },
-  veInspectOverlay: {
-    t: 'Overlay Indikator',
-    d: 'Tampilkan atau sembunyikan penanda anomali di canvas.'
+  veBoolUnion: {
+    k: 'Ctrl+Alt+U',
+    t: 'Boolean Union',
+    d: 'Menggabungkan 2+ objek path tertutup terpilih menjadi satu bentuk (Object › Path › Union). Subpath terbuka dilewati.',
+    w: 'Hasil memakai fill objek paling bawah dan fill-rule evenodd.'
+  },
+  veBoolSubtract: {
+    k: 'Ctrl+Alt+S',
+    t: 'Boolean Subtract',
+    d: 'Memotong bentuk terpilih dengan objek paling atas (paling depan) sebagai pemotong (Object › Path › Subtract).',
+    w: 'Objek paling atas dihapus; sisanya menjadi satu bentuk.'
+  },
+  veBoolIntersect: {
+    k: 'Ctrl+Alt+I',
+    t: 'Boolean Intersect',
+    d: 'Menyisakan hanya daerah yang tumpang tindih dari semua objek path tertutup terpilih (Object › Path › Intersect).'
+  },
+  veBoolExclude: {
+    k: 'Ctrl+Alt+X',
+    t: 'Boolean Exclude (XOR)',
+    d: 'Menyisakan daerah yang hanya dimiliki satu objek — daerah tumpang tindih dibuang (Object › Path › Exclude).'
+  },
+  veOutlineStroke: {
+    k: 'Ctrl+Alt+O',
+    t: 'Outline Stroke',
+    d: 'Mengubah stroke objek terpilih menjadi bentuk berisi (fill = warna stroke, stroke dihapus). Fill lama dibuang. Penting untuk logo, cetak, dan laser cutting.'
+  },
+  veOffsetPath: {
+    t: 'Offset Path',
+    d: 'Memperbesar (+) atau memperkecil (−) path terpilih sejauh jarak tertentu, dengan pratinjau langsung. Join Miter/Bevel/Round; path yang menyusut sampai lenyap dibiarkan utuh.'
+  },
+  veOffsetDist: {
+    t: 'Jarak Offset (pt)',
+    d: 'Jarak perluasan (+) atau penyusutan (−) path, −100 sampai +100 pt. Pratinjau diperbarui langsung di kanvas.'
+  },
+  veOffsetJoin: {
+    t: 'Join Offset',
+    d: 'Bentuk sudut pada path hasil offset: Miter (runcing), Bevel (terpotong), atau Round (membulat).'
+  },
+  veOffsetBadge: {
+    t: 'Offset & Anchor Points',
+    d: 'Jarak offset saat ini dan jumlah anchor point sebelum → sesudah offset.'
+  },
+  veOffsetApply: {
+    t: 'Terapkan Offset',
+    d: 'Komit hasil Offset ke path sebagai satu langkah Undo.'
+  },
+  veOffsetCancel: {
+    t: 'Batalkan Offset',
+    d: 'Membatalkan Offset dan mengembalikan path seperti semula.'
   },
   veShape: {
     t: 'Shape',
@@ -538,18 +579,6 @@ const TIPS = {
   veShowHandleGlobal: {
     t: 'Tampilkan Handle Bézier (Global)',
     d: 'Menampilkan atau menyembunyikan handle Bézier pada setiap objek yang dipilih. Pengaturan berlaku global untuk semua seleksi objek dan berfungsi juga di mode Pilih (Select).'
-  },
-  veInspectHeatmap: {
-    t: 'Heatmap Kepadatan',
-    d: 'Visualisasi glow konsentrasi kepadatan node di canvas.'
-  },
-  veCornerEps: {
-    t: 'Radius Sudut (ε)',
-    d: 'Jarak maksimum antar-node agar dikelompokkan sebagai cluster sudut yang menumpuk.'
-  },
-  veCollinearTol: {
-    t: 'Toleransi Kolinier',
-    d: 'Simpangan tegak lurus maksimum agar node pada garis lurus dianggap redundan.'
   },
   veSimplifyTol: {
     t: 'Tolerance (pt)',
@@ -613,25 +642,9 @@ const TIPS = {
     t: 'Kategori anomali',
     d: 'Menyaring daftar dan penanda di canvas: Sudut (node menumpuk), Kolinier (node redundan), Meleyot (garis bergelombang), Faset (lengkung patah), Arc (arc terlalu padat).'
   },
-  veCleanAll: {
-    t: 'Bersihkan semua',
-    d: 'Memperbaiki semua anomali yang terdeteksi sekaligus. Bisa di-undo.'
-  },
-  veAnomBadge: {
-    t: 'Total anomali',
-    d: 'Jumlah semua anomali geometri yang terdeteksi pada dokumen saat ini.'
-  },
   veAnomList: {
     t: 'Daftar anomali',
     d: 'Anomali geometri yang ditemukan pada path, sesuai kategori yang dipilih.'
-  },
-  veAnomFocus: {
-    t: 'Fokus',
-    d: 'Memilih objek terkait dan memusatkan canvas pada anomali ini.'
-  },
-  veAnomFix: {
-    t: 'Perbaiki',
-    d: 'Memperbaiki anomali ini saja dengan cara yang sesuai jenisnya. Bisa di-undo.'
   },
   veStats: {
     t: 'Statistik dokumen',
@@ -1086,8 +1099,1519 @@ const TIPS = {
     t: 'Padding ke Artboard',
     d: 'Mengubah ukuran Artboard (viewBox) agar mengelilingi objek terpilih, atau seluruh konten bila tidak ada yang dipilih, dengan padding 4 sisi di atas.',
     w: 'Merapikan ruang kosong sebelum ekspor.'
+  },
+  /* ---- Migrasi tooltip sederhana (title=) ke tooltip kustom ---- */
+  veTextTool: {
+    k: 'T',
+    t: 'Alat Teks',
+    d: 'Klik di kanvas untuk membuat objek teks SVG.'
+  },
+  veBackWorkspace: {
+    t: 'Kembali ke Workspace',
+    d: 'Kembali ke daftar proyek. Proyek tersimpan otomatis.'
+  },
+  veRenameProject: {
+    t: 'Ganti Nama Proyek',
+    d: 'Klik untuk mengganti nama proyek.'
+  },
+  veSimpBadge: {
+    t: 'Anchor Points',
+    d: 'Jumlah anchor point sebelum dan sesudah simplify.'
+  },
+  veUndo: {
+    k: 'Ctrl + Z',
+    t: 'Undo',
+    d: 'Membatalkan perubahan terakhir.'
+  },
+  veRedo: {
+    k: 'Ctrl + Y',
+    t: 'Redo',
+    d: 'Mengulangi perubahan yang dibatalkan.'
+  },
+  vePixelMode: {
+    t: 'Mode Piksel',
+    d: 'Mengaktifkan / menonaktifkan mode piksel pada kanvas.'
+  },
+  veTextNewLine: {
+    t: 'Baris Baru',
+    d: 'Menambah baris baru pada teks.'
+  },
+  veFontSearchReset: {
+    t: 'Reset Pencarian Font',
+    d: 'Menghapus teks pencarian font.'
+  },
+  veFontRemove: {
+    t: 'Hapus Font dari Daftar',
+    d: 'Menghapus font dari daftar. Objek teks tetap aman.'
+  },
+  veFontSizeDown: {
+    t: 'Perkecil Teks',
+    d: 'Memperkecil ukuran teks.'
+  },
+  veFontSizeUp: {
+    t: 'Perbesar Teks',
+    d: 'Memperbesar ukuran teks.'
+  },
+  veToggleHidden: {
+    k: 'Ctrl + Shift + H',
+    t: 'Tampilkan / Sembunyikan Layer',
+    d: 'Menampilkan atau menyembunyikan layer terpilih.'
+  },
+  vePipetteFill: {
+    t: 'Pipet Warna Fill',
+    d: 'Mengambil sampel warna dari kanvas untuk fill.'
+  },
+  vePipetteStroke: {
+    t: 'Pipet Warna Stroke',
+    d: 'Mengambil sampel warna dari kanvas untuk stroke.'
+  },
+  veSimpCancel: {
+    k: 'Esc',
+    t: 'Batalkan Simplify',
+    d: 'Membatalkan simplify tanpa menerapkan perubahan.'
+  },
+  vePxSmooth: {
+    t: 'Mode 1 — Smooth Vector (Default)',
+    d: 'Kontur vektor tetap halus dan solid tanpa kotak piksel tepi.'
+  },
+  vePxHard: {
+    t: 'Mode 3 — Hard Pixel Preview',
+    d: 'Rasterizer biner per-objek, warna piksel kotak 100% solid tegas tanpa warna campuran/transparan di tepi.'
+  },
+  vePxCoverage: {
+    t: 'Mode 2 — Pixel Coverage Preview',
+    d: 'Menampilkan tingkat coverage antialiasing setiap piksel.'
+  },
+  veAlphaPct: {
+    t: 'Transparansi (%)',
+    d: 'Tingkat transparansi warna dalam persen.'
+  },
+  veNoColor: {
+    t: 'Hapus Warna (No Color)',
+    d: 'Menghapus warna / menyetel ke None (transparan penuh).'
+  },
+  veRangeScrub: {
+    t: 'Geser Nilai',
+    d: 'Seret kiri/kanan untuk mengubah nilai.'
+  },
+  veRangeType: {
+    t: 'Ketik Angka',
+    d: 'Klik untuk mengetik angka langsung.'
+  },
+  veStorageInfo: {
+    t: 'Informasi Penyimpanan Lokal',
+    d: 'Melihat pemakaian penyimpanan lokal (IndexedDB).'
+  },
+  veClearSearch: {
+    t: 'Bersihkan Pencarian',
+    d: 'Menghapus teks pencarian.'
+  },
+  veSaveOk: {
+    t: 'Status Penyimpanan',
+    d: 'Status penyimpanan proyek lokal (IndexedDB).'
+  },
+  veSaveError: {
+    t: 'Gagal Menyimpan',
+    d: 'Klik untuk mencoba menyimpan kembali.'
+  },
+  veLayerText: {
+    t: 'Objek Teks SVG',
+    d: 'Layer ini adalah objek teks SVG.'
+  },
+  veLayerImage: {
+    t: 'Objek Gambar',
+    d: 'Layer ini adalah objek gambar.'
+  },
+  veLayerShape: {
+    t: 'Pratinjau Bentuk SVG',
+    d: 'Layer ini adalah bentuk SVG.'
+  },
+  veSidebarHide: {
+    t: 'Sembunyikan Panel Layer',
+    d: 'Menyembunyikan panel layer di sisi kiri.'
+  },
+  veSidebarShow: {
+    t: 'Tampilkan Panel Layer',
+    d: 'Menampilkan panel layer di sisi kiri.'
+  },
+  veFavAdd: {
+    t: 'Tambahkan ke Favorit',
+    d: 'Menandai proyek ini sebagai favorit.'
+  },
+  veFavRemove: {
+    t: 'Hapus dari Favorit',
+    d: 'Menghapus proyek ini dari favorit.'
+  },
+  veResizePanel: {
+    t: 'Ubah Lebar Panel',
+    d: 'Seret untuk mengubah lebar panel. Klik ganda = reset ke lebar awal.'
+  },
+  setLang: {
+    t: 'Bahasa Antarmuka',
+    d: 'Bahasa untuk tab Pengaturan: Indonesia atau English.',
+    w: 'Berlaku langsung dan diingat di browser lokal.'
+  },
+  /* ---- Kunci data-tip yang dipakai tapi belum ada di katalog ---- */
+  veTextPanel: {
+    t: 'Teks & Tipografi',
+    d: 'Mengatur font, ukuran, dan gaya teks yang dipilih.'
+  },
+  layLock: {
+    t: 'Kunci Layer',
+    d: 'Mengunci layer ini agar tidak bisa dipilih atau diubah.'
+  },
+  layUnlock: {
+    t: 'Buka Kunci Layer',
+    d: 'Membuka kunci layer ini.'
+  },
+  layHide: {
+    t: 'Sembunyikan Layer',
+    d: 'Menyembunyikan layer ini dari kanvas.'
+  },
+  layShow: {
+    t: 'Tampilkan Layer',
+    d: 'Menampilkan kembali layer ini di kanvas.'
+  },
+  layEject: {
+    t: 'Keluarkan dari Grup',
+    d: 'Mengeluarkan layer ini dari grup/frame induknya.'
+  },
+  layEjectBucket: {
+    t: 'Keluarkan Grup Warna',
+    d: 'Mengeluarkan semua objek warna ini dari grupnya.'
+  },
+  layOpenFrame: {
+    t: 'Buka Frame',
+    d: 'Menampilkan isi frame/grup di daftar layer.'
+  },
+  layCloseFrame: {
+    t: 'Tutup Frame',
+    d: 'Menyembunyikan isi frame/grup di daftar layer.'
+  },
+  layFrameBg: {
+    t: 'Latar Frame',
+    d: 'Objek latar frame. Klik untuk memilihnya.'
+  },
+  layFrameLock: {
+    t: 'Kunci Semua Isi',
+    d: 'Mengunci semua objek di dalam grup/frame ini.'
+  },
+  layFrameUnlock: {
+    t: 'Buka Kunci Semua Isi',
+    d: 'Membuka kunci semua objek di dalam grup/frame ini.'
+  },
+  layFrameHide: {
+    t: 'Sembunyikan Semua Isi',
+    d: 'Menyembunyikan semua objek di dalam grup/frame ini.'
+  },
+  layFrameShow: {
+    t: 'Tampilkan Semua Isi',
+    d: 'Menampilkan semua objek di dalam grup/frame ini.'
+  },
+  uiClose: {
+    t: 'Tutup',
+    d: 'Menutup jendela ini.'
+  },
+  veShapePicker: {
+    t: 'Pilih bentuk',
+    d: 'Membuka daftar bentuk: persegi, lingkaran, segitiga, dan lainnya.'
+  },
+  wsCardMenu: {
+    t: 'Menu tindakan proyek',
+    d: 'Buka, ganti nama, duplikat, atau hapus proyek ini.'
   }
 };
+/* ---------- Overlay English untuk tooltip di tab Pengaturan ----------
+   Hanya kunci yang dipakai di tab Pengaturan; kunci lain tetap memakai TIPS. */
+const TIPS_EN = {
+  setTheme: {
+    t: 'Theme',
+    d: 'Interface colors: follow system, light, or dark.'
+  },
+  setMotion: {
+    t: 'Animation',
+    d: 'Controls UI animation and transitions.',
+    w: 'Turn off if you experience lag or prefer a calm interface.'
+  },
+  setTips: {
+    t: 'Tooltips',
+    d: 'Shows hints when hovering over a control.',
+    w: 'Turn off once you are fluent with the app.'
+  },
+  setPersist: {
+    t: 'Save preferences',
+    d: 'Saves theme, animation, and UI preferences in the browser (localStorage).'
+  },
+  setReset: {
+    t: 'Reset settings',
+    d: 'Restores all app preferences to their defaults.'
+  },
+  setAbout: {
+    t: 'About',
+    d: 'App version and technical information.'
+  },
+  setTabUmum: {
+    t: 'General tab',
+    d: 'Interface theme, animation, tooltips, and preference storage.'
+  },
+  setTabKeys: {
+    t: 'Shortcuts tab',
+    d: 'Full list of all Vector Editor keyboard shortcuts.'
+  },
+  setLang: {
+    t: 'Interface Language',
+    d: 'Language for this Settings tab: Indonesian or English.',
+    w: 'Applies immediately and is remembered in the local browser.'
+  },
+  closeDlg: {
+    k: 'Esc',
+    t: 'Close',
+    d: 'Closes this panel.'
+  },
+  help: {
+    k: '?',
+    t: 'Keyboard shortcuts',
+    d: 'Shows the list of all keyboard shortcuts.'
+  },
+  uiClose: {
+    t: 'Close',
+    d: 'Closes this window.'
+  },
+  veShapePicker: {
+    t: 'Choose shape',
+    d: 'Opens the shape list: rectangle, circle, triangle, and more.'
+  },
+  wsCardMenu: {
+    t: 'Project actions menu',
+    d: 'Open, rename, duplicate, or delete this project.'
+  },
+  cpHex: {
+    t: 'Hex code',
+    d: 'Type the 6-digit hex color (without #). Applied automatically when complete.'
+  },
+  cpHue: {
+    t: 'Hue',
+    d: 'Drag to pick the base color hue. Arrow keys shift by 1 degree.'
+  },
+  cpPipette: {
+    t: 'Color pipette',
+    d: 'Pick a color from anywhere on the screen. In browsers without a built-in pipette, it samples SVG elements, canvas, or images on the page. Esc to cancel.'
+  },
+  cpSV: {
+    t: 'Saturation & brightness',
+    d: 'Drag to set saturation (left to right) and brightness (bottom to top) of the color.'
+  },
+  layCloseFrame: {
+    t: 'Close Frame',
+    d: 'Hides the frame/group contents in the layer list.'
+  },
+  layEject: {
+    t: 'Remove from Group',
+    d: 'Removes this layer from its parent group/frame.'
+  },
+  layEjectBucket: {
+    t: 'Remove Color Group',
+    d: 'Removes all objects of this color from their group.'
+  },
+  layFrameBg: {
+    t: 'Frame Background',
+    d: 'Frame background object. Click to select it.'
+  },
+  layFrameHide: {
+    t: 'Hide All Contents',
+    d: 'Hides all objects inside this group/frame.'
+  },
+  layFrameLock: {
+    t: 'Lock All Contents',
+    d: 'Locks all objects inside this group/frame.'
+  },
+  layFrameShow: {
+    t: 'Show All Contents',
+    d: 'Shows all objects inside this group/frame.'
+  },
+  layFrameUnlock: {
+    t: 'Unlock All Contents',
+    d: 'Unlocks all objects inside this group/frame.'
+  },
+  layHide: {
+    t: 'Hide Layer',
+    d: 'Hides this layer from the canvas.'
+  },
+  layLock: {
+    t: 'Lock Layer',
+    d: 'Locks this layer so it cannot be selected or changed.'
+  },
+  layOpenFrame: {
+    t: 'Open Frame',
+    d: 'Shows the frame/group contents in the layer list.'
+  },
+  layShow: {
+    t: 'Show Layer',
+    d: 'Shows this layer on the canvas again.'
+  },
+  layUnlock: {
+    t: 'Unlock Layer',
+    d: 'Unlocks this layer.'
+  },
+  setTabTech: {
+    t: 'Technology & architecture',
+    d: 'List of libraries and browser APIs used.'
+  },
+  settings: {
+    k: ',',
+    t: 'Settings',
+    d: 'Theme, animations, UI preferences, and app options.',
+    w: 'Change the look or behavior of the app.'
+  },
+  veAddHandle: {
+    t: 'Add Bézier Handle',
+    d: 'Hover over a node (a ring and handle preview appear), then click to add a Bézier handle to that node. Handles follow the line direction around the node; drag after clicking to set their length and direction right away. Nodes that already have complete handles do not change.',
+    w: 'Turning a straight corner into a curve, or adding a missing handle to a node at a path end.'
+  },
+  veAddNode: {
+    t: 'Add Node',
+    d: 'Hover over any object line, then click to add a node at that point. Drag after clicking to move it right away. Snaps to segment midpoints, grid lines, and other objects nodes and edges. Hold Alt to disable snapping.',
+    w: 'When you need an extra node at a precise spot.'
+  },
+  veAhAddAll: {
+    t: 'Add handles to all',
+    d: 'Adds Bézier handles to all objects without changing their shape.'
+  },
+  veAhAddSel: {
+    t: 'Add handles to selected',
+    d: 'Adds Bézier handles to the selected object or nodes without changing their shape (handles placed at 1/3 and 2/3 of each segment).'
+  },
+  veAhAngle: {
+    t: 'Skip sharp corners',
+    d: 'Nodes whose included angle is smaller than this value are left untouched, so sharp corners stay sharp.'
+  },
+  veAhDelAll: {
+    t: 'Delete all handles',
+    d: 'Removes handles on all objects.'
+  },
+  veAhDelSel: {
+    t: 'Delete selected handles',
+    d: 'Removes handles on the selected object so its segments become straight lines.'
+  },
+  veAhScopeObj: {
+    t: 'Scope: whole object',
+    d: 'Clicking on the canvas affects all subpaths inside the clicked object.'
+  },
+  veAhScopeSub: {
+    t: 'Scope: subpath',
+    d: 'Clicking on the canvas only affects the clicked subpath.'
+  },
+  veAhTension: {
+    t: 'Tension (τ)',
+    d: 'Handle length relative to the distance between nodes. 0 = sharp corner, 0.33 = standard Hermite, 0.5 = very round.'
+  },
+  veAlAncCenter: {
+    t: 'Center anchor',
+    d: 'The alignment line passes through the center of all selected nodes.'
+  },
+  veAlAncFirst: {
+    t: 'First node anchor',
+    d: 'The first node in path order stays fixed; the other nodes adjust.'
+  },
+  veAlAncLast: {
+    t: 'Last node anchor',
+    d: 'The last node in path order stays fixed; the other nodes adjust.'
+  },
+  veAlAnchor: {
+    t: 'Anchor point',
+    d: 'Sets which point stays fixed as the pivot for line alignment.'
+  },
+  veAlAuto: {
+    t: 'Auto',
+    d: 'Finds the best straight line from the selected node positions, then automatically locks to horizontal/vertical when the slope is very small.',
+    w: 'For a nearly straight line when you do not want to set the angle yourself.'
+  },
+  veAlCollapse: {
+    t: 'Intermediate nodes',
+    d: 'How middle nodes are treated when you select 3 or more nodes in sequence.'
+  },
+  veAlCustom: {
+    t: 'Custom degrees',
+    d: 'Aligns nodes following your chosen degree angle (slider or preset).'
+  },
+  veAlDeg: {
+    t: 'Line angle (degrees)',
+    d: 'Sets the slope of the target line from -180° to 180° (0° = horizontal, 90° = vertical). Changes apply immediately to the selected nodes.'
+  },
+  veAlKeep: {
+    t: 'Keep',
+    d: 'Nodes between the two ends stay and are flattened onto the target line together.'
+  },
+  veAlMerge: {
+    t: 'Merge into 2 ends',
+    d: 'Intermediate nodes are removed so the chain becomes one straight segment between the start and end nodes.',
+    w: 'Reducing node count on sides that are already straight.'
+  },
+  veAlMode: {
+    t: 'Parallel-angle mode',
+    d: 'How the target line direction is determined when aligning 2 or more nodes.'
+  },
+  veAlPar: {
+    t: 'Parallel to opposite side (∥)',
+    d: 'Aligns nodes to be parallel with the segment on the opposite side of the same subpath (needs at least 4 nodes).'
+  },
+  veAlPerp: {
+    t: 'Perpendicular (⊥ 90°)',
+    d: 'Aligns nodes so they are perpendicular (90°) to the average direction of the stems/sides on their left and right.',
+    w: 'Tidying the ends of slanted line cuts or letter legs.'
+  },
+  veAlPreset: {
+    t: 'Quick degree preset',
+    d: 'Click to align the selected nodes to this standard angle right away.'
+  },
+  veAlSlide: {
+    t: 'How end nodes slide',
+    d: 'Sets the path end nodes follow while being flattened.'
+  },
+  veAlSlideOff: {
+    t: 'Perpendicular projection',
+    d: 'Nodes are dropped straight down (perpendicular) onto the target line.'
+  },
+  veAlSlideOn: {
+    t: 'Follow side rail (Edge-Sliding)',
+    d: 'End nodes slide along the extension of the neighboring side line, so the thickness and slope of the adjacent stem do not change.',
+    w: 'Flattening the end of a ribbon, slanted bar, or letter leg.'
+  },
+  veAlignSel: {
+    t: 'Straighten selected',
+    d: 'Aligns the selected nodes or Bézier handles onto one straight line. Nearly horizontal/vertical lines snap to the axis, and segments between selected nodes become straight lines.',
+    w: 'A wobbly rectangle bottom edge: select the two bottom nodes (or their handles), then click.'
+  },
+  veAlnBottom: {
+    t: 'Align bottom',
+    d: 'Moves objects (or nodes) so their bottom edge lines up with the bottom edge of the reference.'
+  },
+  veAlnDistH: {
+    t: 'Distribute horizontally',
+    d: 'Makes the empty gaps between objects equal from left to right. The leftmost and rightmost objects stay in place.',
+    w: 'Needs at least 3 objects.'
+  },
+  veAlnDistV: {
+    t: 'Distribute vertically',
+    d: 'Makes the empty gaps between objects equal from top to bottom. The topmost and bottommost objects stay in place.',
+    w: 'Needs at least 3 objects.'
+  },
+  veAlnHC: {
+    t: 'Align center horizontally',
+    d: 'Aligns the horizontal center point with the center of the reference.'
+  },
+  veAlnLeft: {
+    t: 'Align left',
+    d: 'Moves objects (or nodes) so their left edge lines up with the left edge of the reference.'
+  },
+  veAlnPanel: {
+    t: 'Alignment & Distribution',
+    d: 'Aligns and distributes objects. One object aligns to the Artboard, two or more to the selection bounding box, and two or more nodes to the node bounding box.'
+  },
+  veAlnRight: {
+    t: 'Align right',
+    d: 'Moves objects (or nodes) so their right edge lines up with the right edge of the reference.'
+  },
+  veAlnTop: {
+    t: 'Align top',
+    d: 'Moves objects (or nodes) so their top edge lines up with the top edge of the reference.'
+  },
+  veAlnVC: {
+    t: 'Align center vertically',
+    d: 'Aligns the vertical center point with the center of the reference.'
+  },
+  veAlphaPct: {
+    t: 'Opacity (%)',
+    d: 'Color transparency level in percent.'
+  },
+  veAngTol: {
+    t: 'Direction tolerance',
+    d: 'Maximum angle between segments that are still merged when straightening.'
+  },
+  veAnomFilter: {
+    t: 'Anomaly category',
+    d: 'Filters the list and canvas markers: Corners (stacked nodes), Collinear (redundant nodes), Wobbly (wavy lines), Facet (broken curves), Arc (overly dense arcs).'
+  },
+  veAnomList: {
+    t: 'Anomaly list',
+    d: 'Geometry anomalies found on the path, matching the selected category.'
+  },
+  veAppear: {
+    t: 'Appearance',
+    d: 'Appearance properties of the selected object. When several objects are selected, changes apply to all of them.'
+  },
+  veApplyCorner: {
+    t: 'Apply smooth corner',
+    d: 'Replaces the selected corner nodes with two smooth nodes (fillet).'
+  },
+  veApplySimplify: {
+    t: 'Apply Simplify',
+    d: 'Commits the Simplify result to the path as a single Undo step.'
+  },
+  veBoolUnion: {
+    k: 'Ctrl+Alt+U',
+    t: 'Boolean Union',
+    d: 'Merges 2+ selected closed path objects into one shape (Object › Path › Union). Open subpaths are skipped.',
+    w: 'The result uses the bottom object’s fill and the evenodd fill rule.'
+  },
+  veBoolSubtract: {
+    k: 'Ctrl+Alt+S',
+    t: 'Boolean Subtract',
+    d: 'Cuts the selected shapes with the topmost (front) object as the cutter (Object › Path › Subtract).',
+    w: 'The topmost object is removed; the rest become one shape.'
+  },
+  veBoolIntersect: {
+    k: 'Ctrl+Alt+I',
+    t: 'Boolean Intersect',
+    d: 'Keeps only the overlapping region of all selected closed path objects (Object › Path › Intersect).'
+  },
+  veBoolExclude: {
+    k: 'Ctrl+Alt+X',
+    t: 'Boolean Exclude (XOR)',
+    d: 'Keeps only regions owned by exactly one object — overlapping regions are removed (Object › Path › Exclude).'
+  },
+  veOutlineStroke: {
+    k: 'Ctrl+Alt+O',
+    t: 'Outline Stroke',
+    d: 'Converts the stroke of the selected objects into a filled shape (fill = stroke color, stroke removed). The old fill is discarded. Essential for logos, print, and laser cutting.'
+  },
+  veOffsetPath: {
+    t: 'Offset Path',
+    d: 'Expands (+) or contracts (−) the selected path by a given distance, with a live preview. Miter/Bevel/Round joins; a path that shrinks away entirely is left unchanged.'
+  },
+  veOffsetDist: {
+    t: 'Offset Distance (pt)',
+    d: 'Expansion (+) or contraction (−) distance of the path, −100 to +100 pt. The preview updates live on the canvas.'
+  },
+  veOffsetJoin: {
+    t: 'Offset Join',
+    d: 'Corner shape of the offset path: Miter (sharp), Bevel (cut), or Round.'
+  },
+  veOffsetBadge: {
+    t: 'Offset & Anchor Points',
+    d: 'Current offset distance and anchor point count before → after the offset.'
+  },
+  veOffsetApply: {
+    t: 'Apply Offset',
+    d: 'Commits the Offset result to the path as a single Undo step.'
+  },
+  veOffsetCancel: {
+    t: 'Cancel Offset',
+    d: 'Cancels the Offset and restores the path as it was.'
+  },
+  veApplyStraight: {
+    t: 'Apply straightening',
+    d: 'Aligns the selected nodes or handles per the settings above. With no nodes selected, straightens the whole path using the threshold below.'
+  },
+  veArea: {
+    t: 'Export area',
+    d: 'Artboard: only the frame area (original viewBox). All content: a tight box around every object on the canvas, including those outside the artboard.'
+  },
+  veAreaAll: {
+    t: 'All content',
+    d: 'Exports a tight box around all objects on the canvas, including those outside the artboard.'
+  },
+  veAreaBoard: {
+    t: 'Artboard',
+    d: 'Exports only the frame area (original viewBox).'
+  },
+  veAreaSel: {
+    t: 'Selected objects',
+    d: 'Exports only the currently selected objects, cropped tight to their bounds. Other objects are excluded. Select objects first before copying or downloading.',
+    w: 'Grabbing one piece or one icon from a large design.'
+  },
+  veAutoHandle: {
+    k: 'B',
+    t: 'Auto Bézier Handle',
+    d: 'Click a node (or an object body) to give ALL nodes on that subpath smooth Bézier handles (Centripetal Catmull-Rom, no folds). Drag left/right after clicking to adjust tension live.',
+    w: 'Turning a jagged polygon into a smooth curve at once.'
+  },
+  veAutoRefine: {
+    t: 'Auto Tidy',
+    d: 'Straightens wobbly segments / wavy node chains, then rounds jagged corners on the selected objects, in one click. Uses the Deviation threshold below. Shared borders with other objects are preserved so no gaps appear.',
+    w: 'To tidy the sides and corners of selected objects at once.'
+  },
+  veBackWorkspace: {
+    t: 'Back to Workspace',
+    d: 'Returns to the project list. The project saves automatically.'
+  },
+  veBevelDeg: {
+    t: 'Opening angle preset',
+    d: 'Sets the proportion of the corner cut distance per the opening angle (Auto = follows the original geometry angle).'
+  },
+  veBg: {
+    t: 'Canvas background',
+    d: 'Transparent: the canvas shows a checker pattern and SVG export has no background. Solid: the canvas is filled with the chosen color and SVG export includes a colored background rectangle.'
+  },
+  veBgColor: {
+    t: 'Background color',
+    d: 'Background color in Solid mode.'
+  },
+  veBgSolid: {
+    t: 'Solid',
+    d: 'Plain colored background.'
+  },
+  veBgTr: {
+    t: 'Transparent',
+    d: 'No background (checker pattern).'
+  },
+  veClearSearch: {
+    t: 'Clear Search',
+    d: 'Clears the search text.'
+  },
+  veClipFrames: {
+    t: 'Clip Frame',
+    d: 'Clips the display of objects that cross the Frame boundary, like Clip Content in Figma.'
+  },
+  veClose: {
+    t: 'Close path',
+    d: 'Closes the selected path (adds a closing segment to the start point).'
+  },
+  veColorText: {
+    t: 'Color value',
+    d: 'Type a CSS color: hex (#e11d48), name (red), rgb() or hsl(). Press Enter to apply, Esc to cancel.'
+  },
+  veCopy: {
+    t: 'Copy (selected format)',
+    d: 'SVG/AI/EPS/PS are copied as text; PNG/JPG/WEBP as a PNG image. Ctrl+C on objects copies the SVG code + PNG image together.'
+  },
+  veCorner: {
+    t: 'Smooth Corner',
+    d: 'Circular fillet on the selected corner nodes. Select nodes first, set a radius, then apply.'
+  },
+  veCornerChamfer: {
+    t: 'Bevel (Chamfer)',
+    d: 'Cuts a sharp corner into a straight slanted line (no handle curve).'
+  },
+  veCornerCirc: {
+    t: 'Circular',
+    d: 'Corners are rounded with a precise circle arc.'
+  },
+  veCornerMode: {
+    t: 'Corner profile',
+    d: 'Circular = precise circle arc. Squircle = longer Bézier handles for a softer transition. Bevel = the corner is cut into a straight slanted line (chamfer).'
+  },
+  veCornerR: {
+    t: 'Corner radius',
+    d: 'Circular fillet radius applied to corner nodes.'
+  },
+  veCornerRadius: {
+    t: 'Corner radius',
+    d: 'Rounds all sharp corners on the selected object with a circular fillet. Drag to change the radius any time; 0 restores sharp corners. Only corners between two straight segments are rounded, and the radius is limited to 45% of the segment length.'
+  },
+  veCornerSm: {
+    t: 'Smoothness',
+    d: 'Handle length relative to the tangent-point distance (smooth Bézier mode only).'
+  },
+  veCornerSq: {
+    t: 'Squircle',
+    d: 'Corners are rounded with longer Bézier handles for a softer transition. Adjust with the Smoothness slider.'
+  },
+  veCtxFlatten: {
+    k: 'Ctrl + E',
+    t: 'Flatten',
+    d: 'Merges 2 or more objects into one path (attributes follow the topmost object). With only one object inside a group, the object is released from its group.'
+  },
+  veCtxGroup: {
+    k: 'Ctrl + G',
+    t: 'Group',
+    d: 'Groups 2 or more objects so they are selected and move together. Pressing Ctrl+G on a whole group still releases it (compatible with the old version).'
+  },
+  veCtxUngroup: {
+    k: 'Ctrl + Shift + G',
+    t: 'Ungroup',
+    d: 'Releases a group or Frame from the selected objects: all children are moved to the canvas and stay selected (the Frame background box is removed too). Selecting only some members still releases the parent.',
+    w: 'To edit one object inside a group without changing the others.'
+  },
+  veCurAngle: {
+    t: 'Current line angle',
+    d: 'Slope of the line between the first and last selected nodes (0° = horizontal, 90° = vertical).'
+  },
+  veCurveDrag: {
+    t: 'Curved Handle Drag Mode',
+    d: 'When on, dragging a Bézier handle in No Mirroring mode automatically forms a smooth arc (sets the segment curvature independently without rotating the handle on the other side of the node).',
+    w: 'Turn on in the floating toolbar when you want to freely pull a straight line/handle into a curve.'
+  },
+  veDelNode: {
+    k: 'Delete',
+    t: 'Delete node',
+    d: 'Deletes the currently selected node from the path.'
+  },
+  veDelObj: {
+    k: 'Delete',
+    t: 'Delete',
+    d: 'Deletes the selected nodes; if no nodes are selected, deletes the selected objects.'
+  },
+  veDown: {
+    k: '[',
+    t: 'Send backward',
+    d: 'Moves the selected objects one step backward.'
+  },
+  veDownload: {
+    t: 'Download (selected format)',
+    d: 'Downloads the edited result as .svg, .png, .jpg, .webp, .ai, .eps or .ps (Ctrl+S).'
+  },
+  veDup: {
+    k: 'Ctrl + D',
+    t: 'Duplicate',
+    d: 'Duplicates the selected objects (shifted 10 units).'
+  },
+  veExpFmt: {
+    t: 'Export & copy format',
+    d: 'Choose the file format: pure vector (SVG, AI, EPS, PS) or raster image (PNG, JPG, WEBP).'
+  },
+  veExpS_1: {
+    t: '1x',
+    d: 'Original size per the viewBox; smallest file.'
+  },
+  veExpS_2: {
+    t: '2x (HD)',
+    d: 'Double resolution; good for retina screens and the web.'
+  },
+  veExpS_4: {
+    t: '4x (Ultra)',
+    d: 'Four times the resolution; large files and slower to process.',
+    w: 'For print or images that will be enlarged.'
+  },
+  veExpScale: {
+    t: 'Raster resolution scale',
+    d: 'Resolution multiplier when exporting to PNG, JPG, or WEBP. 2x and 4x produce much sharper images (supersampling).'
+  },
+  veExp_ai: {
+    t: 'Adobe Illustrator (.AI)',
+    d: 'PDF-1.4 file with an .ai extension plus Geovanta round-trip data for lossless reopening here.'
+  },
+  veExp_eps: {
+    t: 'EPS (PostScript)',
+    d: 'PostScript EPSF-3.0 for print workflows and legacy design apps.'
+  },
+  veExp_jpg: {
+    t: 'JPG',
+    d: 'Compressed raster image without transparency; background automatically white (or the solid background color).'
+  },
+  veExp_png: {
+    t: 'PNG',
+    d: 'Raster image with transparency. Choose the resolution scale below.'
+  },
+  veExp_svg: {
+    t: 'SVG',
+    d: 'Pure SVG vector; stays sharp at every scale and can be reopened here without data loss.'
+  },
+  veExp_webp: {
+    t: 'WEBP',
+    d: 'Modern small raster image with transparency support.'
+  },
+  veFavAdd: {
+    t: 'Add to Favorites',
+    d: 'Marks this project as a favorite.'
+  },
+  veFavRemove: {
+    t: 'Remove from Favorites',
+    d: 'Removes this project from favorites.'
+  },
+  veFill: {
+    t: 'Fill',
+    d: 'Fill color of the selected path.'
+  },
+  veFillEvenodd: {
+    t: 'Even-odd',
+    d: 'Areas enclosed by an odd number of contours are filled, even ones become holes, regardless of path direction.',
+    w: 'Letters, rings, or shapes with holes that do not show up.'
+  },
+  veFillNone: {
+    t: 'Empty fill',
+    d: 'Turns the object fill color on/off.'
+  },
+  veFillNonzero: {
+    t: 'Nonzero',
+    d: 'Every area inside the contour is filled, depending on the path drawing direction.',
+    w: 'Ordinary shapes without holes, or holes whose direction is already correct.'
+  },
+  veFillRule: {
+    t: 'Fill rule',
+    d: 'Rule that decides which areas are filled when paths overlap or have holes.'
+  },
+  veFontRemove: {
+    t: 'Remove Font from List',
+    d: 'Removes the font from the list. Text objects stay safe.'
+  },
+  veFontSearchReset: {
+    t: 'Reset Font Search',
+    d: 'Clears the font search text.'
+  },
+  veFontSizeDown: {
+    t: 'Decrease Text Size',
+    d: 'Makes the text smaller.'
+  },
+  veFontSizeUp: {
+    t: 'Increase Text Size',
+    d: 'Makes the text larger.'
+  },
+  veFrameAuto: {
+    t: 'Frame → Auto Layout',
+    d: 'Turns the Frame of the selected objects into an Auto Layout. Direction (row/column/wrap), gap and padding are inferred from the current object positions so nothing jumps.'
+  },
+  veFrameTool: {
+    t: 'Frame',
+    d: 'Drag on the canvas to draw a Frame; objects whose center falls inside the area automatically join the Frame. Single click: wraps the selected objects in a Frame (or creates an empty Frame when nothing is selected).',
+    w: 'Making a Figma-style container/artboard that can be used for Auto Layout.'
+  },
+  veGradAngle: {
+    t: 'Gradient angle',
+    d: 'Direction of the linear gradient in degrees (-180° to 180°).'
+  },
+  veGradAnglePreset: {
+    t: 'Quick angle',
+    d: 'Sets the gradient angle to this value right away.'
+  },
+  veGradBar: {
+    t: 'Gradient bar',
+    d: 'Click on the bar to add a new color stop; drag a stop to move it.'
+  },
+  veGradDelStop: {
+    t: 'Delete stop',
+    d: 'Deletes the currently selected stop (a gradient needs at least 2 stops).'
+  },
+  veGradDistribute: {
+    t: 'Even out stops',
+    d: 'Spreads all stops at equal distances from 0% to 100%.'
+  },
+  veGradInterp: {
+    t: 'Interpolation space',
+    d: 'How colors are blended between stops. OKLab gives smoother, more natural transitions; sRGB follows standard SVG behavior.'
+  },
+  veGradLinear: {
+    t: 'Linear',
+    d: 'Straight gradient from one point to another, with an adjustable angle.'
+  },
+  veGradMid: {
+    t: 'Midpoint',
+    d: 'Sets where the blend of two stops sits at 50%. Drag to shift, double-click to reset to 50%.'
+  },
+  veGradMode: {
+    t: 'Fill Mode',
+    d: 'Object fill type: solid color, linear gradient, radial gradient, or no fill.'
+  },
+  veGradNone: {
+    t: 'Empty',
+    d: 'The object has no fill (stroke only).'
+  },
+  veGradOk: {
+    t: 'Smooth OKLab',
+    d: 'Color blending in OKLab space: no muddy band in the middle of the transition.'
+  },
+  veGradPad: {
+    t: 'Pad',
+    d: 'The first and last stop colors are extended outward.'
+  },
+  veGradRadial: {
+    t: 'Radial',
+    d: 'Circular gradient radiating from the center to the edge.'
+  },
+  veGradRdp: {
+    t: 'Simplify stops (RDP)',
+    d: 'Removes excess stops on the gradient using the Ramer–Douglas–Peucker algorithm, without changing the look much.'
+  },
+  veGradReflect: {
+    t: 'Reflect',
+    d: 'The gradient is mirrored back and forth outside its bounds.'
+  },
+  veGradRepeat: {
+    t: 'Repeat',
+    d: 'The gradient repeats from the start outside its bounds.'
+  },
+  veGradReverse: {
+    t: 'Reverse gradient',
+    d: 'Reverses the order of all stops (start becomes end).'
+  },
+  veGradSolid: {
+    t: 'Solid',
+    d: 'Fills the object with a single flat color.'
+  },
+  veGradSpread: {
+    t: 'Spread method',
+    d: 'Gradient behavior outside its start and end points.'
+  },
+  veGradSrgb: {
+    t: 'sRGB',
+    d: 'Standard sRGB color blending, matching SVG rendering in every app.'
+  },
+  veGradStop: {
+    t: 'Color stop',
+    d: 'Click to select a stop, drag to move its position along the gradient.'
+  },
+  veGradStopColor: {
+    t: 'Stop color',
+    d: 'Changes the color of the currently selected stop.'
+  },
+  veGradStopOp: {
+    t: 'Stop opacity',
+    d: 'Color transparency at this stop; 0% clear, 100% opaque.'
+  },
+  veGradStopPos: {
+    t: 'Stop position',
+    d: 'Position of the stop along the gradient, 0% at the start to 100% at the end.'
+  },
+  veGrid: {
+    t: 'Grid',
+    d: 'Shows the grid as a guide and snap target. Grid size adapts to zoom automatically (multiples of 10 units) so lines stay readable at any zoom.'
+  },
+  veHand: {
+    k: 'H | Spasi',
+    t: 'Pan',
+    d: 'Drag the canvas to pan the view. The middle mouse button works in other tools too.'
+  },
+  veImport: {
+    t: 'Import SVG / AI / EPS / image',
+    d: 'Adds one or many files to the canvas: SVG, AI, EPS, PS, PDF (become editable vector objects) or PNG/JPG/WebP/GIF images. File type is detected from content (magic byte). Files are added at the center of the view and do not replace the canvas content. You can also drag-drop files onto the canvas or paste with Ctrl+V.'
+  },
+  veInsert: {
+    t: 'Insert node',
+    d: 'Adds a node in the middle of the segment between two adjacent selected nodes. Or double-click on the path line.'
+  },
+  veLayAlign: {
+    t: '9-point alignment',
+    d: 'Sets the position of objects inside their row or column when sizes differ: left/center/right and top/middle/bottom.'
+  },
+  veLayApply: {
+    t: 'Apply Auto Layout',
+    d: 'Arranges the selected objects per the settings above. After that, changing gap, padding, direction, or alignment re-arranges immediately while the same selection stays active.'
+  },
+  veLayArtboard: {
+    t: 'Padding to Artboard',
+    d: 'Resizes the Artboard (viewBox) to surround the selected objects, or all content when nothing is selected, with the 4-side padding above.',
+    w: 'Tidying empty space before export.'
+  },
+  veLayBucket: {
+    t: 'Merge Colors',
+    d: 'Same-colored objects inside one Frame/Group are merged into one row. Click that row to select them all, then change fill, stroke, and radius at once.'
+  },
+  veLayCol: {
+    t: 'Column (↓)',
+    d: 'All objects are arranged downward from top to bottom.'
+  },
+  veLayCols: {
+    t: 'Columns per row',
+    d: 'Maximum number of objects in one row in Grid mode.'
+  },
+  veLayDir: {
+    t: 'Layout direction',
+    d: 'Sets how objects are arranged.'
+  },
+  veLayFrame: {
+    t: 'Background frame',
+    d: 'Creates an automatic background rectangle behind the objects, as wide as the content plus padding. Turning it off deletes that automatic frame.',
+    w: 'Cards, buttons, or icon groups that need a background.'
+  },
+  veLayGap: {
+    t: 'Gap between objects',
+    d: 'Empty distance between adjacent objects.'
+  },
+  veLayPad: {
+    t: 'Padding',
+    d: 'Empty distance between the frame and the objects inside it. Symmetric mode uses one value for all four sides.'
+  },
+  veLayPadB: {
+    t: 'Bottom padding (B)',
+    d: 'Distance from the frame to the bottommost object.'
+  },
+  veLayPadL: {
+    t: 'Left padding (L)',
+    d: 'Distance from the frame to the leftmost object.'
+  },
+  veLayPadMode: {
+    t: 'Padding mode',
+    d: 'Symmetric = one value for all sides. 4 sides = set top, right, bottom, and left individually.'
+  },
+  veLayPadR: {
+    t: 'Right padding (R)',
+    d: 'Distance from the frame to the rightmost object.'
+  },
+  veLayPadT: {
+    t: 'Top padding (T)',
+    d: 'Distance from the frame to the topmost object.'
+  },
+  veLayPanel: {
+    t: 'Auto Layout & Padding',
+    d: 'Arranges selected objects in rows, columns, or a grid with gaps, alignment, 4-side padding, and an automatic background frame. After applying, changing the controls here re-arranges immediately.'
+  },
+  veLayRadius: {
+    t: 'Frame radius',
+    d: 'Roundness of the automatic background frame corners.'
+  },
+  veLayRow: {
+    t: 'Row (→)',
+    d: 'All objects are arranged horizontally from left to right.'
+  },
+  veLayWrap: {
+    t: 'Grid (⊞)',
+    d: 'Objects are arranged horizontally then wrap to the next row each time the column count is reached.'
+  },
+  veLayer: {
+    t: 'Layer',
+    d: 'Click to select the object. Shift for multi-select.'
+  },
+  veLayerImage: {
+    t: 'Image Object',
+    d: 'This layer is an image object.'
+  },
+  veLayerShape: {
+    t: 'SVG Shape Preview',
+    d: 'This layer is an SVG shape.'
+  },
+  veLayerText: {
+    t: 'SVG Text Object',
+    d: 'This layer is an SVG text object.'
+  },
+  veLayers: {
+    t: 'Layer list',
+    d: 'Objects are ordered front-most on top. Click to select, Shift or Ctrl for multi-select.'
+  },
+  veMaxDev: {
+    t: 'Deviation threshold',
+    d: 'Maximum deviation (units) for a node chain to be considered a straight line.'
+  },
+  veMirror: {
+    t: 'Handle Mirroring',
+    d: 'Sets how Bézier handles pair up on the selected node/handle, like the Mirroring panel in Figma. Select a node (or handle) first. Hold Alt while dragging a handle to break mirroring temporarily (node becomes No mirroring).',
+    w: 'The mode applies live while dragging a handle, not only when selected.'
+  },
+  veMirrorAL: {
+    t: 'Mirror angle and length',
+    d: 'Both handles collinear AND equal in length. Moving one handle fully mirrors its position to the opposite handle (symmetric around the node).',
+    w: 'Perfectly symmetric curve around the node.'
+  },
+  veMirrorAngle: {
+    t: 'Mirror angle',
+    d: 'Both handles always collinear (opposite directions). Rotating one handle rotates the opposite handle, but their lengths stay different and free.',
+    w: 'Smooth curve (G1) with unequal handle lengths.'
+  },
+  veMirrorCurve: {
+    t: 'No mirroring (Curved Drag)',
+    d: 'Both handles free & independent (no mirroring), but Bézier handles appear automatically and segments curve dynamically as either handle is dragged.',
+    w: 'When you want to drag 1 handle independently into a smooth curved shape.'
+  },
+  veMirrorNone: {
+    t: 'No mirroring',
+    d: 'Both handles fully independent: each direction and length is free. Moving one handle does not move the opposite handle.',
+    w: 'Making a sharp corner or an asymmetric curve.'
+  },
+  veNoColor: {
+    t: 'Remove Color (No Color)',
+    d: 'Removes the color / sets it to None (fully transparent).'
+  },
+  veNode: {
+    k: 'A | N',
+    t: 'Edit Node',
+    d: 'Show and edit nodes and Bézier handles. Drag a node or handle to change the path shape.'
+  },
+  veOpacity: {
+    t: 'Opacity',
+    d: 'Transparency of the selected path (0–100%).'
+  },
+  veOpen: {
+    t: 'Open path',
+    d: 'Opens a closed path (removes the Z closing).'
+  },
+  vePen: {
+    k: 'P',
+    t: 'Pen Tool',
+    d: 'Click = corner node (straight). Click-hold-drag (> 4 px) = smooth node with symmetric handles. Alt while dragging = break the corner (incoming handle locked). Shift = lock to 45°. Click the first node to close the path; Enter / Esc / double-click to finish; Backspace deletes the last node. Multi-guide snapping is active.',
+    w: 'Drawing precise Bézier curves from scratch.'
+  },
+  vePenFill: {
+    t: 'With fill',
+    d: 'The drawn path gets a fill color.'
+  },
+  vePenFinish: {
+    k: 'Enter',
+    t: 'Finish drawing',
+    d: 'Ends the path being drawn.'
+  },
+  vePenNoFill: {
+    t: 'No fill',
+    d: 'The drawn path is only a line (stroke), with no fill color.'
+  },
+  vePipetteFill: {
+    t: 'Fill Color Pipette',
+    d: 'Samples a color from the canvas for fill.'
+  },
+  vePipetteStroke: {
+    t: 'Stroke Color Pipette',
+    d: 'Samples a color from the canvas for stroke.'
+  },
+  vePixelMode: {
+    t: 'Pixel Mode',
+    d: 'Turns pixel mode on/off on the canvas.'
+  },
+  vePruneAng: {
+    t: 'Minimum angle',
+    d: 'Turns below this value are not treated as corners, so their nodes may be deleted.',
+    w: 'Lower it if blunt corners disappear too; raise it if noise nodes remain.'
+  },
+  vePruneNodes: {
+    t: 'Delete Non-Corner Nodes',
+    d: 'Detects sharp corners (sudden turns whose original contour hugs the intersection of both sides), locks the nodes at those corners, then deletes all nodes in the middle/edges of sides between two corners as long as the deviation from the original contour stays within tolerance. Curved sides are replaced by 1 Bézier curve when it still fits. Nodes on shared borders between objects are untouched.',
+    w: 'Good for tidying paths with excess nodes, e.g. the letter A from 58 nodes down to exactly its corners.'
+  },
+  vePruneTol: {
+    t: 'Node deletion tolerance',
+    d: 'Maximum deviation of the result from the original contour. Small = safe but more nodes remain; large = more aggressive.',
+    w: 'Start at 0.75; raise it if middle nodes still remain.'
+  },
+  vePxCoverage: {
+    t: 'Mode 2 — Pixel Coverage Preview',
+    d: 'Shows the antialiasing coverage level of each pixel.'
+  },
+  vePxHard: {
+    t: 'Mode 3 — Hard Pixel Preview',
+    d: 'Per-object binary rasterizer, box pixel colors 100% solid and crisp with no blended/transparent colors at the edges.'
+  },
+  vePxSmooth: {
+    t: 'Mode 1 — Smooth Vector (Default)',
+    d: 'Vector contours stay smooth and solid without pixel boxes at the edges.'
+  },
+  veRadiusPreset: {
+    t: 'Quick radius preset',
+    d: 'Click to apply this radius size to the selected corners right away (Sharp = back to 0).'
+  },
+  veRangeScrub: {
+    t: 'Drag Value',
+    d: 'Drag left/right to change the value.'
+  },
+  veRangeType: {
+    t: 'Type Number',
+    d: 'Click to type a number directly.'
+  },
+  veRedo: {
+    k: 'Ctrl + Y',
+    t: 'Redo',
+    d: 'Redoes the change that was undone.'
+  },
+  veRenameProject: {
+    t: 'Rename Project',
+    d: 'Click to rename the project.'
+  },
+  veResizePanel: {
+    t: 'Resize Panel Width',
+    d: 'Drag to change the panel width. Double-click = reset to the initial width.'
+  },
+  veSaveError: {
+    t: 'Save Failed',
+    d: 'Click to try saving again.'
+  },
+  veSaveOk: {
+    t: 'Save Status',
+    d: 'Local project save status (IndexedDB).'
+  },
+  veSelColor: {
+    t: 'Change color',
+    d: 'Changes this color on all objects using it at once.'
+  },
+  veSelPick: {
+    t: 'Select objects with this color',
+    d: 'Selects only the objects using this color, to set their radius or stroke at once.'
+  },
+  veSelect: {
+    k: 'V',
+    t: 'Select',
+    d: 'Select objects or nodes. Shift for multi-select. Drag an object to move it.'
+  },
+  veShape: {
+    t: 'Shape',
+    d: 'Pick a basic shape (rectangle, circle, star, arrow, heart, etc.), then drag on the canvas to draw. Single click for the default size. Shift = proportional.',
+    w: 'Adds a new shape to the canvas as a path whose nodes can be edited.'
+  },
+  veShapeItem: {
+    t: 'Shape',
+    d: 'Drag on the canvas to draw, or single-click for the default size. Hold Shift for a 1:1 proportion.'
+  },
+  veSharpen: {
+    t: 'Sharpen corner',
+    d: 'Melts a blunt/rounded corner (two nearby nodes, e.g. from import or an old fillet) into one sharp corner at the intersection of its tangent lines. With no nodes selected: automatic detection across the selected objects. With nodes selected: two adjacent nodes are merged; a single node becomes a corner without handles.'
+  },
+  veShowHandleGlobal: {
+    t: 'Show Bézier Handles (Global)',
+    d: 'Shows or hides Bézier handles on every selected object. The setting applies globally to all object selections and also works in Select mode.'
+  },
+  veShowNodeGlobal: {
+    t: 'Show Nodes (Global)',
+    d: 'Shows or hides nodes on every selected object. The setting applies globally to all object selections and also works in Select mode.'
+  },
+  veSidebarHide: {
+    t: 'Hide Layer Panel',
+    d: 'Hides the layer panel on the left side.'
+  },
+  veSidebarShow: {
+    t: 'Show Layer Panel',
+    d: 'Shows the layer panel on the left side.'
+  },
+  veSimpBadge: {
+    t: 'Anchor Points',
+    d: 'Number of anchor points before and after simplify.'
+  },
+  veSimpCancel: {
+    k: 'Esc',
+    t: 'Cancel Simplify',
+    d: 'Cancels simplify without applying changes.'
+  },
+  veSimplify: {
+    k: 'S',
+    t: 'Simplify',
+    d: 'Simplifies Bézier curve paths with the VectorCraft least-squares cubic fitting algorithm (Object › Path › Simplify).',
+    w: 'Reduces anchor points while keeping shape precision and corners.'
+  },
+  veSimplifyAngle: {
+    t: 'Corner Point Angle Threshold',
+    d: 'Angles below this threshold (0°–180°, default 150° → turns > 30°) are kept as sharp corners.'
+  },
+  veSimplifyAuto: {
+    t: 'Auto-Simplify',
+    d: 'Sets the automatic Simplify level from the selected object size (size / 400).'
+  },
+  veSimplifyLevel: {
+    t: 'Simplify Slider (0–100)',
+    d: 'Left (0) = fewest anchor points (32 pt); Middle (50) = 1 pt; Right (100) = closest to the original path (1/32 pt).'
+  },
+  veSimplifyMore: {
+    t: 'More Options…',
+    d: 'Opens the full Simplify dialog (Tolerance, Corner Point Angle Threshold, Convert to Straight Lines, Show Original Path).'
+  },
+  veSimplifyOrig: {
+    t: 'Show Original Path',
+    d: 'Shows the original path outline under the canvas preview before Simplify.'
+  },
+  veSimplifyRetain: {
+    t: 'Open this dialog with these settings next time',
+    d: 'Opens the full Simplify dialog with these settings on the next call.'
+  },
+  veSimplifyStraight: {
+    t: 'Convert to Straight Lines',
+    d: 'Produces straight line segments only, using Ramer–Douglas–Peucker (RDP) polyline reduction.'
+  },
+  veSimplifyTol: {
+    t: 'Tolerance (pt)',
+    d: 'Maximum deviation distance (document points) between the original path and the Simplify result (0.001–10000 pt).'
+  },
+  veSmoothTb: {
+    t: 'Smooth nodes (Taubin)',
+    d: 'Evens out the selected node positions without shrinking the shape (Taubin λ|μ filter), then recalculates smooth (G1) Bézier handles.'
+  },
+  veSnap: {
+    t: 'Snap',
+    d: 'Figma-style multi-snap: click the small arrow beside it to pick features (Smart Guides box/center, Equal Spacing, Artboard, Node & Handle, Node X/Y axes, Midpoint, Contour, 90°/extension, Grid, Pixel). X and Y axes snap independently. While dragging, nodes and Bézier handles snap to other objects nodes/handles (red circle), to other objects edges/contours (green diamond), then to the grid. A dragged handle point also snaps to other Bézier handle lines (orange diamond). 8 screen-pixel tolerance. Hold Alt to disable temporarily.'
+  },
+  veSnapMenu: {
+    t: 'Snap features checklist',
+    d: 'Choose which snap targets are active while moving objects, nodes, or handles.',
+    w: 'Turn off certain options if the cursor sticks too often in dense areas.'
+  },
+  veSnapPresetAll: {
+    t: 'Enable all',
+    d: 'Enables every snap target from Smart Guides to Grid for maximum precision. Pixel rounding is unchanged.'
+  },
+  veSnapPresetDef: {
+    t: 'Default preset',
+    d: 'Restores the checklist to defaults: all smart guides and grid on, no pixel rounding.'
+  },
+  veSnapPresetMin: {
+    t: 'Minimal mode',
+    d: 'Only snaps to node & handle points; box guides, spacing, and other targets are off.',
+    w: 'When other snaps feel distracting and you only need to lock onto nodes.'
+  },
+  veSnap_artboard: {
+    t: 'Artboard Edges & Center',
+    d: 'Snaps to the edge bounds and the horizontal and vertical center lines of the canvas (viewBox).'
+  },
+  veSnap_axial: {
+    t: 'Node Axis Alignment (X/Y)',
+    d: 'Shows guide lines when the X or Y position lines up straight with another node or the base of its own handle.'
+  },
+  veSnap_bbox: {
+    t: 'Smart Guides (Box & Center)',
+    d: 'Snaps to the left, right, top, bottom edges and center point of other objects bounding boxes.'
+  },
+  veSnap_edge: {
+    t: 'Contour / Path Edge',
+    d: 'Snaps a node or object so it exactly touches the outline (contour) of another object.'
+  },
+  veSnap_grid: {
+    t: 'Adaptive Grid Lines',
+    d: 'Snaps to grid intersections and lines. Requires the Grid button in the toolbar to be on.'
+  },
+  veSnap_midpoint: {
+    t: 'Segment Midpoint',
+    d: 'Snaps to the midpoint of every straight or Bézier curve segment.'
+  },
+  veSnap_node: {
+    t: 'Node & Handle Points',
+    d: 'Snaps directly (2D lock) to node points or Bézier handle ends of other objects.'
+  },
+  veSnap_perp: {
+    t: 'Right Angle (90°) & Line Extension',
+    d: 'Locks node movement to a right angle (90°) or the straight extension of a neighboring segment.'
+  },
+  veSnap_pixel: {
+    t: 'Round to Pixel (1 px)',
+    d: 'Rounds final coordinates to the nearest whole number for crisp results on low-resolution screens.'
+  },
+  veSnap_spacing: {
+    t: 'Equal Spacing',
+    d: 'Detects and locks exactly equal empty gaps between 3 or more aligned objects.'
+  },
+  veStats: {
+    t: 'Document statistics',
+    d: 'Object count, total nodes, and the currently selected objects or nodes.'
+  },
+  veStorageInfo: {
+    t: 'Local Storage Information',
+    d: 'Shows local storage (IndexedDB) usage.'
+  },
+  veStraight: {
+    t: 'Straighten',
+    d: 'Line-straightening panel: tidies nearly-straight segments on the selected path.',
+    w: 'To tidy the sides of a logo or geometric shape.'
+  },
+  veStroke: {
+    t: 'Stroke',
+    d: 'Outline color of the selected path.'
+  },
+  veStrokeNone: {
+    t: 'Empty stroke',
+    d: 'Turns the object outline on/off.'
+  },
+  veStrokeW: {
+    t: 'Stroke width',
+    d: 'Outline thickness in document units.'
+  },
+  veTextNewLine: {
+    t: 'New Line',
+    d: 'Adds a new line to the text.'
+  },
+  veTextPanel: {
+    t: 'Text & Typography',
+    d: 'Sets the font, size, and style of the selected text.'
+  },
+  veTextTool: {
+    k: 'T',
+    t: 'Text Tool',
+    d: 'Click on the canvas to create an SVG text object.'
+  },
+  veToggleHidden: {
+    k: 'Ctrl + Shift + H',
+    t: 'Show / Hide Layer',
+    d: 'Shows or hides the selected layer.'
+  },
+  veToolGroup: {
+    t: 'Choose a tool in the group',
+    d: 'Opens the list of other tools grouped with this button.'
+  },
+  veTypeCorner: {
+    t: 'Corner Type',
+    d: 'Sharp corner node; left and right handles are independent. When 2+ nodes are selected and nearly collinear, nodes are straightened too; when a handle is selected, the handle is straightened.'
+  },
+  veTypeSmooth: {
+    t: 'Smooth Type',
+    d: 'Handles in opposite directions (G1); handle lengths may differ.'
+  },
+  veTypeSym: {
+    t: 'Symmetric Type',
+    d: 'Handles in opposite directions with equal length (G1 + symmetry).'
+  },
+  veUndo: {
+    k: 'Ctrl + Z',
+    t: 'Undo',
+    d: 'Undoes the last change.'
+  },
+  veUp: {
+    k: ']',
+    t: 'Bring forward',
+    d: 'Moves the selected objects one step forward.'
+  },
+  veXfFlipH: {
+    t: 'Flip horizontal',
+    d: 'Mirrors the selection left-right around the center (or pivot point).'
+  },
+  veXfFlipV: {
+    t: 'Flip vertical',
+    d: 'Mirrors the selection top-bottom around the center (or pivot point).'
+  },
+  veXfH: {
+    t: 'Height (H)',
+    d: 'Height of the selection bounding box. Objects scale around the pivot; curves and handles change proportionally.',
+    w: 'Not available while editing nodes.'
+  },
+  veXfLock: {
+    t: 'Lock proportions',
+    d: 'When on, changing W automatically changes H by the same ratio (and vice versa).'
+  },
+  veXfPanel: {
+    t: 'Transform',
+    d: 'Sets the position (X, Y), size (W, H), and rotation of the selection with precise numbers. The 9-point pivot sets the measurement reference.'
+  },
+  veXfPin: {
+    t: '9-point pivot',
+    d: 'Chooses the reference point on the bounding box: used to read X/Y, as the fixed point when W/H change, and as the rotation center when "Pivot" is selected.'
+  },
+  veXfPivC: {
+    t: 'From center',
+    d: 'Rotates and mirrors around the center of the bounding box.'
+  },
+  veXfPivP: {
+    t: 'From pivot point',
+    d: 'Rotates and mirrors around the currently selected 9-point pivot.'
+  },
+  veXfPivot: {
+    t: 'Rotation & flip center',
+    d: 'Sets the fixed point when rotating or mirroring the selection.'
+  },
+  veXfRot: {
+    t: 'Rotation (°)',
+    d: 'Object rotation angle, from -180° to 180°. The angle is stored on the object so it stays readable after rotating. For multi-object selections, the value is treated as a relative rotation from 0°.',
+    w: 'Not available while editing nodes.'
+  },
+  veXfStroke: {
+    t: 'Scale stroke',
+    d: 'When on, stroke thickness scales along when W/H change. When off, stroke thickness stays fixed.'
+  },
+  veXfW: {
+    t: 'Width (W)',
+    d: 'Width of the selection bounding box. Objects scale around the pivot; curves and handles change proportionally.',
+    w: 'Not available while editing nodes.'
+  },
+  veXfX: {
+    t: 'Position X',
+    d: 'Horizontal coordinate of the pivot on the selection bounding box. Type a number then Enter; up/down arrows = ±1 (Shift = ±10).'
+  },
+  veXfY: {
+    t: 'Position Y',
+    d: 'Vertical coordinate of the pivot on the selection bounding box. Type a number then Enter; up/down arrows = ±1 (Shift = ±10).'
+  },
+  veZoomFit: {
+    k: '0',
+    t: 'Fit',
+    d: 'Adjusts the zoom so the whole viewBox fits in the canvas, centered.'
+  },
+  veZoomIn: {
+    k: '+',
+    t: 'Zoom in',
+    d: 'Zooms in the editor canvas view (toward the center).'
+  },
+  veZoomOut: {
+    k: '-',
+    t: 'Zoom out',
+    d: 'Zooms out the editor canvas view (toward the center).'
+  },
+  veZoomPct: {
+    t: 'Zoom level',
+    d: 'Current canvas magnification percentage. 100% = actual size.'
+  },
+  veZoomSl: {
+    k: '+ | - | Scroll',
+    t: 'Zoom',
+    d: 'Zooms the canvas in or out with no practical limit (0.05% to 500,000%). Mouse scroll follows the cursor position; the ± buttons zoom to the center.'
+  },
+};
 
-export { TIPS };
+export { TIPS, TIPS_EN };
 export default TIPS;

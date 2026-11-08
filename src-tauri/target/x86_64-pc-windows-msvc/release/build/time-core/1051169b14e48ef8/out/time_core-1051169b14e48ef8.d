@@ -1,0 +1,10 @@
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\time-core/1051169b14e48ef8\out\time_core-1051169b14e48ef8.d: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\hint.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\unit.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\util.rs
+
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\time-core/1051169b14e48ef8\out\libtime_core-1051169b14e48ef8.rlib: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\hint.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\unit.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\util.rs
+
+E:\Geovanta01-boolean-offset-v2\geovanta01\src-tauri\target\x86_64-pc-windows-msvc\release\build\time-core/1051169b14e48ef8\out\libtime_core-1051169b14e48ef8.rmeta: C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\lib.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\hint.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\unit.rs C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\util.rs
+
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\lib.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\hint.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\unit.rs:
+C:\Users\Zyphee\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\time-core-0.1.9\src\util.rs:

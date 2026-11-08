@@ -3,14 +3,14 @@
  * @description Definisi grup alat Vector Editor, pustaka bentuk (SHAPES), opsi snap, & preset gradien
  */
 import { shPoly, SHK, shUnit, K2, shNgon, shStar } from '../utils/shapeGenerators.jsx';
-import { TIPS } from './tooltipsCatalog.jsx';
+import { TIPS, TIPS_EN } from './tooltipsCatalog.jsx';
 
 /* Grup 1: Alat Node & Handle — Set Ikon Geometris Terpadu (24x24, radius & stroke selaras) */
 const VE_NODE_GROUP = [['node', 'veNode', 'M4 19C6.5 11 11 6.5 19 4 M9.5 10.5a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2z M5.5 5.5h3v3h-3z M15.5 15.5h3v3h-3z M8.5 7L10 9.5 M14 14.5L15.5 17'], ['addnode', 'veAddNode', 'M4 18C6 10 10 6 18 4 M9.5 9.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0 M17.5 14.5v5 M15 17h5'], ['addhandle', 'veAddHandle', 'M4 18C8 10 16 10 20 18 M5 9h14 M10 9a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M3.5 9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0 M17.5 9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0'], ['autohandle', 'veAutoHandle', 'M3.5 16.5C7 7.5 11 7.5 12 12s5 4.5 8.5-4.5 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M5 6.5h4 M15 17.5h4']];
 
 /* Grup 2: Alat Geometri & Rapikan Path — Set Ikon Geometris Terpadu */
 /* Grup 2: Alat Geometri & Rapikan Path — Set Ikon Geometris Terpadu */
-const VE_GEO_GROUP = [['straighten', 'veStraight', 'M4 7h16 M4 12h16 M4 17h10 M17.5 14.5L20 17l-2.5 2.5'], ['inspect', 'veInspect', 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M16.2 16.2L20 20 M11 8.5v5 M8.5 11h5'], ['simplify', 'veSimplify', 'M4 19l9.5-9.5 M15 4l1.2 3.3L19.5 8.5l-3.3 1.2L15 13l-1.2-3.3L10.5 8.5l3.3-1.2z M18.5 15l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z']];
+const VE_GEO_GROUP = [['straighten', 'veStraight', 'M4 7h16 M4 12h16 M4 17h10 M17.5 14.5L20 17l-2.5 2.5'], ['simplify', 'veSimplify', 'M4 19l9.5-9.5 M15 4l1.2 3.3L19.5 8.5l-3.3 1.2L15 13l-1.2-3.3L10.5 8.5l3.3-1.2z M18.5 15l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z']];
 
 /* Daftar item pada floating bar (urutan tetap sama, desain ikon konsisten & selaras) */
 /* Daftar item pada floating bar (urutan tetap sama, desain ikon konsisten & selaras) */
@@ -46,10 +46,38 @@ const SHAPES = [['rect', 'Persegi', (x, y, w, h) => shPoly([[0, 0], [1, 0], [1, 
     ki = ri * SHK;
   return shUnit(['M', 1, .5, 'C', 1, .5 + K2, .5 + K2, 1, .5, 1, 'C', .5 - K2, 1, 0, .5 + K2, 0, .5, 'C', 0, .5 - K2, .5 - K2, 0, .5, 0, 'C', .5 + K2, 0, 1, .5 - K2, 1, .5, 'Z', 'M', .5 + ri, .5, 'C', .5 + ri, .5 - ki, .5 + ki, .5 - ri, .5, .5 - ri, 'C', .5 - ki, .5 - ri, .5 - ri, .5 - ki, .5 - ri, .5, 'C', .5 - ri, .5 + ki, .5 - ki, .5 + ri, .5, .5 + ri, 'C', .5 + ki, .5 + ri, .5 + ri, .5 + ki, .5 + ri, .5, 'Z'], x, y, w, h);
 }, true]];
+/* Nama bentuk versi English (hanya label picker & tooltip; nama objek
+   di layer tetap memakai label Indonesia agar konten pengguna stabil). */
+const SHAPE_EN = {
+  rect: 'Rectangle',
+  rrect: 'Rounded rectangle',
+  ellipse: 'Circle / ellipse',
+  triangle: 'Triangle',
+  rtriangle: 'Right triangle',
+  diamond: 'Diamond',
+  parallelogram: 'Parallelogram',
+  trapezoid: 'Trapezoid',
+  pentagon: 'Pentagon',
+  hexagon: 'Hexagon',
+  octagon: 'Octagon',
+  star5: '5-point star',
+  star4: '4-point star',
+  star6: '6-point star',
+  arrow: 'Arrow',
+  chevron: 'Chevron',
+  plus: 'Plus',
+  heart: 'Heart',
+  drop: 'Droplet',
+  ring: 'Ring'
+};
 SHAPES.forEach(([k, lb]) => {
   TIPS['veShp_' + k] = {
     t: lb,
     d: TIPS.veShapeItem.d
+  };
+  TIPS_EN['veShp_' + k] = {
+    t: SHAPE_EN[k] || lb,
+    d: TIPS_EN.veShapeItem.d
   };
 });
 /* Daftar opsi Snap (Custom Checklist) + warna penanda + matriks kapabilitas per alat (SN-006) */
@@ -209,4 +237,4 @@ const ALN_BTNS = [['left', 'veAlnLeft', 'M4 3v18 M8 7h12 M8 14h7'], ['hcenter', 
 /* Preset Gradien Kurasi (OKLab-ready) */
 const GRAD_PRESETS = [['Indigo Sunset', [['#4f46e5', 0], ['#ec4899', 0.52], ['#f59e0b', 1]]], ['Emerald Ocean', [['#06b6d4', 0], ['#10b981', 0.5], ['#047857', 1]]], ['Cyber Violet', [['#0f172a', 0], ['#6d28d9', 0.5], ['#f43f5e', 1]]], ['Aurora Lime', [['#14b8a6', 0], ['#84cc16', 0.55], ['#fef08a', 1]]], ['Chrome Silver', [['#f8fafc', 0], ['#94a3b8', 0.48], ['#334155', 0.52], ['#e2e8f0', 1]]], ['Peach Flame', [['#fb7185', 0], ['#fb923c', 0.5], ['#fde047', 1]]]];
 
-export { VE_NODE_GROUP, VE_GEO_GROUP, VE_TOOLS, SHAPES, DEFAULT_SNAP_CFG, SNAP_OPTS, SNAP_TOOL_CAPABILITIES, ALN_BTNS, GRAD_PRESETS };
+export { SHAPE_EN, VE_NODE_GROUP, VE_GEO_GROUP, VE_TOOLS, SHAPES, DEFAULT_SNAP_CFG, SNAP_OPTS, SNAP_TOOL_CAPABILITIES, ALN_BTNS, GRAD_PRESETS };

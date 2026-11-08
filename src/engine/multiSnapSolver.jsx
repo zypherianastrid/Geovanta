@@ -1,174 +1,155 @@
 /**
  * @file src/engine/multiSnapSolver.jsx
  * @description Mesin snapping presisi tinggi (Grid, BBox, Node, Kurva, Sumbu, & Smart Spacing)
+ *
+ * Sejak port Figcraft (2026-11-07): jalur UTAMA snapping mengikuti persis
+ * algoritma Figcraft (lihat src/engine/figcraftSnap.jsx — port setia dari
+ * figcraft/crates/engine/src/canvas/snap.rs, point_snap.rs, guides.rs,
+ * distance.rs; MIT OR Apache-2.0):
+ * - Threshold SNAP_PX = 5 px layar (dulu 8 px); perbandingan |d| <= threshold,
+ *   tanpa skor berbobot (pengali 1.04/1.05/1.12/1.15/0.85 dihapus dari jalur
+ *   utama); equal spacing menang hanya bila |e| < |v|.
+ * - Drag objek: snapMove Figcraft (garis tepi+tengah + equal spacing +
+ *   guide). Drag titik/node: snapPoints Figcraft (per sumbu + marker).
+ * - Target titik = node + midpoint saja (handle BUKAN target di Figcraft).
+ * - Fitur Geovanta01 tanpa padanan Figcraft (sinar perp 90°/180°, garis
+ *   axial, kontur/edge, grid uniform, pixel) DIPERTAHANKAN sebagai tahap
+ *   fallback HANYA pada sumbu yang dibiarkan bebas oleh tahap Figcraft.
+ * Lihat ~/workspace/geovanta_snap/SPEK_PEMETAAN_SNAP.md (di repo kerja).
  */
 import { getDocSpatialIndex, nearOnSeg, tightBBox } from './spatialIndexAndHitTest.jsx';
-import { sub, dot, dist, nrm, cross } from './vectorPrimitives.jsx';
+import { sub, dist, nrm, cross } from './vectorPrimitives.jsx';
 import { segPoint } from './bezierSubdivisionAndMove.jsx';
 import { PERF_TELEMETRY } from '../utils/renderConfigAndTelemetry.jsx';
+import {
+  SNAP_PX,
+  createTargets, addBoxLines, addPoint,
+  snapPoint, snapPoints, snapMove,
+  rectFromArray, rectUnion, rectIsFinite
+} from './figcraftSnap.jsx';
 
-/* snap: (1) node/handle objek lain, (2) midpoint, (3) hline, (4) tepi/kontur objek lain, (5) grid per-sumbu via Spatial Index O(1) */
+/* snapPt — port Figcraft (point_snap.rs + snap.rs::snap_point): satu titik
+   snap ke garis target (node / midpoint / tepi & pusat layer) PER SUMBU,
+   dalam threshold (inklusif). Target titik = node + midpoint saja; handle
+   BUKAN target di Figcraft, begitu pula hline (garis handle) dan kontur/edge
+   (tidak ada di Figcraft untuk point snap). Grid uniform dipertahankan
+   sebagai fallback bila grid > 0.
+   Tanda tangan dipertahankan: snapPt(p, objects, exObjs, exNodes, thr, grid,
+   noEdge, noHandle, hLines, noNode, midpoints). noEdge/noHandle/hLines kini
+   tidak berpengaruh (lihat SPEK §3); noNode = lewati node; midpoints =
+   sertakan midpoint. Kembalikan { x, y, ind, kind, subKind } seperti dulu. */
+function kindOfLanded(x, y, nodes, mids, snappedX, snappedY) {
+  for (const q of nodes) {
+    if (Math.abs(q.x - x) < 1e-6 && Math.abs(q.y - y) < 1e-6) return 'node';
+  }
+  for (const q of mids) {
+    if (Math.abs(q.x - x) < 1e-6 && Math.abs(q.y - y) < 1e-6) return 'midpoint';
+  }
+  if (snappedX) {
+    for (const q of nodes) if (Math.abs(q.x - x) < 1e-6) return 'node';
+    for (const q of mids) if (Math.abs(q.x - x) < 1e-6) return 'midpoint';
+  }
+  if (snappedY) {
+    for (const q of nodes) if (Math.abs(q.y - y) < 1e-6) return 'node';
+    for (const q of mids) if (Math.abs(q.y - y) < 1e-6) return 'midpoint';
+  }
+  return 'node';
+}
 function snapPt(p, objects, exObjs, exNodes, thr, grid, noEdge, noHandle, hLines, noNode, midpoints) {
-  const sIdx = getDocSpatialIndex(objects);
-  let best = null,
-    bd2 = thr * thr,
-    bestKind = 'node';
-  let mb = null,
-    md2 = thr * thr;
-  if (sIdx && (!noNode || midpoints)) {
-    sIdx.queryPoint(p.x, p.y, thr, item => {
-      const o = item.o;
-      if (exObjs && exObjs.has(o.id) || o.hidden || o.isFrameBg || o.isAutoFrame) return;
-      if (item.kind === 'midpoint') {
-        if (!midpoints) return;
-        if (exNodes && exNodes.has(item.a.id) && exNodes.has(item.b.id)) return;
-        const dx = p.x - item.x,
-          dy = p.y - item.y,
-          d2 = dx * dx + dy * dy;
-        if (d2 < md2) {
-          md2 = d2;
-          mb = item;
+  const t = createTargets();
+  const nodes = [], mids = [];
+  for (const o of objects || []) {
+    if (!o || o.hidden || o.isFrameBg || o.isAutoFrame) continue;
+    if (exObjs && exObjs.has(o.id)) continue;
+    let hasExNode = false;
+    for (const sp of o.subs) {
+      for (const nd of sp.nodes) {
+        if (exNodes && exNodes.has(nd.id)) { hasExNode = true; break; }
+      }
+      if (hasExNode) break;
+    }
+    /* Garis layer (tepi & pusat bbox) — Figcraft: layer yang diedit (yang
+       node-nya dikecualikan) bukan target layer. */
+    if (!hasExNode) {
+      const bb = tightBBox(o);
+      if (bb[0] <= bb[2] && bb[1] <= bb[3]) addBoxLines(t, rectFromArray(bb), 'bbox');
+    }
+    for (const sp of o.subs) {
+      const ns = sp.nodes, n = ns.length;
+      for (let i = 0; i < n; i++) {
+        const nd = ns[i];
+        if (exNodes && exNodes.has(nd.id)) continue;
+        if (!noNode) {
+          addPoint(t, nd, 'node');
+          nodes.push(nd);
         }
-        return;
       }
-      if (noNode) return;
-      if (item.h && noHandle) return;
-      if (exNodes && item.n && exNodes.has(item.n.id)) return;
-      const dx = p.x - item.x,
-        dy = p.y - item.y,
-        d2 = dx * dx + dy * dy;
-      if (d2 < bd2) {
-        bd2 = d2;
-        best = item;
-        bestKind = item.kind || 'node';
-      }
-    });
-  }
-  if (best) return {
-    x: best.x,
-    y: best.y,
-    ind: true,
-    kind: bestKind === 'handle-in' || bestKind === 'handle-out' ? 'node' : bestKind,
-    subKind: bestKind
-  };
-  if (mb) return {
-    x: mb.x,
-    y: mb.y,
-    ind: true,
-    kind: 'midpoint'
-  };
-
-  /* garis pemandu handle (node -> titik handle) objek lain */
-  if (hLines && !noHandle && sIdx) {
-    let hbx = 0,
-      hby = 0,
-      hasHb = false,
-      hd2 = thr * thr;
-    const cands = sIdx.queryObjectsInRect(p.x - thr * 6, p.y - thr * 6, p.x + thr * 6, p.y + thr * 6);
-    for (let ci = 0; ci < cands.length; ci++) {
-      const o = cands[ci].o;
-      if (exObjs && exObjs.has(o.id) || o.hidden || o.isFrameBg || o.isAutoFrame) continue;
-      for (const sp of o.subs) for (const n of sp.nodes) {
-        if (exNodes && exNodes.has(n.id)) continue;
-        for (let hi = 0; hi < 2; hi++) {
-          const q = hi === 0 ? n.handleIn : n.handleOut;
-          if (!q) continue;
-          const abx = q.x - n.x,
-            aby = q.y - n.y,
-            L2 = abx * abx + aby * aby;
-          if (L2 < 1e-12) continue;
-          const t = Math.max(0, Math.min(1, ((p.x - n.x) * abx + (p.y - n.y) * aby) / L2)),
-            cx = n.x + abx * t,
-            cy = n.y + aby * t,
-            dx = p.x - cx,
-            dy = p.y - cy,
-            d2 = dx * dx + dy * dy;
-          if (d2 < hd2) {
-            hd2 = d2;
-            hbx = cx;
-            hby = cy;
-            hasHb = true;
-          }
+      if (midpoints) {
+        for (let i = 0; i < (sp.closed ? n : n - 1); i++) {
+          const a = ns[i], b = ns[(i + 1) % n];
+          if (exNodes && (exNodes.has(a.id) || exNodes.has(b.id))) continue;
+          const mp = segPoint(a, b, 0.5);
+          addPoint(t, mp, 'midpoint');
+          mids.push(mp);
         }
       }
     }
-    if (hasHb) return {
-      x: hbx,
-      y: hby,
-      ind: true,
-      kind: 'hline'
-    };
   }
-  if (!noEdge && sIdx) {
-    let eb = null,
-      ed = thr;
-    sIdx.querySegments(p.x, p.y, thr, sg => {
-      const o = sg.o;
-      if (exObjs && exObjs.has(o.id) || o.hidden || o.isFrameBg || o.isAutoFrame) return;
-      if (exNodes && exNodes.has(sg.a.id) && exNodes.has(sg.b.id)) return;
-      const r = nearOnSeg(sg.a, sg.b, p);
-      if (r.d < ed) {
-        ed = r.d;
-        eb = r;
-      }
-    });
-    if (eb) return {
-      x: eb.x,
-      y: eb.y,
-      ind: true,
-      kind: 'edge'
-    };
+  const r = snapPoint(t, p.x, p.y, thr);
+  let { x, y } = p, ind = false, kind = null;
+  if (r.dx !== null || r.dy !== null) {
+    x = p.x + (r.dx === null ? 0 : r.dx);
+    y = p.y + (r.dy === null ? 0 : r.dy);
+    ind = true;
+    kind = kindOfLanded(x, y, nodes, mids, r.dx !== null, r.dy !== null);
   }
-  let {
-      x,
-      y
-    } = p,
-    ind = false;
-  if (grid) {
-    const gx = Math.round(x / grid) * grid,
-      gy = Math.round(y / grid) * grid;
-    if (Math.abs(gx - x) < thr) {
-      x = gx;
-      ind = true;
-    }
-    if (Math.abs(gy - y) < thr) {
-      y = gy;
-      ind = true;
-    }
+  if (!ind && grid) {
+    const gx = Math.round(x / grid) * grid, gy = Math.round(y / grid) * grid;
+    if (Math.abs(gx - x) < thr) { x = gx; ind = true; }
+    if (Math.abs(gy - y) < thr) { y = gy; ind = true; }
+    if (ind) kind = 'grid';
   }
-  return {
-    x,
-    y,
-    ind,
-    kind: ind ? 'grid' : null
-  };
+  return { x, y, ind, kind, subKind: kind };
 }
 
-/* banyak titik sekaligus (node/handle yang ikut tergeser): tanpa batas waktu atau pemotongan jumlah titik */
-/* banyak titik sekaligus (node/handle yang ikut tergeser): tanpa batas waktu atau pemotongan jumlah titik */
+/* snapMany — port Figcraft (snap_points): banyak titik sekaligus snap
+   BERSAMA per sumbu (satu koreksi dx/dy untuk semua), bukan satu-per-satu
+   Euclidean. Dipakai edgeFn saat drag objek. opt.noNode = lewati node
+   (maka null); opt.noEdge kini tidak berpengaruh (tanpa kontur di Figcraft).
+   Kembalikan { dx, dy, x, y, kind } atau null. */
 function snapMany(pts, objects, exObjs, exNodes, thr, opt) {
   opt = opt || {};
-  let best = null,
-    bd = 1e18;
-  for (let i = 0; i < pts.length; i++) {
-    const q = pts[i];
-    const r = snapPt(q, objects, exObjs, exNodes, thr, 0, !!opt.noEdge, false, false, !!opt.noNode);
-    if (r.ind) {
-      const d = dist(q, r);
-      if (d < bd) {
-        bd = d;
-        best = {
-          dx: r.x - q.x,
-          dy: r.y - q.y,
-          x: r.x,
-          y: r.y,
-          kind: r.kind
-        };
+  if (!pts || !pts.length) return null;
+  if (opt.noNode) return null;
+  const t = createTargets();
+  for (const o of objects || []) {
+    if (!o || o.hidden || o.isFrameBg || o.isAutoFrame) continue;
+    if (exObjs && exObjs.has(o.id)) continue;
+    let hasExNode = false;
+    for (const sp of o.subs) {
+      for (const nd of sp.nodes) {
+        if (exNodes && exNodes.has(nd.id)) { hasExNode = true; break; }
+      }
+      if (hasExNode) break;
+    }
+    if (!hasExNode) {
+      const bb = tightBBox(o);
+      if (bb[0] <= bb[2] && bb[1] <= bb[3]) addBoxLines(t, rectFromArray(bb), 'bbox');
+    }
+    for (const sp of o.subs) {
+      for (const nd of sp.nodes) {
+        if (exNodes && exNodes.has(nd.id)) continue;
+        addPoint(t, nd, 'node');
       }
     }
   }
-  return best;
+  const r = snapPoints(t, pts, thr);
+  if (r.dx === null && r.dy === null) return null;
+  const dx = r.dx === null ? 0 : r.dx, dy = r.dy === null ? 0 : r.dy;
+  const marker = r.guides.find(g => g.x1 === g.x2 && g.y1 === g.y2);
+  return { dx, dy, x: pts[0].x + dx, y: pts[0].y + dy, kind: marker ? marker.kind : 'node' };
 }
+
 
 /* node dengan handle 'w' ('in'/'out') dipindah ke t; handle lawan ikut untuk smooth/symmetric (kecuali alt) */
 /* node dengan handle 'w' ('in'/'out') dipindah ke t; handle lawan ikut untuk smooth/symmetric (kecuali alt) */
@@ -195,208 +176,65 @@ function rebuildHandle(n, w, t, alt) {
   return nn;
 }
 
-/* GV-005: snapHandleCurve dengan coarse-to-fine sampling (N=24), Spatial Index, dan time-budget 2.5ms */
-/* GV-005: snapHandleCurve dengan coarse-to-fine sampling (N=24), Spatial Index, dan time-budget 2.5ms */
+/* snapHandleCurve — port Figcraft: drag handle = snap_point biasa pada
+   posisi handle (point_snap.rs::snap; drag.rs handle memakai snap_point).
+   Optimasi kontak kurva lama (coarse-to-fine N=24 + Newton Jacobian, GV-005)
+   DIHAPUS: Figcraft tidak punya itu; "sama persis" = handle snap seperti
+   titik biasa ke node/midpoint/tepi & pusat layer lain.
+   Tanda tangan + bentuk return dipertahankan: { tg, x, y, kind } atau null.
+   noNode = true -> tidak ada target titik -> null. */
 function snapHandleCurve(objects, objId, nodeId, w, tg, alt, thr, noNode) {
-  const tStart = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-  const o = objects.find(x => x.id === objId);
+  if (noNode) return null;
+  const o = (objects || []).find(x => x.id === objId);
   if (!o) return null;
-  let cx = null;
-  for (const sp of o.subs) {
-    const ns = sp.nodes,
-      L = ns.length,
-      i = ns.findIndex(n => n.id === nodeId);
-    if (i >= 0) {
-      if (L < 2) return null;
-      cx = {
-        n: ns[i],
-        prev: i > 0 || sp.closed ? ns[(i - 1 + L) % L] : null,
-        next: i < L - 1 || sp.closed ? ns[(i + 1) % L] : null
-      };
-      break;
-    }
-  }
-  if (!cx) return null;
-  const others = new Set([objId]),
-    N = 24,
-    EPS = 0.5,
-    MINS = 0.12;
-  const segsOf = nn => {
-    const l = [];
-    if (cx.prev) l.push([cx.prev, nn]);
-    if (cx.next) l.push([nn, cx.next]);
-    return l;
-  };
-  const contact = t => {
-    const A = segsOf(rebuildHandle(cx.n, w, t, alt)),
-      B = segsOf(rebuildHandle(cx.n, w, {
-        x: t.x + EPS,
-        y: t.y
-      }, alt)),
-      C = segsOf(rebuildHandle(cx.n, w, {
-        x: t.x,
-        y: t.y + EPS
-      }, alt));
-    let best = null;
-    for (let si = 0; si < A.length; si++) {
-      for (let k = 1; k < N; k++) {
-        const tt = k / N,
-          q = segPoint(A[si][0], A[si][1], tt);
-        const qx = segPoint(B[si][0], B[si][1], tt),
-          qy = segPoint(C[si][0], C[si][1], tt);
-        const j11 = (qx.x - q.x) / EPS,
-          j21 = (qx.y - q.y) / EPS,
-          j12 = (qy.x - q.x) / EPS,
-          j22 = (qy.y - q.y) / EPS;
-        if (Math.hypot(j11, j21, j12, j22) < MINS) continue;
-        const r = snapPt(q, objects, others, null, thr, 0, false, true, false, !!noNode);
-        if (r.ind) {
-          const d = dist(q, r);
-          if (!best || d < best.d) best = {
-            d,
-            si,
-            tt,
-            A,
-            B,
-            C
-          };
-        }
+  const t = createTargets();
+  for (const ob of objects || []) {
+    if (!ob || ob.hidden || ob.isFrameBg || ob.isAutoFrame) continue;
+    if (ob.id === objId) continue;
+    const bb = tightBBox(ob);
+    if (bb[0] <= bb[2] && bb[1] <= bb[3]) addBoxLines(t, rectFromArray(bb), 'bbox');
+    for (const sp of ob.subs) {
+      for (const nd of sp.nodes) addPoint(t, nd, 'node');
+      const ns = sp.nodes, n = ns.length;
+      for (let i = 0; i < (sp.closed ? n : n - 1); i++) {
+        addPoint(t, segPoint(ns[i], ns[(i + 1) % n], 0.5), 'midpoint');
       }
     }
-    if (!best) return null;
-    const at = (arr, tt) => segPoint(arr[best.si][0], arr[best.si][1], tt);
-    const dd = tt => {
-      const q = at(A, tt),
-        r = snapPt(q, objects, others, null, thr * 2, 0, false, true, false, !!noNode);
-      return r.ind ? dist(q, r) : 1e9;
-    };
-    let lo = Math.max(1 / N, best.tt - 1 / N),
-      hi = Math.min(1 - 1 / N, best.tt + 1 / N);
-    for (let it = 0; it < 8; it++) {
-      const m1 = lo + (hi - lo) / 3,
-        m2 = hi - (hi - lo) / 3;
-      if (dd(m1) < dd(m2)) hi = m2;else lo = m1;
-    }
-    const tt = (lo + hi) / 2,
-      q = at(A, tt),
-      qx = at(B, tt),
-      qy = at(C, tt),
-      r = snapPt(q, objects, others, null, thr * 2, 0, false, true, false, !!noNode);
-    if (!r.ind) return null;
-    return {
-      d: dist(q, r),
-      q,
-      r,
-      j11: (qx.x - q.x) / EPS,
-      j21: (qx.y - q.y) / EPS,
-      j12: (qy.x - q.x) / EPS,
-      j22: (qy.y - q.y) / EPS
-    };
-  };
-  const c0 = contact(tg);
-  if (!c0) return null;
-  let cur = {
-      x: tg.x,
-      y: tg.y
-    },
-    c = c0;
-  for (let it = 0; it < 5 && c; it++) {
-    const vx = c.r.x - c.q.x,
-      vy = c.r.y - c.q.y;
-    if (Math.hypot(vx, vy) < 0.02) break;
-    const det = c.j11 * c.j22 - c.j12 * c.j21;
-    if (Math.abs(det) < 1e-4) break;
-    let ddx = (vx * c.j22 - vy * c.j12) / det,
-      ddy = (vy * c.j11 - vx * c.j21) / det;
-    const m = Math.hypot(ddx, ddy),
-      cap = thr * 4;
-    if (m > cap) {
-      ddx *= cap / m;
-      ddy *= cap / m;
-    }
-    cur = {
-      x: cur.x + ddx,
-      y: cur.y + ddy
-    };
-    c = contact(cur);
   }
-  if (!c || c.d > c0.d + 1e-6 || c.d >= thr) return null;
-  return {
-    tg: cur,
-    x: c.r.x,
-    y: c.r.y,
-    kind: c.r.kind
-  };
+  const r = snapPoint(t, tg.x, tg.y, thr);
+  if (r.dx === null && r.dy === null) return null;
+  const nx = tg.x + (r.dx === null ? 0 : r.dx);
+  const ny = tg.y + (r.dy === null ? 0 : r.dy);
+  const marker = r.guides.find(g => g.x1 === g.x2 && g.y1 === g.y2);
+  return { tg: { x: nx, y: ny }, x: nx, y: ny, kind: marker ? marker.kind : 'node' };
 }
 
-/* snapOutline dengan Spatial Index lookup penuh tanpa batas waktu (selalu berfungsi di semua keadaan) */
-/* snapOutline dengan Spatial Index lookup penuh tanpa batas waktu (selalu berfungsi di semua keadaan) */
+/* snapOutline — port Figcraft (snap_points): sampel outline yang bergerak
+   snap BERSAMA per sumbu ke node/tepi & pusat layer lain. Bagian lama yang
+   men-snap segmen bergerak ke node objek lain DIHAPUS (tidak ada di Figcraft;
+   layer move snap-nya kotak, bukan segmen). Tanda tangan dipertahankan;
+   `segs` kini tidak dipakai. Kembalikan { dx, dy, x, y, kind } atau null. */
 function snapOutline(samples, segs, objects, exObjs, thr, dx, dy, opt) {
   opt = opt || {};
-  let best = null,
-    bs = 1e18;
-  const sIdx = getDocSpatialIndex(objects);
-  for (let i = 0; i < samples.length; i++) {
-    const s = samples[i],
-      q = {
-        x: s.x + dx,
-        y: s.y + dy
-      };
-    const r = snapPt(q, objects, exObjs, null, thr, 0, !!opt.noEdge, false, false, !!opt.noNode);
-    if (r.ind) {
-      const d = dist(q, r),
-        sc = r.kind === 'edge' ? d * 1.25 : d;
-      if (sc < bs) {
-        bs = sc;
-        best = {
-          dx: r.x - q.x,
-          dy: r.y - q.y,
-          x: r.x,
-          y: r.y,
-          kind: r.kind
-        };
-      }
+  if (opt.noNode && opt.noEdge) return null;
+  if (!samples || !samples.length) return null;
+  if (opt.noNode) return null;
+  const t = createTargets();
+  for (const ob of objects || []) {
+    if (!ob || ob.hidden || ob.isFrameBg || ob.isAutoFrame) continue;
+    if (exObjs && exObjs.has(ob.id)) continue;
+    const bb = tightBBox(ob);
+    if (bb[0] <= bb[2] && bb[1] <= bb[3]) addBoxLines(t, rectFromArray(bb), 'bbox');
+    for (const sp of ob.subs) {
+      for (const nd of sp.nodes) addPoint(t, nd, 'node');
     }
   }
-  if (!(opt.noNode && opt.noEdge) && sIdx && segs.length) {
-    for (let si = 0; si < segs.length; si++) {
-      const sg = segs[si],
-        b = sg.bb;
-      const wx0 = b[0] + dx - thr,
-        wy0 = b[1] + dy - thr,
-        wx1 = b[2] + dx + thr,
-        wy1 = b[3] + dy + thr;
-      const cands = sIdx.queryObjectsInRect(wx0, wy0, wx1, wy1);
-      for (let ci = 0; ci < cands.length; ci++) {
-        const o = cands[ci].o;
-        if (exObjs && exObjs.has(o.id) || o.hidden || o.isFrameBg || o.isAutoFrame) continue;
-        for (const sp of o.subs) for (const n of sp.nodes) {
-          if (n.x < wx0 || n.x > wx1 || n.y < wy0 || n.y > wy1) continue;
-          const px = n.x - dx,
-            py = n.y - dy;
-          const r = nearOnSeg(sg.a, sg.b, {
-            x: px,
-            y: py
-          });
-          if (r.d >= thr) continue;
-          const mx = n.x - (r.x + dx),
-            my = n.y - (r.y + dy),
-            d = Math.hypot(mx, my);
-          if (d < bs) {
-            bs = d;
-            best = {
-              dx: mx,
-              dy: my,
-              x: n.x,
-              y: n.y,
-              kind: 'node'
-            };
-          }
-        }
-      }
-    }
-  }
-  return best;
+  const pts = samples.map(s => ({ x: s.x + dx, y: s.y + dy }));
+  const r = snapPoints(t, pts, thr);
+  if (r.dx === null && r.dy === null) return null;
+  const ddx = r.dx === null ? 0 : r.dx, ddy = r.dy === null ? 0 : r.dy;
+  const marker = r.guides.find(g => g.x1 === g.x2 && g.y1 === g.y2);
+  return { dx: ddx, dy: ddy, x: pts[0].x + ddx, y: pts[0].y + ddy, kind: marker ? marker.kind : 'node' };
 }
 
 /* =========================================================================
@@ -429,21 +267,43 @@ function queryLineBuckets(buckets, val, thr, fn) {
     for (let i = 0; i < arr.length; i++) fn(arr[i]);
   }
 }
+/* buildSnapCache — gather ala Figcraft (snap.rs::Targets::gather +
+   point_snap.rs::targets), dipetakan ke model Geovanta01:
+   - `targets`: jalur TITIK (snapPoints/snapPoint) = garis artboard + garis
+     kotak saudara (tepi & pusat) + garis titik (node & midpoint) + daftar
+     titik untuk marker. `xLines`/`yLines` ADALAH targets.xs/ys (satu array
+     yang sama) agar unshift axial pemanggil (handle drag) ikut terbaca.
+   - `boxTargets`: jalur OBJEK (snapMove) = garis artboard + garis kotak
+     saudara saja (tanpa garis titik — Figcraft: layer move tidak snap ke
+     titik). `moving` = union bbox objek yang dikecualikan (yang bergerak).
+   - Artboard (viewBox) = kotak parent frame Figcraft: garis saja, BUKAN
+     kotak spacing. Objek frame (isFrameBg/isAutoFrame) diperlakukan sama.
+   - Tidak ada ruler guide & layout grid di Geovanta01 (lihat SPEK §3).
+   - cfg.axial: di Figcraft garis titik SELALU jadi target titik; toggle ini
+     kini hanya berarti "garis titik ikut jadi target jalur OBJEK juga"
+     (tambahan Geovanta01, default mati).
+   - Sinar perp (90°/180°), boxes spacing legacy, spatial index, dan bucket
+     garis dipertahankan untuk tahap fallback / kompatibilitas bentuk cache.
+   - Target titik = node + midpoint SAJA (handle bukan target di Figcraft). */
 function buildSnapCache(doc, exObjs, exNodes, cfg, noBoxObjs) {
   cfg = cfg || {};
-  const xLines = [],
-    yLines = [],
+  const targets = createTargets();
+  const boxTargets = createTargets();
+  const xLines = targets.xs,
+    yLines = targets.ys,
     pts = [],
     boxes = [],
     rays = [];
   const xBuckets = new Map(),
     yBuckets = new Map();
-  const pushX = ln => {
-    xLines.push(ln);
+  const pushBothX = ln => {
+    targets.xs.push(ln);
+    boxTargets.xs.push(ln);
     addLineToBuckets(xBuckets, ln);
   };
-  const pushY = ln => {
-    yLines.push(ln);
+  const pushBothY = ln => {
+    targets.ys.push(ln);
+    boxTargets.ys.push(ln);
     addLineToBuckets(yBuckets, ln);
   };
   const vb = doc.viewBox || [0, 0, 0, 0],
@@ -452,16 +312,16 @@ function buildSnapCache(doc, exObjs, exNodes, cfg, noBoxObjs) {
     vw = vb[2],
     vh = vb[3];
   if (cfg.artboard && vw > 0 && vh > 0) {
-    [vx, vx + vw / 2, vx + vw].forEach(v => pushX({
+    [vx, vx + vw / 2, vx + vw].forEach(v => pushBothX({
       v,
-      y0: vy,
-      y1: vy + vh,
+      a: vy,
+      b: vy + vh,
       kind: 'artboard'
     }));
-    [vy, vy + vh / 2, vy + vh].forEach(v => pushY({
+    [vy, vy + vh / 2, vy + vh].forEach(v => pushBothY({
       v,
-      x0: vx,
-      x1: vx + vw,
+      a: vx,
+      b: vx + vw,
       kind: 'artboard'
     }));
   }
@@ -475,6 +335,19 @@ function buildSnapCache(doc, exObjs, exNodes, cfg, noBoxObjs) {
     }
   }
   const sIdx = hasTargetObjs ? getDocSpatialIndex(doc.objects) : null;
+  /* moving = union bbox objek yang dikecualikan (yang bergerak), untuk
+     snapMove jalur objek. */
+  let moving = null;
+  if (exObjs) {
+    for (let oi = 0, L = doc.objects.length; oi < L; oi++) {
+      const o = doc.objects[oi];
+      if (!o || o.hidden || o.isFrameBg || o.isAutoFrame) continue;
+      if (!exObjs.has(o.id)) continue;
+      const bb = tightBBox(o);
+      if (bb[0] <= bb[2] && bb[1] <= bb[3]) moving = rectUnion(moving, rectFromArray(bb));
+    }
+  }
+  if (rectIsFinite(moving)) boxTargets.moving = moving;
   for (let oi = 0, L = doc.objects.length; oi < L; oi++) {
     const o = doc.objects[oi];
     if (!o || o.hidden) continue;
@@ -486,31 +359,36 @@ function buildSnapCache(doc, exObjs, exNodes, cfg, noBoxObjs) {
         const cx = (bb[0] + bb[2]) / 2,
           cy = (bb[1] + bb[3]) / 2;
         if (cfg.bbox) {
-          [bb[0], cx, bb[2]].forEach(v => pushX({
+          [bb[0], cx, bb[2]].forEach(v => pushBothX({
             v,
-            y0: bb[1],
-            y1: bb[3],
+            a: bb[1],
+            b: bb[3],
             kind: isBg ? 'artboard' : 'bbox'
           }));
-          [bb[1], cy, bb[3]].forEach(v => pushY({
+          [bb[1], cy, bb[3]].forEach(v => pushBothY({
             v,
-            x0: bb[0],
-            x1: bb[2],
+            a: bb[0],
+            b: bb[2],
             kind: isBg ? 'artboard' : 'bbox'
           }));
         }
-        if (cfg.spacing && !isBg) boxes.push({
-          id: o.id,
-          l: bb[0],
-          t: bb[1],
-          r: bb[2],
-          b: bb[3],
-          w: bb[2] - bb[0],
-          h: bb[3] - bb[1]
-        });
+        if (cfg.spacing && !isBg) {
+          boxes.push({
+            id: o.id,
+            l: bb[0],
+            t: bb[1],
+            r: bb[2],
+            b: bb[3],
+            w: bb[2] - bb[0],
+            h: bb[3] - bb[1]
+          });
+          /* Figcraft: kotak sibling masuk Targets.boxes agar equalSpacing
+             (spacings) punya bahan banding; garis saja tidak cukup. */
+          boxTargets.boxes.push(rectFromArray(bb));
+        }
       }
     }
-    if (isBg || !cfg.axial && !(cfg.perp && exNodes && exNodes.size) && sIdx) continue;
+    if (isBg) continue;
     for (let si = 0; si < o.subs.length; si++) {
       const sp = o.subs[si],
         ns = sp.nodes,
@@ -525,28 +403,19 @@ function buildSnapCache(doc, exObjs, exNodes, cfg, noBoxObjs) {
               y: nd.y,
               kind: 'node'
             });
-            if (nd.handleIn) pts.push({
-              x: nd.handleIn.x,
-              y: nd.handleIn.y,
-              kind: 'handle-in'
-            });
-            if (nd.handleOut) pts.push({
-              x: nd.handleOut.x,
-              y: nd.handleOut.y,
-              kind: 'handle-out'
-            });
+            addPoint(targets, nd, 'node');
           }
           if (cfg.axial) {
-            pushX({
+            boxTargets.xs.push({
               v: nd.x,
-              y0: nd.y,
-              y1: nd.y,
+              a: nd.y,
+              b: nd.y,
               kind: 'axial'
             });
-            pushY({
+            boxTargets.ys.push({
               v: nd.y,
-              x0: nd.x,
-              x1: nd.x,
+              a: nd.x,
+              b: nd.x,
               kind: 'axial'
             });
           }
@@ -604,6 +473,21 @@ function buildSnapCache(doc, exObjs, exNodes, cfg, noBoxObjs) {
             y: mp.y,
             kind: 'midpoint'
           });
+          addPoint(targets, mp, 'midpoint');
+          if (cfg.axial) {
+            boxTargets.xs.push({
+              v: mp.x,
+              a: mp.y,
+              b: mp.y,
+              kind: 'axial'
+            });
+            boxTargets.ys.push({
+              v: mp.y,
+              a: mp.x,
+              b: mp.x,
+              kind: 'axial'
+            });
+          }
         }
       }
     }
@@ -622,7 +506,9 @@ function buildSnapCache(doc, exObjs, exNodes, cfg, noBoxObjs) {
     rays,
     hash: null,
     spatialIndex: sIdx,
-    hasTargetObjs
+    hasTargetObjs,
+    targets,
+    boxTargets
   };
 }
 function ptHash(C, cell) {
@@ -643,8 +529,54 @@ function ptHash(C, cell) {
   return C.hash;
 }
 
-/* solveMultiSnap dengan Spatial Index penuh tanpa batas waktu / kuota kandidat */
-/* solveMultiSnap dengan Spatial Index penuh tanpa batas waktu / kuota kandidat */
+/* snapMove Figcraft dengan kotak yang SUDAH bergeser (r), tanpa `moving` +
+   delta — dipakai bila moving tidak diketahui (shape/frame drawing via
+   snapAt, exObjs kosong). Algoritmanya identik dengan snapMove. */
+function snapMovedBox(t, r, threshold) {
+  return snapMove({ ...t, moving: r }, { x: 0, y: 0 }, threshold);
+}
+
+/* Titik terdekat pada kontur (segmen) objek lain — fallback Geovanta01 untuk
+   cfg.edge (tidak ada di Figcraft). Dipakai tahap edge solveMultiSnap bila
+   extra.edgeFn tidak disediakan. */
+function snapEdgePoint(p, objects, exObjs, exNodes, thr) {
+  const sIdx = getDocSpatialIndex(objects);
+  if (!sIdx) return null;
+  let eb = null, ed = thr;
+  sIdx.querySegments(p.x, p.y, thr, sg => {
+    const o = sg.o;
+    if (exObjs && exObjs.has(o.id) || o.hidden || o.isFrameBg || o.isAutoFrame) return;
+    if (exNodes && exNodes.has(sg.a.id) && exNodes.has(sg.b.id)) return;
+    const r = nearOnSeg(sg.a, sg.b, p);
+    if (r.d < ed) {
+      ed = r.d;
+      eb = r;
+    }
+  });
+  if (!eb) return null;
+  return { x: eb.x, y: eb.y, dx: eb.x - p.x, dy: eb.y - p.y, kind: 'edge' };
+}
+
+/* Saring guide menurut sumbu yang koreksinya dipakai (guide garis vertikal =
+   snap sumbu X; garis horizontal = snap sumbu Y; spacing horizontal = sumbu
+   X, spacing vertikal = sumbu Y; marker hanya bila kedua sumbu dipakai). */
+function guidesForAxes(guides, useX, useY) {
+  return guides.filter(g => {
+    if (g.x1 === g.x2 && g.y1 === g.y2) return useX && useY;
+    if (g.type === 'spacing') {
+      return Math.abs(g.y2 - g.y1) < 1e-9 ? useX : useY;
+    }
+    return Math.abs(g.x2 - g.x1) < 1e-9 ? useX : useY;
+  });
+}
+
+/* solveMultiSnap — pipeline Figcraft-first (lihat header file).
+   Tahap 1 (Figcraft): drag objek -> snapMove (garis + equal spacing, persis
+   drag.rs); drag titik/node -> snapPoints (per sumbu + marker, persis
+   point_snap.rs::snap). Tahap 2 (fallback Geovanta01, HANYA pada sumbu yang
+   dibiarkan bebas tahap 1): bbox dragBBox, sinar perp, edge/kontur, grid
+   uniform, pixel. Tanpa skor berbobot. Tanda tangan + bentuk return
+   dipertahankan: { x, y, dx, dy, ix, iy, ind, kind, cross, guides }. */
 function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, dragBBox, extra) {
   const nowFn = () => typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
   const tSnap0 = nowFn();
@@ -658,7 +590,8 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
     rays: []
   };
   const hasTargets = C.hasTargetObjs !== false;
-  const sIdx = hasTargets ? C.spatialIndex || (objects ? getDocSpatialIndex(objects) : null) : null;
+  const targets = C.targets || null;
+  const boxTargets = C.boxTargets || null;
   const probes = extra.probes && extra.probes.length ? extra.probes : [p],
     delta = extra.delta || null;
   const figmaObj = !!(extra.figmaObjectMode && dragBBox);
@@ -671,85 +604,70 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
     kind = null,
     ptKind = null,
     ind = null;
-  const guides = [],
-    aX = [],
-    aY = [],
-    spc = [];
+  const guides = [];
   let gxHit = null,
     gyHit = null;
-  let xScore = 1e18,
-    yScore = 1e18;
+  const dragRect = dragBBox ? rectFromArray(dragBBox) : null;
 
-  /* 1. Kunci titik 2D via Spatial Hash pra-filter C.pts (hanya objek non-excluded dengan sel presisi thr) */
-  if (hasTargets && !figmaObj && !lockX && !lockY && (cfg.node || cfg.midpoint)) {
-    let best = null,
-      bp = null,
-      bs = thr;
-    if (C.pts && C.pts.length) {
-      const H = ptHash(C, thr),
-        thrSq = thr * thr;
-      for (let pi = 0; pi < probes.length; pi++) {
-        const q0 = probes[pi];
-        const cx = Math.floor(q0.x / H.cell),
-          cy = Math.floor(q0.y / H.cell);
-        for (let ix = cx - 1; ix <= cx + 1; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
-          const b = H.map.get(H.key(ix, iy));
-          if (!b) continue;
-          for (let bi = 0; bi < b.length; bi++) {
-            const q = b[bi],
-              dx = q0.x - q.x,
-              dy = q0.y - q.y,
-              d2 = dx * dx + dy * dy;
-            if (d2 >= thrSq) continue;
-            const weight = q.kind === 'midpoint' ? 1.12 : q.kind === 'handle-in' || q.kind === 'handle-out' ? 1.04 : 1.0;
-            const sc = Math.sqrt(d2) * weight;
-            if (sc < bs) {
-              bs = sc;
-              best = q;
-              bp = q0;
-            }
-          }
+  /* 1. FIGCRAFT — jalur utama. */
+  if (hasTargets && targets && boxTargets) {
+    if (figmaObj && dragRect) {
+      /* Drag objek: snapMove Figcraft (drag.rs). Figcraft memakai delta
+         {x, y} (Vec2); Geovanta01 memakai {dx, dy} — normalisasi di sini. */
+      let res;
+      if (boxTargets.moving && delta) {
+        const dv = { x: delta.dx != null ? delta.dx : delta.x || 0, y: delta.dy != null ? delta.dy : delta.y || 0 };
+        res = snapMove(boxTargets, dv, thr);
+      } else res = snapMovedBox(boxTargets, dragRect, thr);
+      if (res.dx !== null && !lockX) { dx = res.dx; lockX = true; }
+      if (res.dy !== null && !lockY) { dy = res.dy; lockY = true; }
+      if (res.guides.length) {
+        guides.push(...guidesForAxes(res.guides, !preX, !preY));
+        if (!kind) {
+          kind = res.guides.some(g => g.type === 'spacing') ? 'spacing'
+            : (res.guides.find(g => g.type === 'line') || {}).kind || 'bbox';
+        }
+      } else if (lockX || lockY) {
+        kind = kind || 'bbox';
+      }
+    } else if (cfg.node || cfg.midpoint) {
+      /* Drag titik/node: snapPoints Figcraft (point_snap.rs::snap). */
+      const res = snapPoints(targets, probes, thr);
+      if (res.dx !== null && !lockX) { dx = res.dx; lockX = true; }
+      if (res.dy !== null && !lockY) { dy = res.dy; lockY = true; }
+      if (res.guides.length) {
+        guides.push(...guidesForAxes(res.guides, !preX, !preY));
+        const marker = res.guides.find(g => g.x1 === g.x2 && g.y1 === g.y2);
+        if (marker && !preX && !preY) {
+          kind = ptKind = marker.kind;
+          ind = { x: marker.x1, y: marker.y1 };
+        } else if (!kind) {
+          const ln = res.guides.find(g => g.type === 'line');
+          kind = ln ? ln.kind || 'bbox' : 'bbox';
         }
       }
-    } else if (sIdx) {
-      for (let pi = 0; pi < probes.length; pi++) {
-        const q0 = probes[pi];
-        sIdx.queryPoint(q0.x, q0.y, thr, item => {
-          const o = item.o;
-          if (exObjs && exObjs.has(o.id) || o.hidden || o.isFrameBg || o.isAutoFrame) return;
-          if (item.kind === 'midpoint') {
-            if (!cfg.midpoint) return;
-            if (exNodes && (exNodes.has(item.a.id) || exNodes.has(item.b.id))) return;
-          } else {
-            if (!cfg.node) return;
-            if (exNodes && item.n && exNodes.has(item.n.id)) return;
-          }
-          const d = Math.hypot(q0.x - item.x, q0.y - item.y);
-          if (d >= thr) return;
-          const weight = item.kind === 'midpoint' ? 1.12 : item.kind === 'handle-in' || item.kind === 'handle-out' ? 1.04 : 1.0;
-          const sc = d * weight;
-          if (sc < bs) {
-            bs = sc;
-            best = item;
-            bp = q0;
-          }
-        });
-      }
-    }
-    if (best) {
-      dx = best.x - bp.x;
-      dy = best.y - bp.y;
-      lockX = lockY = true;
-      kind = ptKind = best.kind === 'handle-in' || best.kind === 'handle-out' ? 'node' : best.kind;
-      ind = {
-        x: best.x,
-        y: best.y
-      };
-      xScore = yScore = bs;
     }
   }
 
-  /* 2. Kunci sinar siku-siku (90°) & perpanjangan garis (180°) tanpa batas jumlah sinar */
+  /* 1b. Fallback Geovanta01: bbox dragBBox pada sumbu bebas (drag node &
+     gambar shape/frame; di Figcraft drag titik tidak snap bbox, tapi
+     perilaku ini dipertahankan sebagai fallback agar UX lama tidak hilang). */
+  if (dragRect && !figmaObj && (cfg.bbox || cfg.spacing) && boxTargets && (!lockX || !lockY)) {
+    const res = snapMovedBox(boxTargets, dragRect, thr);
+    const useX = !lockX && res.dx !== null;
+    const useY = !lockY && res.dy !== null;
+    if (useX) { dx = res.dx; lockX = true; }
+    if (useY) { dy = res.dy; lockY = true; }
+    if (res.guides.length && (useX || useY)) {
+      guides.push(...guidesForAxes(res.guides, useX, useY));
+      if (!kind) {
+        kind = res.guides.some(g => g.type === 'spacing') ? 'spacing' : 'bbox';
+      }
+    }
+  }
+
+  /* 2. Fallback Geovanta01: sinar siku-siku (90°) & perpanjangan garis
+     (180°) — hanya bila kedua sumbu bebas. */
   if (!figmaObj && !lockX && !lockY && cfg.perp && C.rays && C.rays.length) {
     const hitRays = [];
     for (let ri = 0; ri < C.rays.length; ri++) {
@@ -826,7 +744,6 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
           kind: 'perp',
           label: bi.B.r.label
         });
-        xScore = yScore = bid;
       }
     }
     if (!lockX && !lockY && rayLim > 0) {
@@ -848,298 +765,18 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
         kind: 'perp',
         label: best.r.label
       });
-      xScore = yScore = best.d;
     }
   }
 
-  /* 3. Equal Spacing menggunakan array pra-urut boxesByX & boxesByY tanpa batas 96 box */
-  const srcBoxesX = C.boxesByX && C.boxesByX.length >= 2 ? C.boxesByX : C.boxes && C.boxes.length >= 2 ? C.boxes.slice().sort((a, b) => a.l - b.l) : null;
-  const srcBoxesY = C.boxesByY && C.boxesByY.length >= 2 ? C.boxesByY : C.boxes && C.boxes.length >= 2 ? C.boxes.slice().sort((a, b) => a.t - b.t) : null;
-  const nearLine = (lines, buckets, targets) => {
-    let best = 1e18;
-    if (!lines || !lines.length) return best;
-    for (const t of targets) {
-      if (buckets && buckets.size) {
-        queryLineBuckets(buckets, t, thr, ln => {
-          const d = Math.abs(t - ln.v);
-          if (d < best) best = d;
-        });
-      } else {
-        for (const ln of lines) {
-          const d = Math.abs(t - ln.v);
-          if (d < best) best = d;
-        }
-      }
-    }
-    return best;
-  };
-  const xTn = dragBBox ? [dragBBox[0], (dragBBox[0] + dragBBox[2]) / 2, dragBBox[2]] : [p.x];
-  const yTn = dragBBox ? [dragBBox[1], (dragBBox[1] + dragBBox[3]) / 2, dragBBox[3]] : [p.y];
-  if (cfg.spacing && dragBBox && srcBoxesX) {
-    const dl = dragBBox[0],
-      dt = dragBBox[1],
-      dr = dragBBox[2],
-      db = dragBBox[3],
-      dw = dr - dl,
-      dh = db - dt;
-    const rnd = v => Math.round(v * 10) / 10;
-    if (!lockX) {
-      const hb = [];
-      for (let i = 0; i < srcBoxesX.length; i++) {
-        const b = srcBoxesX[i];
-        if (Math.min(b.b, db) - Math.max(b.t, dt) >= 0) hb.push(b);
-      }
-      let best = null,
-        be = thr;
-      for (let i = 0; i + 1 < hb.length; i++) {
-        const A = hb[i],
-          B = hb[i + 1],
-          gap = B.l - A.r;
-        if (gap > dw + 0.5 && dl >= A.r - thr && dr <= B.l + thr) {
-          const tL = (A.r + B.l - dw) / 2,
-            er = Math.abs(dl - tL);
-          if (er < be) {
-            be = er;
-            best = {
-              t: tL,
-              segs: [[A.r, tL, rnd(tL - A.r)], [tL + dw, B.l, rnd(tL - A.r)]]
-            };
-          }
-        }
-        if (gap > 2) {
-          if (dl >= B.r - thr) {
-            const tR = B.r + gap,
-              er = Math.abs(dl - tR);
-            if (er < be) {
-              be = er;
-              best = {
-                t: tR,
-                segs: [[A.r, B.l, rnd(gap)], [B.r, tR, rnd(gap)]]
-              };
-            }
-          }
-          if (dr <= A.l + thr) {
-            const tF = A.l - gap - dw,
-              er = Math.abs(dl - tF);
-            if (er < be) {
-              be = er;
-              best = {
-                t: tF,
-                segs: [[tF + dw, A.l, rnd(gap)], [A.r, B.l, rnd(gap)]]
-              };
-            }
-          }
-        }
-      }
-      if (best && figmaObj && nearLine(C.xLines, C.xBuckets, xTn) < be) best = null;
-      if (best) {
-        dx = best.t - dl;
-        lockX = true;
-        xScore = be * 1.05;
-        kind = kind || 'spacing';
-        spc.push({
-          axis: 'x',
-          segs: best.segs
-        });
-      }
-    }
-    if (!lockY && srcBoxesY) {
-      const vbx = [];
-      for (let i = 0; i < srcBoxesY.length; i++) {
-        const b = srcBoxesY[i];
-        if (Math.min(b.r, dr) - Math.max(b.l, dl) >= 0) vbx.push(b);
-      }
-      let best = null,
-        be = thr;
-      for (let i = 0; i + 1 < vbx.length; i++) {
-        const A = vbx[i],
-          B = vbx[i + 1],
-          gap = B.t - A.b;
-        if (gap > dh + 0.5 && dt >= A.b - thr && db <= B.t + thr) {
-          const tT = (A.b + B.t - dh) / 2,
-            er = Math.abs(dt - tT);
-          if (er < be) {
-            be = er;
-            best = {
-              t: tT,
-              segs: [[A.b, tT, rnd(tT - A.b)], [tT + dh, B.t, rnd(tT - A.b)]]
-            };
-          }
-        }
-        if (gap > 2) {
-          if (dt >= B.b - thr) {
-            const tB = B.b + gap,
-              er = Math.abs(dt - tB);
-            if (er < be) {
-              be = er;
-              best = {
-                t: tB,
-                segs: [[A.b, B.t, rnd(gap)], [B.b, tB, rnd(gap)]]
-              };
-            }
-          }
-          if (db <= A.t + thr) {
-            const tU = A.t - gap - dh,
-              er = Math.abs(dt - tU);
-            if (er < be) {
-              be = er;
-              best = {
-                t: tU,
-                segs: [[tU + dh, A.t, rnd(gap)], [A.b, B.t, rnd(gap)]]
-              };
-            }
-          }
-        }
-      }
-      if (best && figmaObj && nearLine(C.yLines, C.yBuckets, yTn) < be) best = null;
-      if (best) {
-        dy = best.t - dt;
-        lockY = true;
-        yScore = be * 1.05;
-        kind = kind || 'spacing';
-        spc.push({
-          axis: 'y',
-          segs: best.segs
-        });
-      }
-    }
-  }
-
-  /* 4. Smart Guides via 1D Spatial Bucket Hash tanpa batas jumlah garis */
-  const xT = dragBBox ? [dragBBox[0], (dragBBox[0] + dragBBox[2]) / 2, dragBBox[2]] : [p.x];
-  const yT = dragBBox ? [dragBBox[1], (dragBBox[1] + dragBBox[3]) / 2, dragBBox[3]] : [p.y];
-  if (!lockX && C.xLines && C.xLines.length) {
-    let bd = thr,
-      bsh = 0,
-      hit = false;
-    if (C.xBuckets && C.xBuckets.size) {
-      for (const tx of xT) {
-        queryLineBuckets(C.xBuckets, tx, thr, ln => {
-          const d = Math.abs(tx - ln.v);
-          if (d < bd) {
-            bd = d;
-            bsh = ln.v - tx;
-            hit = true;
-          }
-        });
-      }
-      if (hit) {
-        dx = bsh;
-        lockX = true;
-        xScore = bd * 1.15;
-        for (const tx of xT) {
-          queryLineBuckets(C.xBuckets, tx + dx, 0.05, ln => {
-            if (Math.abs(tx + dx - ln.v) < 0.02 && !aX.includes(ln)) aX.push(ln);
-          });
-        }
-        if (aX.length) kind = kind || aX[0].kind;
-      }
-    } else {
-      for (const ln of C.xLines) for (const tx of xT) {
-        const d = Math.abs(tx - ln.v);
-        if (d < bd) {
-          bd = d;
-          bsh = ln.v - tx;
-          hit = true;
-        }
-      }
-      if (hit) {
-        dx = bsh;
-        lockX = true;
-        xScore = bd * 1.15;
-        for (const ln of C.xLines) {
-          for (const tx of xT) if (Math.abs(tx + dx - ln.v) < 0.02) {
-            aX.push(ln);
-            break;
-          }
-        }
-        if (aX.length) kind = kind || aX[0].kind;
-      }
-    }
-  }
-  if (!lockY && C.yLines && C.yLines.length) {
-    let bd = thr,
-      bsh = 0,
-      hit = false;
-    if (C.yBuckets && C.yBuckets.size) {
-      for (const ty of yT) {
-        queryLineBuckets(C.yBuckets, ty, thr, ln => {
-          const d = Math.abs(ty - ln.v);
-          if (d < bd) {
-            bd = d;
-            bsh = ln.v - ty;
-            hit = true;
-          }
-        });
-      }
-      if (hit) {
-        dy = bsh;
-        lockY = true;
-        yScore = bd * 1.15;
-        for (const ty of yT) {
-          queryLineBuckets(C.yBuckets, ty + dy, 0.05, ln => {
-            if (Math.abs(ty + dy - ln.v) < 0.02 && !aY.includes(ln)) aY.push(ln);
-          });
-        }
-        if (aY.length) kind = kind || aY[0].kind;
-      }
-    } else {
-      for (const ln of C.yLines) for (const ty of yT) {
-        const d = Math.abs(ty - ln.v);
-        if (d < bd) {
-          bd = d;
-          bsh = ln.v - ty;
-          hit = true;
-        }
-      }
-      if (hit) {
-        dy = bsh;
-        lockY = true;
-        yScore = bd * 1.15;
-        for (const ln of C.yLines) {
-          for (const ty of yT) if (Math.abs(ty + dy - ln.v) < 0.02) {
-            aY.push(ln);
-            break;
-          }
-        }
-        if (aY.length) kind = kind || aY[0].kind;
-      }
-    }
-  }
-
-  /* 5. SN-004: Tepi / kontur path */
+  /* 3. Fallback Geovanta01: tepi / kontur path — hanya pada sumbu bebas
+     (dulu bisa mengalahkan guide bila skor < 0.85x; Figcraft: layer snap
+     menang, jadi override itu dihapus). */
   if (hasTargets && !figmaObj && cfg.edge && !ptKind) {
     let r = null;
-    if (extra.edgeFn) r = extra.edgeFn();else {
-      const q = snapPt({
-        x: p.x,
-        y: p.y
-      }, objects || [], exObjs, exNodes, thr, 0, false, true, false, true);
-      if (q.ind) r = {
-        dx: q.x - p.x,
-        dy: q.y - p.y,
-        x: q.x,
-        y: q.y,
-        kind: q.kind
-      };
-    }
+    if (extra.edgeFn) r = extra.edgeFn();
+    else r = snapEdgePoint({ x: p.x, y: p.y }, objects || [], exObjs, exNodes, thr);
     if (r) {
-      const edgeDist = Math.hypot(r.dx, r.dy),
-        edgeScore = edgeDist * 1.12;
-      const guideBest = Math.min(xScore, yScore);
       if (!lockX && !lockY) {
-        dx = r.dx;
-        dy = r.dy;
-        lockX = lockY = true;
-        kind = ptKind = r.kind || 'edge';
-        ind = {
-          x: r.x,
-          y: r.y
-        };
-      } else if (!preX && !preY && edgeScore < guideBest * 0.85) {
-        aX.length = 0;
-        aY.length = 0;
-        spc.length = 0;
         dx = r.dx;
         dy = r.dy;
         lockX = lockY = true;
@@ -1170,7 +807,9 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
     }
   }
 
-  /* 6. Grid adaptif per sumbu (mendukung tepi/pusat dragBBox maupun titik utama p) */
+  /* 4. Fallback Geovanta01: grid adaptif per sumbu (hanya sumbu bebas). */
+  const xT = dragBBox ? [dragBBox[0], (dragBBox[0] + dragBBox[2]) / 2, dragBBox[2]] : [p.x];
+  const yT = dragBBox ? [dragBBox[1], (dragBBox[1] + dragBBox[3]) / 2, dragBBox[3]] : [p.y];
   if (cfg.grid && gridStep > 0) {
     const gThr = Math.min(thr, gridStep * 0.35);
     if (!lockX) {
@@ -1217,7 +856,7 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
     }
   }
 
-  /* 7. Pixel: bulatkan sumbu yang belum terkunci */
+  /* 5. Fallback Geovanta01: pixel — bulatkan sumbu yang belum terkunci. */
   if (cfg.pixel) {
     if (dragBBox) {
       if (!lockX) dx = Math.round(dragBBox[0]) - dragBBox[0];
@@ -1228,41 +867,11 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
     }
   }
 
-  /* Susun panduan visual pada posisi akhir */
+  /* Susun panduan visual pada posisi akhir. */
   const px = p.x + dx,
     py = p.y + dy;
   const xr = dragBBox ? [dragBBox[0] + dx, dragBBox[2] + dx] : [px, px],
     yr = dragBBox ? [dragBBox[1] + dy, dragBBox[3] + dy] : [py, py];
-  const pushAligned = (arr, vert) => {
-    const groups = new Map();
-    arr.forEach(l => {
-      const k = Math.round(l.v * 100);
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(l);
-    });
-    groups.forEach(ls => {
-      const v = ls[0].v;
-      if (vert) {
-        let y0 = yr[0],
-          y1 = yr[1];
-        ls.forEach(l => {
-          y0 = Math.min(y0, l.y0, l.y1);
-          y1 = Math.max(y1, l.y0, l.y1);
-        });
-        guides.push({ type: 'line', x1: v, y1: y0, x2: v, y2: y1, kind: ls[0].kind });
-      } else {
-        let x0 = xr[0],
-          x1 = xr[1];
-        ls.forEach(l => {
-          x0 = Math.min(x0, l.x0, l.x1);
-          x1 = Math.max(x1, l.x0, l.x1);
-        });
-        guides.push({ type: 'line', x1: x0, y1: v, x2: x1, y2: v, kind: ls[0].kind });
-      }
-    });
-  };
-  if (aX.length) pushAligned(aX, true);
-  if (aY.length) pushAligned(aY, false);
   if (dragBBox) {
     const ext = thr * 2.5;
     if (gxHit !== null) guides.push({
@@ -1282,29 +891,6 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
       kind: 'artboard'
     });
   }
-  spc.forEach(sg => sg.segs.forEach(([a, b, val]) => {
-    if (sg.axis === 'x') {
-      const y = (yr[0] + yr[1]) / 2;
-      guides.push({
-        type: 'spacing',
-        x1: a,
-        y1: y,
-        x2: b,
-        y2: y,
-        label: String(val)
-      });
-    } else {
-      const x = (xr[0] + xr[1]) / 2;
-      guides.push({
-        type: 'spacing',
-        x1: x,
-        y1: a,
-        x2: x,
-        y2: b,
-        label: String(val)
-      });
-    }
-  }));
   const any = lockX && !preX || lockY && !preY;
   if (!ind) ind = {
     x: px,
@@ -1336,4 +922,4 @@ function solveMultiSnap(p, cache, objects, exObjs, exNodes, thr, gridStep, cfg, 
 
 /* 1. Kåsa Algebraic Circle Fit Test */
 
-export { snapPt, snapMany, rebuildHandle, snapHandleCurve, snapOutline, LINE_BUCKET_SZ, addLineToBuckets, queryLineBuckets, buildSnapCache, ptHash, solveMultiSnap };
+export { SNAP_PX, snapPt, snapMany, rebuildHandle, snapHandleCurve, snapOutline, LINE_BUCKET_SZ, addLineToBuckets, queryLineBuckets, buildSnapCache, ptHash, solveMultiSnap };

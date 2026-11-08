@@ -5,20 +5,29 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { usePresence } from '../../utils/presenceAndFilePicker.jsx';
-import { TIPS } from '../../constants/tooltipsCatalog.jsx';
+import { TIPS, TIPS_EN } from '../../constants/tooltipsCatalog.jsx';
+import { readLangPref } from '../../utils/themeAndPrefsManager.jsx';
 import { clampN } from '../../utils/colorMath.jsx';
 import { Keys } from '../ui/IconGlyphs.jsx';
 
 const TipHost = () => {
   const [st, setSt] = useState({
-      k: null
+      k: null,
+      tx: null
     }),
     [pos, setPos] = useState(null),
     ref = useRef(null),
     last = useRef(null);
-  if (st.k) last.current = st;
-  const [m, lv] = usePresence(!!st.k, 140),
-    d = last.current && TIPS[last.current.k];
+  if (st.k || st.tx) last.current = st;
+  /* Bahasa tooltip mengikuti preferensi tab Pengaturan; kunci yang tidak
+     ada di overlay English tetap memakai katalog Indonesia. */
+  const lang = readLangPref(),
+    en = lang === 'en',
+    tipFor = k => (en && TIPS_EN[k]) || TIPS[k];
+  const [m, lv] = usePresence(!!(st.k || st.tx), 140),
+    d = last.current && (last.current.tx ? {
+      t: last.current.tx
+    } : tipFor(last.current.k));
   useEffect(() => {
     let timer = 0,
       grace = 0,
@@ -29,14 +38,15 @@ const TipHost = () => {
       kb = false,
       fm = false,
       mx = -1,
-      my = -1;
+      my = -1,
+      lastScrollT = 0;
     const find = t => {
       if (!t || !t.closest) return null;
-      let el = t.closest('[data-tip]');
+      let el = t.closest('[data-tip], [data-tip-text]');
       while (el) {
         const k = el.getAttribute('data-tip');
-        if (k && TIPS[k]) return el;
-        el = el.parentElement && el.parentElement.closest ? el.parentElement.closest('[data-tip]') : null;
+        if (k && (TIPS[k] || TIPS_EN[k]) || el.getAttribute('data-tip-text')) return el;
+        el = el.parentElement && el.parentElement.closest ? el.parentElement.closest('[data-tip], [data-tip-text]') : null;
       }
       return null;
     };
@@ -47,8 +57,9 @@ const TipHost = () => {
       timer = life = 0;
       cur = null;
       fm = false;
-      setSt(s => s.k ? {
-        k: null
+      setSt(s => s.k || s.tx ? {
+        k: null,
+        tx: null
       } : s);
       clearTimeout(grace);
       grace = setTimeout(() => {
@@ -61,14 +72,25 @@ const TipHost = () => {
       clearTimeout(timer);
       clearTimeout(grace);
       clearTimeout(life);
-      const k = el.getAttribute('data-tip');
-      if (!TIPS[k]) return;
+      const k = el.getAttribute('data-tip'),
+        tx = el.getAttribute('data-tip-text');
+      if (!tx && !(TIPS[k] || TIPS_EN[k])) return;
       const go = () => {
         if (cur !== el || !el.isConnected) return;
+        /* PERF: jangan munculkan tooltip di tengah scroll — saat scroll cepat,
+           baris layer yang lewat di bawah kursor memicu pointerover beruntun
+           dan tiap go() memaksa React render + baca layout (offsetWidth).
+           Tunda sampai 250 ms setelah scroll terakhir berhenti. */
+        if (performance.now() - lastScrollT < 250) {
+          clearTimeout(timer);
+          timer = setTimeout(go, 260);
+          return;
+        }
         shown = true;
         const as = innerWidth >= 1024 ? el.closest('aside') : null;
         setSt({
-          k,
+          k: tx ? null : k,
+          tx: tx || null,
           r: el.getBoundingClientRect(),
           ar: as ? as.getBoundingClientRect() : null
         });
@@ -131,6 +153,12 @@ const TipHost = () => {
     const any = () => {
       if (cur || timer) hide();
     };
+    /* PERF: scroll/wheel dicatat waktunya agar go() bisa menunda tooltip
+       sampai scroll benar-benar berhenti (lihat guard di go()). */
+    const scrl = () => {
+      lastScrollT = performance.now();
+      any();
+    };
     const vis = () => {
       if (document.hidden) any();
     };
@@ -145,7 +173,7 @@ const TipHost = () => {
     }, 300);
     const L = (t, n, f, o) => t.addEventListener(n, f, o),
       R = (t, n, f, o) => t.removeEventListener(n, f, o);
-    const evs = [[document, 'pointerover', over], [document, 'pointerout', out], [document, 'pointermove', move, true], [document, 'pointerdown', down, true], [document, 'focusin', fin], [document, 'focusout', any], [document, 'keydown', key, true], [document, 'scroll', any, true], [document, 'wheel', any, {
+    const evs = [[document, 'pointerover', over], [document, 'pointerout', out], [document, 'pointermove', move, true], [document, 'pointerdown', down, true], [document, 'focusin', fin], [document, 'focusout', any], [document, 'keydown', key, true], [document, 'scroll', scrl, true], [document, 'wheel', scrl, {
       passive: true,
       capture: true
     }], [document, 'contextmenu', any], [document, 'dragstart', any], [document, 'pointercancel', any], [document, 'touchstart', any, {
@@ -190,13 +218,13 @@ const TipHost = () => {
       top,
       side
     });
-  }, [m, st.k, st.r]);
+  }, [m, st.k, st.tx, st.r]);
   if (!m || !d) return null;
   return ReactDOM.createPortal(<div ref={ref} className={'tt ' + (lv ? 'out' : 'in') + ' s-' + (pos ? pos.side : 'bottom')} style={{
     left: pos ? pos.left : 0,
     top: pos ? pos.top : 0,
     visibility: pos ? 'visible' : 'hidden'
-  }}><div className="tt-t"><span>{d.t}</span>{d.k && <Keys s={d.k} />}</div><div className="tt-d">{d.d}</div>{d.w && <div className="tt-r"><b>Kapan dipakai</b>{d.w}</div>}{d.pk && d.pk.map(([n, x], i) => <div key={i} className="tt-r"><b>Pilih {n} jika</b>{x}</div>)}{d.up && <div className="tt-r"><b>↑ Naikkan jika</b>{d.up}</div>}{d.dn && <div className="tt-r"><b>↓ Turunkan jika</b>{d.dn}</div>}</div>, document.fullscreenElement || document.body);
+  }}><div className="tt-t"><span>{d.t}</span>{d.k && <Keys s={d.k} />}</div>{d.d && <div className="tt-d">{d.d}</div>}{d.w && <div className="tt-r"><b>{en ? 'When to use' : 'Kapan dipakai'}</b>{d.w}</div>}{d.pk && d.pk.map(([n, x], i) => <div key={i} className="tt-r"><b>{en ? 'Choose ' + n + ' if' : 'Pilih ' + n + ' jika'}</b>{x}</div>)}{d.up && <div className="tt-r"><b>↑ {en ? 'Increase if' : 'Naikkan jika'}</b>{d.up}</div>}{d.dn && <div className="tt-r"><b>↓ {en ? 'Decrease if' : 'Turunkan jika'}</b>{d.dn}</div>}</div>, document.fullscreenElement || document.body);
 };
 /* ---------- Keyboard shortcut: tampilan tombol, panel bantuan ---------- */
 

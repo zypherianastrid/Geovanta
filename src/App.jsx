@@ -19,9 +19,11 @@ import { CustomTextBox } from './components/ui/CustomTextBox.jsx';
 import { TipHost } from './components/modals/TooltipHost.jsx';
 import { Help } from './components/modals/HelpShortcutsModal.jsx';
 import { Settings } from './components/modals/SettingsModal.jsx';
+import { getAppStr, translateToast } from './constants/appI18n.jsx';
 
 function App() {
   const [prefs, setPrefs] = useState(() => loadPrefs());
+  const L = getAppStr(prefs.lang);
   useEffect(() => {
     applyTheme(prefs.theme);
     applyMotion(prefs.motion);
@@ -347,7 +349,7 @@ function App() {
   }, [help, settings]);
   return <div className="app-ws app-full"><div className="mx-auto ws-fin"><div className="ws-body">{navState.screen === 'workspace' ? <div className="fade ws-fill" style={{
           display: 'flex'
-        }}><WorkspaceHome onOpenProject={handleOpenProject} onSettings={() => setSettings(true)} onHelp={() => setHelp(true)} flash={flash} recoveryCandidates={recoveryCandidates} onResolveRecovery={rc => setRecoveryDialog(rc)} /></div> : <div className="fade ws-fill" style={{
+        }}><WorkspaceHome onOpenProject={handleOpenProject} onSettings={() => setSettings(true)} onHelp={() => setHelp(true)} flash={flash} lang={prefs.lang} recoveryCandidates={recoveryCandidates} onResolveRecovery={rc => setRecoveryDialog(rc)} /></div> : <div className="fade ws-fill" style={{
           display: 'flex'
         }}><VectorEditor key={navState.activeProjectId || 'default-editor'} initialSvg={null} initialDoc={activeDoc} initialViewState={activeViewState} projectId={navState.activeProjectId} projectName={activeProject ? activeProject.name : 'Untitled Project'} saveStatus={saveStatus} onDocumentCommit={handleDocumentCommit} onBackToWorkspace={handleBackToWorkspace} onRenameProject={() => {
             setEditorRenameDraft(activeProject ? activeProject.name : 'Untitled Project');
@@ -367,16 +369,16 @@ function App() {
       }}><div className="flex items-center gap-2.5 mb-2"><span className="inline-flex items-center justify-center w-9 h-9 rounded-xl" style={{
             background: 'rgba(245, 158, 11, 0.16)',
             color: '#f59e0b'
-          }}><Ico n="refresh" size={18} /></span><div><div className="text-sm font-semibold">Pemulihan Dokumen Tersedia</div><div className="text-[11px] mut">Proyek: <b>{recoveryDialog.project.name}</b></div></div></div><div className="text-xs mut leading-relaxed mb-3">Kami menemukan checkpoint otomatis yang lebih baru daripada dokumen utama yang terakhir disimpan. Apakah Anda ingin memulihkan pekerjaan Anda?</div><div className="space-y-1.5 text-xs mb-4"><div className="ws-stat-row"><span className="mut">Waktu Checkpoint Terakhir</span><span className="font-mono font-semibold" style={{
+          }}><Ico n="refresh" size={18} /></span><div><div className="text-sm font-semibold">{L.appRecoveryTitle}</div><div className="text-[11px] mut">{L.appProject} <b>{recoveryDialog.project.name}</b></div></div></div><div className="text-xs mut leading-relaxed mb-3">{L.appRecoveryQ}</div><div className="space-y-1.5 text-xs mb-4"><div className="ws-stat-row"><span className="mut">{L.appLastCheckpoint}</span><span className="font-mono font-semibold" style={{
               color: 'var(--acc)'
-            }}>{formatDateTimeFull(recoveryDialog.snapshot.savedAt)}</span></div><div className="ws-stat-row"><span className="mut">Waktu Simpan Utama Terakhir</span><span className="font-mono">{formatDateTimeFull(recoveryDialog.project.updatedAt)}</span></div><div className="ws-stat-row"><span className="mut">Revisi Checkpoint vs Utama</span><span className="font-mono">Rev #{recoveryDialog.snapshot.revision} vs Rev #{recoveryDialog.project.revision || 1}</span></div></div><div className="flex justify-end gap-2"><button type="button" className="btn sec text-xs px-3.5 py-2" onClick={handleIgnoreRecovery}>Ignore (Gunakan Versi Lama)</button><button type="button" className="btn pri text-xs px-4 py-2" onClick={handleRestoreRecovery}><Ico n="check" size={14} /><span>Restore Checkpoint</span></button></div></div></div>, document.body)}{unsavedNavDialog && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label="Peringatan Gagal Menyimpan Sebelum Navigasi" style={{
+            }}>{formatDateTimeFull(recoveryDialog.snapshot.savedAt)}</span></div><div className="ws-stat-row"><span className="mut">{L.appLastMainSave}</span><span className="font-mono">{formatDateTimeFull(recoveryDialog.project.updatedAt)}</span></div><div className="ws-stat-row"><span className="mut">{L.appCheckpointVsMain}</span><span className="font-mono">Rev #{recoveryDialog.snapshot.revision} vs Rev #{recoveryDialog.project.revision || 1}</span></div></div><div className="flex justify-end gap-2"><button type="button" className="btn sec text-xs px-3.5 py-2" onClick={handleIgnoreRecovery}>{L.appIgnoreOld}</button><button type="button" className="btn pri text-xs px-4 py-2" onClick={handleRestoreRecovery}><Ico n="check" size={14} /><span>Restore Checkpoint</span></button></div></div></div>, document.body)}{unsavedNavDialog && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label="Peringatan Gagal Menyimpan Sebelum Navigasi" style={{
         maxWidth: 460
-      }}><div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold text-red-400">Gagal Menyimpan Perubahan Proyek</div><button type="button" className="btn sec" style={{
+      }}><div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold text-red-400">{L.appSaveFailed}</div><button type="button" data-tip="uiClose" className="btn sec" style={{
             padding: 0,
             width: 28,
             height: 28,
             borderRadius: '50%'
-          }} onClick={() => setUnsavedNavDialog(null)}><Ico n="x" size={13} /></button></div><div className="text-xs mut leading-relaxed mb-4">Perubahan terbaru pada proyek Anda belum berhasil disimpan ke penyimpanan lokal ({unsavedNavDialog.error && unsavedNavDialog.error.message ? unsavedNavDialog.error.message : 'kesalahan penyimpanan'}). Navigasi ditahan agar pekerjaan dan aset gambar Anda di memori tetap utuh.</div><div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec text-xs px-3 py-2" onClick={() => setUnsavedNavDialog(null)}>Tetap di Editor</button><button type="button" className="btn sec text-xs px-3 py-2" onClick={async () => {
+          }} onClick={() => setUnsavedNavDialog(null)}><Ico n="x" size={13} /></button></div><div className="text-xs mut leading-relaxed mb-4">{L.appUnsavedA}{unsavedNavDialog.error && unsavedNavDialog.error.message ? unsavedNavDialog.error.message : L.appSaveErrorFallback}{L.appUnsavedB}</div><div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec text-xs px-3 py-2" onClick={() => setUnsavedNavDialog(null)}>{L.appStayEditor}</button><button type="button" className="btn sec text-xs px-3 py-2" onClick={async () => {
             try {
               const docToSave = latestEditorDocRef.current;
               if (docToSave) {
@@ -395,7 +397,7 @@ function App() {
                 flash('Berkas pemulihan darurat (.svg) berhasil diunduh');
               }
             } catch (e) {}
-          }}><Ico n="download" size={13} /><span>Unduh Pemulihan Darurat</span></button><button type="button" className="btn pri text-xs px-4 py-2" onClick={async () => {
+          }}><Ico n="download" size={13} /><span>{L.appEmergency}</span></button><button type="button" className="btn pri text-xs px-4 py-2" onClick={async () => {
             const res = await WorkspaceController.retryFailedSave();
             if (res && res.ok) {
               const act = unsavedNavDialog.targetAction;
@@ -405,14 +407,14 @@ function App() {
             } else {
               flash('Penyimpanan masih gagal — silakan unduh pemulihan darurat terlebih dahulu');
             }
-          }}><Ico n="refresh" size={13} /><span>Coba Simpan Lagi</span></button></div></div></div>, document.body)}{quotaErrorInfo && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label="Peringatan Kuota Penyimpanan Penuh" style={{
+          }}><Ico n="refresh" size={13} /><span>{L.appRetrySave2}</span></button></div></div></div>, document.body)}{quotaErrorInfo && ReactDOM.createPortal(<div className="ov in"><div className="hp" role="dialog" aria-label="Peringatan Kuota Penyimpanan Penuh" style={{
         maxWidth: 460
-      }}><div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold text-red-400">Penyimpanan Lokal Penuh (QuotaExceededError)</div><button type="button" className="btn sec" style={{
+      }}><div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold text-red-400">{L.appQuotaTitle}</div><button type="button" data-tip="uiClose" className="btn sec" style={{
             padding: 0,
             width: 28,
             height: 28,
             borderRadius: '50%'
-          }} onClick={() => setQuotaErrorInfo(null)}><Ico n="x" size={13} /></button></div><div className="text-xs mut leading-relaxed mb-4">Browser kehabisan ruang penyimpanan untuk menyimpan revisi terbaru. <b>Dokumen proyek Anda sebelumnya tidak dihapus dan tetap utuh.</b> Anda dapat mengekspor cadangan <code>.geovanta</code> sekarang, menghapus proyek lama yang tidak diperlukan di Workspace, atau mencoba menyimpan kembali.</div><div className="flex flex-wrap justify-end gap-2">{quotaErrorInfo.projectId && <button type="button" className="btn sec text-xs px-3 py-2" onClick={async () => {
+          }} onClick={() => setQuotaErrorInfo(null)}><Ico n="x" size={13} /></button></div><div className="text-xs mut leading-relaxed mb-4">{L.appQuotaBody} <b>{L.appRecoveryBody}</b> {L.appExportHint} <code>.geovanta</code> {L.appQuotaTail}</div><div className="flex flex-wrap justify-end gap-2">{quotaErrorInfo.projectId && <button type="button" className="btn sec text-xs px-3 py-2" onClick={async () => {
             try {
               await WorkspaceController.triggerBackupDownload(quotaErrorInfo.projectId);
             } catch (e) {}
@@ -422,26 +424,26 @@ function App() {
               screen: 'workspace',
               activeProjectId: null
             });
-          }}>Kelola & Hapus Proyek Lama</button><button type="button" className="btn pri text-xs px-4 py-2" onClick={async () => {
+          }}>{L.appManageDelete}</button><button type="button" className="btn pri text-xs px-4 py-2" onClick={async () => {
             setQuotaErrorInfo(null);
             await WorkspaceController.retryFailedSave();
-          }}><Ico n="refresh" size={13} /><span>Coba Simpan Kembali</span></button></div></div></div>, document.body)}{editorRenameOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
+          }}><Ico n="refresh" size={13} /><span>{L.appRetrySave}</span></button></div></div></div>, document.body)}{editorRenameOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
       if (e.target === e.currentTarget) setEditorRenameOpen(false);
     }}><div className="hp" role="dialog" aria-label="Ganti Nama Proyek Aktif" style={{
         maxWidth: 400
-      }}><div className="flex items-center justify-between mb-3"><div className="text-sm font-semibold">Ganti Nama Proyek</div><button type="button" className="btn sec" style={{
+      }}><div className="flex items-center justify-between mb-3"><div className="text-sm font-semibold">{L.wsRename}</div><button type="button" data-tip="uiClose" className="btn sec" style={{
             padding: 0,
             width: 28,
             height: 28,
             borderRadius: '50%'
-          }} onClick={() => setEditorRenameOpen(false)}><Ico n="x" size={13} /></button></div><div className="space-y-3"><div className="fld px-2.5 py-1.5"><CustomTextBox value={editorRenameDraft} autoFocus={true} ariaLabel="Nama Proyek" onChange={setEditorRenameDraft} onCommit={v => setEditorRenameDraft(v)} /></div><div className="flex justify-end gap-2"><button type="button" className="btn sec text-xs px-3 py-1.5" onClick={() => setEditorRenameOpen(false)}>Batal</button><button type="button" className="btn pri text-xs px-4 py-1.5" onClick={handleEditorRenameSubmit}>Simpan Nama</button></div></div></div></div>, document.body)}<div className="fixed left-1/2 bottom-24 lg:bottom-6 px-4 py-2 rounded-full text-xs text-white max-w-[92vw] text-center" style={{
+          }} onClick={() => setEditorRenameOpen(false)}><Ico n="x" size={13} /></button></div><div className="space-y-3"><div className="fld px-2.5 py-1.5"><CustomTextBox value={editorRenameDraft} autoFocus={true} ariaLabel="Nama Proyek" onChange={setEditorRenameDraft} onCommit={v => setEditorRenameDraft(v)} /></div><div className="flex justify-end gap-2"><button type="button" className="btn sec text-xs px-3 py-1.5" onClick={() => setEditorRenameOpen(false)}>{L.cCancel}</button><button type="button" className="btn pri text-xs px-4 py-1.5" onClick={handleEditorRenameSubmit}>{L.wsSaveName}</button></div></div></div></div>, document.body)}<div className="fixed left-1/2 bottom-24 lg:bottom-6 px-4 py-2 rounded-full text-xs text-white max-w-[92vw] text-center" style={{
       background: '#18181b',
       zIndex: 120,
       transform: `translateX(-50%) translateY(${toast ? 0 : 20}px)`,
       opacity: toast ? 1 : 0,
       transition: 'all .3s',
       pointerEvents: 'none'
-    }}>{toast}</div>{prefs.tips !== false && <TipHost />}<Help open={help} onClose={() => setHelp(false)} /><Settings open={settings} onClose={() => setSettings(false)} prefs={prefs} setPrefs={setPrefs} flash={flash} /></div>;
+    }}>{translateToast(toast, prefs.lang)}</div>{prefs.tips !== false && <TipHost />}<Help open={help} onClose={() => setHelp(false)} lang={prefs.lang} /><Settings open={settings} onClose={() => setSettings(false)} prefs={prefs} setPrefs={setPrefs} flash={flash} /></div>;
 }
 
 export { App };

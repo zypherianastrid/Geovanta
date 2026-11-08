@@ -50,7 +50,14 @@ const LayerTreeViewport = React.memo(({
       const nextStart = Math.max(0, Math.min(Math.max(0, total - LAYER_WINDOW_SIZE), qRow));
       const rowDelta = Math.abs(nextStart - st.lastStartIdx);
       st.lastStartIdx = nextStart;
-      if (total >= 300 && rowDelta >= stepRows * 2) {
+      /* SCROLLFIX 2026-11-07 — mode hemat selama scroll aktif: SETIAP gerakan
+         window (bukan cuma lompatan >=8 baris) mengaktifkan fastScroll, jadi
+         baris baru mount sebagai skeleton murah (ikon generik + nama, tanpa
+         preview SVG / tombol eject / badge) dan preview penuh tidak di-mount
+         di tengah scroll. Settle 150 ms: preview baru muncul kalau scroll
+         benar-benar berhenti, bukan di antara notch wheel (75 ms lama
+         terlalu pendek: settle sempat menyala di tengah scroll). */
+      if (rowDelta > 0) {
         if (typeof window !== 'undefined') window.__gvLayerFastScroll = true;
         setFastScroll(prev => prev ? prev : true);
         if (st.settleTimer) clearTimeout(st.settleTimer);
@@ -59,8 +66,8 @@ const LayerTreeViewport = React.memo(({
           st.scrolling = false;
           st.cachedOffsetTop = -1;
           if (typeof window !== 'undefined') window.__gvLayerFastScroll = false;
-          setFastScroll(false);
-        }, 75);
+          setFastScroll(prev => prev ? false : prev);
+        }, 150);
       }
       setWindowStartIdx(prev => prev !== nextStart ? nextStart : prev);
     };
@@ -116,7 +123,7 @@ const LayerTreeViewport = React.memo(({
     moveObjsToGroup(dragLayerIds, null);
     setDragLayerIds(null);
     setOverFrameId(null);
-  }}>{!hasObjects && <div className="text-[11px] mut px-2 py-4 text-center">Belum ada layer — gambar dengan Frame/Pen/Shape atau impor file.</div>}{rows.map(renderRowFn)}</div>;
+  }}>{!hasObjects && <div className="text-[11px] mut px-2 py-4 text-center">Belum ada layer — gambar dengan Frame/Pen/Shape atau impor file.</div>}{rows.map(row => renderRowFn(row, fastScroll))}</div>;
 });
 
 export { LAYER_ROW_EST_PX, LAYER_OVERSCAN, LAYER_WINDOW_SIZE, LAYER_SCROLL_STEP_ROWS, LayerTreeViewport };

@@ -128,10 +128,10 @@ const XfField = ({
     const dir = e.deltaY < 0 ? 1 : -1;
     bump(dir, e);
   };
-  return <div className={'fld xf' + (dis ? ' dis' : '') + (ed ? ' ed' : '')} data-tip={tip} onWheel={onWheel}><span className="xf-l" title="Seret kiri/kanan untuk mengubah nilai (Shift = 10×, Alt = 0.1×)" onPointerDown={startScrub}>{label}</span><CustomTextBox value={fmt(value)} dis={dis} ariaLabel={label} filterRe={/[^0-9.,+\-*/()\s]/g} onChange={() => setEd(true)} onCommit={commit} onCancel={() => setEd(false)} onBump={bump} />{!dis && <div className="xf-step"><button type="button" className="xf-sb" tabIndex={-1} aria-label={'Naikkan ' + label} onPointerDown={e => startStepHold(1, e)} onClick={e => {
+  return <div className={'fld xf' + (dis ? ' dis' : '') + (ed ? ' ed' : '')} data-tip={tip} onWheel={onWheel}><span className="xf-l" onPointerDown={startScrub}>{label}</span><CustomTextBox value={fmt(value)} dis={dis} ariaLabel={label} filterRe={/[^0-9.,+\-*/()\s]/g} onChange={() => setEd(true)} onCommit={commit} onCancel={() => setEd(false)} onBump={bump} />{!dis && <div className="xf-step"><button type="button" className="xf-sb" tabIndex={-1} aria-label={'Naikkan ' + label} data-tip-text={'Naikkan ' + label} onPointerDown={e => startStepHold(1, e)} onClick={e => {
         e.stopPropagation();
         if (e.detail === 0) bump(1, e);
-      }}><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m18 15-6-6-6 6" /></svg></button><button type="button" className="xf-sb" tabIndex={-1} aria-label={'Turunkan ' + label} onPointerDown={e => startStepHold(-1, e)} onClick={e => {
+      }}><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m18 15-6-6-6 6" /></svg></button><button type="button" className="xf-sb" tabIndex={-1} aria-label={'Turunkan ' + label} data-tip-text={'Turunkan ' + label} onPointerDown={e => startStepHold(-1, e)} onClick={e => {
         e.stopPropagation();
         if (e.detail === 0) bump(-1, e);
       }}><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m6 9 6 6 6-6" /></svg></button></div>}</div>;

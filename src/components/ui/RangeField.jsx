@@ -48,7 +48,7 @@ const Range = ({
   };
   return <div className="block" data-tip={tip}><div className="flex items-center justify-between gap-1.5 text-xs mb-1.5 min-w-0"><span className="mut truncate min-w-0" style={{
       cursor: 'var(--cur-ew)'
-    }} title="Seret kiri/kanan untuk mengubah nilai" onPointerDown={startLabelScrub}>{l}</span>{editingVal ? <div className="fld px-1.5 py-0.5" style={{
+    }} data-tip="veRangeScrub" onPointerDown={startLabelScrub}>{l}</span>{editingVal ? <div className="fld px-1.5 py-0.5" style={{
       width: 68,
       height: 22
     }}><CustomTextBox autoFocus={true} selectOnFocus={true} value={String(Math.round((Number(v) || 0) * 1000) / 1000)} ariaLabel={l} filterRe={/[^0-9.,-]/g} onCommit={commitDirect} onCancel={() => setEditingVal(false)} onBump={(d, ev) => {
@@ -58,7 +58,7 @@ const Range = ({
       border: 0,
       background: 'transparent',
       color: 'var(--ink)'
-    }} title="Klik untuk mengetik angka langsung" onClick={() => setEditingVal(true)}>{f(v)}</button>}</div><Slider min={min} max={max} step={step} value={v} on={on} label={l} /></div>;
+    }} data-tip="veRangeType" onClick={() => setEditingVal(true)}>{f(v)}</button>}</div><Slider min={min} max={max} step={step} value={v} on={on} label={l} /></div>;
 };
 /* Segmented control dengan pil penanda yang bergeser halus */
 
