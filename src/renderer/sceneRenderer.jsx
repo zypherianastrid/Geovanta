@@ -34,6 +34,9 @@ class SceneRenderer {
     this._identityMat3 = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 0]);
     this._scratchImgMat3 = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
     this._cachedRootAcc = undefined;
+    this._lastRenderView = null; /* PANFIX: view (zoom/pan) saat canvas terakhir kali di-render; dipakai untuk CSS transform selama drag pan/zoom */
+    this._cssTransformActive = false;
+    this._lastObjDragRenderTs = 0; /* PANFIX2: timestamp render terakhir saat drag objek (throttle async) */
     this._frameBoxesRef = null;
     this._frameSet = new Set();
     this._frameRectMap = new Map();
@@ -894,6 +897,36 @@ class SceneRenderer {
   }
 
   /* Tahap 1: Satu Scheduler RAF Terpadu agar tidak pernah terjadi double/triple render di satu frame */
+  /* PANFIX: Geser/skala canvas WebGL via CSS transform selama drag pan/zoom.
+     Isi canvas adalah hasil render pada view lama (_lastRenderView); transform
+     CSS memetakan isi lama ke view baru (kamera saat ini) sehingga tampak benar
+     tanpa render ulang. Render WebGL 1044 objek ~300ms/frame (SwiftShader;
+     berat di GPU lemah) adalah sumber hang/patah-patah saat pan. CSS transform
+     di-composite GPU (60fps) dan tidak menyentuh main thread.
+     Rumus (transform-origin 0 0): s = z/z0, tx = px - s*px0, ty = py - s*py0.
+     Mengembalikan true bila transform diterapkan (render boleh dilewati). */
+  _applyInteractionCssTransform() {
+    const cv = this.canvasEl;
+    if (!cv || !this._lastRenderView) return false;
+    const cam = this.camera || {};
+    const z = cam.zoom || 1, px = cam.panX || 0, py = cam.panY || 0;
+    const v0 = this._lastRenderView;
+    const s = z / v0.z;
+    const tx = px - s * v0.x, ty = py - s * v0.y;
+    if (Math.abs(s - 1) < 1e-9 && Math.abs(tx) < 0.01 && Math.abs(ty) < 0.01) {
+      if (this._cssTransformActive) this._clearInteractionCssTransform();
+      return false;
+    }
+    cv.style.transformOrigin = '0 0';
+    cv.style.transform = 'translate(' + tx.toFixed(2) + 'px,' + ty.toFixed(2) + 'px) scale(' + s.toFixed(6) + ')';
+    this._cssTransformActive = true;
+    return true;
+  }
+  _clearInteractionCssTransform() {
+    const cv = this.canvasEl;
+    if (cv && this._cssTransformActive) cv.style.transform = '';
+    this._cssTransformActive = false;
+  }
   requestRender(force = false) {
     if (this.disposed || !this.gpuEnabled) return;
     if (force) this._forcePending = true;
@@ -925,6 +958,43 @@ class SceneRenderer {
   }
   renderFrame(force = false) {
     if (this.disposed || this.contextLost || !this.gpuEnabled || !this.canvasEl || !this.doc) return;
+    const interacting = !!(this.isZooming || this.isPanning);
+    /* PANFIX2: drag objek (dragOffset) bukan pan/zoom — CSS transform seluruh
+       canvas TIDAK berlaku (hanya objek yang diseret yang bergerak). Tapi render
+       saat drag objek sama beratnya (1044 objek, ~667ms/frame), jadi DPR 0.5x,
+       throttle & sub-pixel cull juga berlaku untuknya. */
+    const renderInteracting = interacting || !!this.dragOffset;
+    /* PANFIX: Selama drag pan/zoom (force + interacting), JANGAN render WebGL
+       tiap frame — terapkan CSS transform saja dan lewati render. Render WebGL
+       1044 objek ~300ms/frame (SwiftShader; berat di GPU lemah) adalah sumber
+       hang/patah-patah saat pan. Render sungguhan terjadi saat settle
+       (interacting=false) atau bila belum ada baseline (_lastRenderView null). */
+    if (force && interacting && this._lastRenderView) {
+      if (this._applyInteractionCssTransform()) return;
+    }
+    /* Bukan interaksi (settle / render async): bersihkan CSS transform agar
+       hasil render baru tampil tanpa transform ganda. */
+    this._clearInteractionCssTransform();
+    /* PERF (zoom/pan cepat): throttle ADAPTIF — hanya aktif bila render sebelumnya
+       lambat (>20ms). Bila render cepat (hardware bagus), JANGAN throttle agar
+       canvas tetap 60fps. Bila render lambat, batasi ke ~25fps (sekali per 40ms)
+       supaya main thread sempat memproses input (slider tetap responsif).
+       Render saat settle (isZooming/isPanning=false) TIDAK pernah di-throttle. */
+    if (force && interacting && (this._lastRenderMs || 0) > 20) {
+      const nowT = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+      if (this._lastInteractRenderTs && nowT - this._lastInteractRenderTs < 40) return;
+      this._lastInteractRenderTs = nowT;
+    }
+    /* PANFIX2: throttle render async saat drag objek — drag objek memanggil
+       requestRender() tiap gerakan (force=false). Bila render sebelumnya lambat
+       (>20ms), batasi ke 1 render per 50ms (~20fps) agar drag tidak hang.
+       Posisi objek yang diseret tetap terasa responsif karena handle/seleksi
+       SVG di-update via DOM langsung, bukan lewat render WebGL. */
+    if (!force && this.dragOffset && (this._lastRenderMs || 0) > 20) {
+      const nowT2 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+      if (this._lastObjDragRenderTs && nowT2 - this._lastObjDragRenderTs < 50) return;
+      this._lastObjDragRenderTs = nowT2;
+    }
     if (this._rafId) {
       cancelAnimationFrame(this._rafId);
       this._rafId = 0;
@@ -939,9 +1009,13 @@ class SceneRenderer {
     if (!force && this._lastRenderedSig === sig) return;
     this._lastRenderedSig = sig;
     const tRender0 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-    /* GV-A06: Ukuran framebuffer adaptif sesuai profil perangkat & batas tekstur/renderbuffer GPU */
+    /* GV-A06: Ukuran framebuffer adaptif sesuai profil perangkat & batas tekstur/renderbuffer GPU
+       PERF: saat interaksi zoom/pan aktif, turunkan DPR ke 0.5x (seperempat piksel) agar
+       rasterisasi jauh lebih ringan; resolusi penuh dipulihkan otomatis saat settle
+       (isZooming/isPanning=false) karena fb dihitung ulang tiap renderFrame. */
     const rawDpr = typeof window !== 'undefined' && window.devicePixelRatio || 1;
-    const fb = computeSafeFramebufferSize(cssW, cssH, Math.min(rawDpr, RENDER_CONFIG.maxRenderDpr || MAX_RENDER_DPR), ACTIVE_DEVICE_PROFILE, RENDER_CONFIG.aaMode);
+    const effDprReq = renderInteracting ? Math.min(rawDpr, RENDER_CONFIG.maxRenderDpr || MAX_RENDER_DPR) * 0.5 : Math.min(rawDpr, RENDER_CONFIG.maxRenderDpr || MAX_RENDER_DPR);
+    const fb = computeSafeFramebufferSize(cssW, cssH, effDprReq, ACTIVE_DEVICE_PROFILE, RENDER_CONFIG.aaMode);
     const pw = fb.pw,
       ph = fb.ph,
       pixelRatio = fb.effectiveDpr;
@@ -995,6 +1069,9 @@ class SceneRenderer {
       cachedObjectsCount: gcStats.cachedObjectsCount
     });
     const tRender1 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    this._lastRenderMs = tRender1 - tRender0;
+    /* PANFIX: catat view yang baru saja di-render — baseline untuk CSS transform saat drag berikutnya. */
+    this._lastRenderView = { z: this.camera.zoom || 1, x: this.camera.panX || 0, y: this.camera.panY || 0 };
     PERF_TELEMETRY.recordRenderPass(tRender1 - tRender0, tRender1);
   }
 
@@ -1538,6 +1615,13 @@ class SceneRenderer {
       const sPad = o.stroke !== 'none' && o.strokeWidth > 0 ? o.strokeWidth * 0.5 + 2 : 2;
       if (!o.isFrameBg && !o.isAutoFrame) {
         if (bb[2] + odx + sPad < vx0 || bb[0] + odx - sPad > vx1 || bb[3] + ody + sPad < vy0 || bb[1] + ody - sPad > vy1) {
+          culledCount++;
+          return;
+        }
+        /* PERF (zoom cepat): saat interaksi zoom/pan aktif, lewati objek yang ukurannya
+           sub-piksel di layar (<0.75px di kedua dimensi) — tidak terlihat namun tetap
+           menelan draw call + stencil. Render penuh dipulihkan saat settle. */
+        if ((this.isZooming || this.isPanning || this.dragOffset) && (bb[2] - bb[0]) * z < 0.75 && (bb[3] - bb[1]) * z < 0.75) {
           culledCount++;
           return;
         }

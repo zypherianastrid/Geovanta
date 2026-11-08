@@ -117,11 +117,12 @@ const EditorRightInspector = ({
   downloadSvg,
   onExportBackup
 }) => <aside className="fig-right-sidebar order-3 lg:order-none"><style>{`
-  .fig-right-sidebar .fig-r-scroll { scroll-behavior: auto; overscroll-behavior: contain; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; scroll-padding-block: 10px; contain: layout style paint; will-change: scroll-position; overflow-anchor: none; }
+  .fig-right-sidebar .fig-r-scroll { cursor: var(--cur-default); scroll-behavior: auto; overscroll-behavior: contain; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; scroll-padding-block: 10px; contain: layout style paint; will-change: scroll-position; overflow-anchor: none; }
   .fig-right-sidebar .fig-isec { contain: layout style; }
-  .fig-right-sidebar .fig-r-scroll::-webkit-scrollbar { width: 8px; }
-  .fig-right-sidebar .fig-r-scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; background-clip: padding-box; transition: background-color .18s ease; }
-  .fig-right-sidebar .fig-r-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--mut) 50%, transparent) !important; }
+  .fig-right-sidebar .fig-r-scroll::-webkit-scrollbar { width: 8px; cursor: var(--cur-default) !important; }
+  .fig-right-sidebar .fig-r-scroll::-webkit-scrollbar-track { cursor: var(--cur-default) !important; }
+  .fig-right-sidebar .fig-r-scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; background-clip: padding-box; transition: background-color .18s ease; cursor: var(--cur-pointer) !important; }
+  .fig-right-sidebar .fig-r-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--acc) 65%, var(--mut)) !important; }
   .fig-right-sidebar .fig-ibtn, .fig-right-sidebar .ved-pill, .fig-right-sidebar .fig-aln-bar button, .fig-right-sidebar .seg button, .fig-right-sidebar .gch button, .fig-right-sidebar .opt, .fig-right-sidebar [role="switch"] { transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease; }
   .fig-right-sidebar .fig-ibtn:hover:not(:disabled), .fig-right-sidebar .ved-pill:hover:not(:disabled), .fig-right-sidebar .fig-aln-bar button:hover:not(:disabled), .fig-right-sidebar .seg button:hover:not(:disabled), .fig-right-sidebar .gch button:hover:not(:disabled), .fig-right-sidebar .opt:hover, .fig-right-sidebar [role="switch"]:hover:not(:disabled) { background-color: color-mix(in srgb, var(--acc) 10%, var(--card)); border-color: color-mix(in srgb, var(--acc) 28%, var(--line)); color: var(--ink); }
   .fig-right-sidebar button:disabled { cursor: not-allowed; }
