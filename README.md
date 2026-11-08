@@ -1,3 +1,5 @@
+<p align="center">🌐 <a href="README.en.md">English</a> · <b>Bahasa Indonesia</b></p>
+
 <p align="center">
   <img src="src-tauri/icons/icon.png" alt="Geovanta" width="120">
 </p>
