@@ -91,7 +91,7 @@ const LayerObjRow = React.memo(({
     }}><Ico n={o.hidden ? 'eyeOff' : 'eye'} size={14} /></button>{child && <button type="button" className="fig-eject" data-tip="layEject" onClick={e => {
       e.stopPropagation();
       onEjectChild(o);
-    }}><Vi s={14} d="M7 17L17 7M9 7h8v8" /></button>}<span className="fig-badge">{o.text ? (o.text.content || '').length + 'c' : (nodeCount != null ? nodeCount : 0) + 'n'}</span></>)}</div>);
+    }}><Vi s={14} d="M7 17L17 7M9 7h8v8" /></button>}</>)}</div>);
 
 const LayerGroupRow = React.memo(({
   item,

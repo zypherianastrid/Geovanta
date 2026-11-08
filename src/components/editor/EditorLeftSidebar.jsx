@@ -224,8 +224,8 @@ const EditorLeftSidebar = ({
   };
   const ejectBucket = bucket => moveObjsToGroup(bucket.ids, null);
   return (<aside className="fig-left-sidebar"><style>{`
-  .fig-layers-scroll .fig-row .fig-eject:not(.act) { display: inline-flex !important; visibility: hidden !important; opacity: 0 !important; }
-  .fig-layers-scroll .fig-row:hover .fig-eject:not(.act), .fig-layers-scroll .fig-row:focus-within .fig-eject:not(.act) { visibility: visible !important; opacity: 1 !important; }
+  .fig-layers-scroll .fig-row .fig-eject { display: inline-flex !important; visibility: visible !important; opacity: 1 !important; }
+  .fig-layers-scroll .fig-row .truncate + .fig-eject { margin-left: auto !important; }
   /* SAVEFIX: baris atas header tidak boleh wrap — dulu saat label status
      memanjang (Tersimpan -> Menyimpan...) pill jatuh ke baris kedua lalu
      kembali ke atas. Lebar pill dibuat tetap (min-width menutup seluruh
@@ -247,11 +247,7 @@ const EditorLeftSidebar = ({
           __html: LOGO_INNER
         }} />}<span className={'ws-save-pill st-' + (saveStatus || 'saved')} data-tip={saveStatus === 'error' ? 'veSaveError' : 'veSaveOk'} onClick={() => {
           if (saveStatus === 'error' && onRetrySave) onRetrySave();
-        }}><span className="ws-save-dot" /><span>{({clean: L.edSaveClean, dirty: L.edSaveDirty, saving: L.edSaveSaving, saved: L.edSaveClean, error: L.edSaveError, recovery: L.edSaveRecovery, 'session-ram': L.edSaveSession})[saveStatus] || L.edSaveClean}</span></span></div><div className="flex items-center justify-between gap-1.5 min-w-0"><button type="button" className="ws-ed-proj-name-btn" data-tip="veRenameProject" onClick={() => onRenameProject && onRenameProject()}><span className="truncate">{projectName || 'Untitled Project'}</span><Ico n="pencil" size={11} /></button></div><div className="text-[11px] mut truncate" data-tip="veStats">{doc.objects.length} {L.edStatsObj} · {nTotal} node · {sel.objs.size} {L.edStatsSel}{selNodes.size ? ' · ' + selNodes.size + 'n' : ''}</div></div></div><div className="fig-sec-hdr flex-wrap gap-1.5"><span className="whitespace-nowrap" data-tip="veLayers">{L.edLayers} ({doc.objects.length})</span><div className="flex flex-wrap items-center gap-1"><button type="button" className="ved-pill text-[10.5px]" style={{
-        padding: '3px 7px'
-      }} data-tip="veFrameTool" onClick={createFrameSel}>{L.edAddFrame}</button><button type="button" className="ved-pill text-[10.5px]" style={{
-        padding: '3px 7px'
-      }} data-tip="veCtxGroup" onClick={() => groupSel(true)}>{L.edAddGroup}</button><button type="button" className={'ved-pill text-[10.5px]' + (clipFrames ? ' on' : '')} style={{
+        }}><span className="ws-save-dot" /><span>{({clean: L.edSaveClean, dirty: L.edSaveDirty, saving: L.edSaveSaving, saved: L.edSaveClean, error: L.edSaveError, recovery: L.edSaveRecovery, 'session-ram': L.edSaveSession})[saveStatus] || L.edSaveClean}</span></span></div><div className="flex items-center justify-between gap-1.5 min-w-0"><button type="button" className="ws-ed-proj-name-btn" data-tip="veRenameProject" onClick={() => onRenameProject && onRenameProject()}><span className="truncate">{projectName || 'Untitled Project'}</span><Ico n="pencil" size={11} /></button></div><div className="text-[11px] mut truncate" data-tip="veStats">{doc.objects.length} {L.edStatsObj} · {nTotal} node · {sel.objs.size} {L.edStatsSel}{selNodes.size ? ' · ' + selNodes.size + 'n' : ''}</div></div></div><div className="fig-sec-hdr flex-wrap gap-1.5"><span className="whitespace-nowrap" data-tip="veLayers">{L.edLayers} ({doc.objects.length})</span><div className="flex items-center gap-1"><button type="button" className={'ved-pill text-[10.5px]' + (clipFrames ? ' on' : '')} style={{
         padding: '3px 7px'
       }} aria-pressed={clipFrames} data-tip="veClipFrames" onClick={() => setClipFrames(v => !v)}>Clip Frame</button><button type="button" className={'ved-pill text-[10.5px]' + (groupSameColor ? ' on' : '')} style={{
         padding: '3px 7px'
