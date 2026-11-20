@@ -3130,8 +3130,29 @@ __export(svgDocumentSerializer_exports, {
   serializeDoc: () => serializeDoc
 });
 
+// src/bridge/wasmEngineBridge.ts
+var wasmEngine = {
+  isReady: false,
+  flattenCubic: null,
+  pointToChordDistSq: null,
+  hasPolygonSelfIntersection: null,
+  earClipPolygon: null,
+  rdpSimplify: null,
+  computeZoomAtAnchor: null,
+  computeWheelZoomFactor: null,
+  computeFitTo: null,
+  screenToWorld: null,
+  worldToScreen: null,
+  computeVisibleBounds: null,
+  zoomToSlider: null,
+  sliderToZoom: null
+};
+
 // src/renderer/adaptiveCubicFlattener.tsx
 function pointToChordDistSq(px, py, x0, y0, dx, dy, chordLenSq) {
+  if (wasmEngine.isReady && wasmEngine.pointToChordDistSq) {
+    return wasmEngine.pointToChordDistSq(px, py, x0, y0, dx, dy, chordLenSq);
+  }
   const vx = px - x0, vy = py - y0;
   if (chordLenSq <= 1e-12) return vx * vx + vy * vy;
   const crossVal = vx * dy - vy * dx;
@@ -3235,13 +3256,52 @@ function flattenCubicAdaptive(a, b, tolSq, outPts, depth = 0, minSegLenSq = 0, s
     return;
   }
   const cfgMaxDepth = Math.max(4, Math.min(24, RENDER_CONFIG.maxBezierDepth || 16));
+  const effectiveMaxDepth = stats && stats.segMaxDepth != null ? Math.min(cfgMaxDepth, stats.segMaxDepth) : cfgMaxDepth;
+  if (wasmEngine.isReady && wasmEngine.flattenCubic) {
+    const x0 = a.x, y0 = a.y;
+    const x1 = a.handleOut ? a.handleOut.x : a.x;
+    const y1 = a.handleOut ? a.handleOut.y : a.y;
+    const x2 = b.handleIn ? b.handleIn.x : b.x;
+    const y2 = b.handleIn ? b.handleIn.y : b.y;
+    const x3 = b.x, y3 = b.y;
+    const remainingBudget = Math.max(1, segVertexLimit - curTotal);
+    const pts = wasmEngine.flattenCubic(
+      x0,
+      y0,
+      x1,
+      y1,
+      x2,
+      y2,
+      x3,
+      y3,
+      tolSq,
+      effectiveMaxDepth,
+      minSegLenSq,
+      remainingBudget
+    );
+    if (pts && pts.length) {
+      for (let i = 0; i < pts.length; i++) {
+        outPts.push(pts[i]);
+      }
+      if (stats) {
+        const added = pts.length >> 1;
+        stats.vertexCount += added;
+        stats.segmentCount += added;
+        if (stats.vertexCount >= segVertexLimit) {
+          stats.budgetHit = true;
+          stats.toleranceMet = false;
+        }
+      }
+      return;
+    }
+  }
   const ctx = FLAT_CTX;
   ctx.outPts = outPts;
   ctx.stats = stats;
   ctx.tolSq = tolSq;
   ctx.minSegLenSq = minSegLenSq;
   ctx.segVertexLimit = segVertexLimit;
-  ctx.maxDepth = stats && stats.segMaxDepth != null ? Math.min(cfgMaxDepth, stats.segMaxDepth) : cfgMaxDepth;
+  ctx.maxDepth = effectiveMaxDepth;
   flattenRec(a.x, a.y, a.handleOut ? a.handleOut.x : a.x, a.handleOut ? a.handleOut.y : a.y, b.handleIn ? b.handleIn.x : b.x, b.handleIn ? b.handleIn.y : b.y, b.x, b.y, depth);
   ctx.outPts = null;
   ctx.stats = null;
@@ -6036,6 +6096,22 @@ function vcSmoothPoints(pts, sigma) {
 }
 function vcRdp(pts, tol) {
   if (pts.length < 3) return pts.slice();
+  if (wasmEngine.isReady && wasmEngine.rdpSimplify) {
+    const coords = new Float64Array(pts.length * 2);
+    for (let i = 0; i < pts.length; i++) {
+      coords[i * 2] = pts[i].x;
+      coords[i * 2 + 1] = pts[i].y;
+    }
+    const res = wasmEngine.rdpSimplify(coords, tol);
+    if (res && res.length) {
+      const out = [];
+      const n = res.length >> 1;
+      for (let i = 0; i < n; i++) {
+        out.push({ x: res[i * 2], y: res[i * 2 + 1] });
+      }
+      return out;
+    }
+  }
   const keep = new Array(pts.length).fill(false);
   keep[0] = true;
   keep[pts.length - 1] = true;

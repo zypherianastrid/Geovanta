@@ -599,6 +599,7 @@ const VectorEditor = ({
   const softView = () => {
     PERF_TELEMETRY.markInteractionFrame();
     setSceneInteractingZoom(true);
+    sceneRendererRef.current?.setCameraInteracting(true);
     if (boxRef.current && !boxRef.current.hasAttribute('data-zooming')) {
       boxRef.current.setAttribute('data-zooming', '1');
     }
@@ -9811,7 +9812,7 @@ const VectorEditor = ({
                 getSelection: () => Array.from(selRef.current?.objs || []),
                 downloadSvg,
                 exportSvg,
-                setZ: zf => setZ(zf),
+                setZ: (zf, cx = null, cy = null, soft = false) => setZ(zf, cx, cy, soft),
                 zoomBy: (f, cx = null, cy = null) => zoomBy(f, cx, cy),
                 fitView: () => fitView(),
                 fitSel: () => fitSel(),

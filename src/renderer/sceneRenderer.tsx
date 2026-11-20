@@ -138,6 +138,7 @@ class SceneRenderer {
     this.panCacheHasGradient = false;
     this.panCopyPaint = null;
     this.panLastStats = null;
+    this.cameraInteracting = false;
     this._lastCameraZoom = 1;
     this._cpuSurfaceCacheValid = false;
     this._onScreenPresentedSig = null;
