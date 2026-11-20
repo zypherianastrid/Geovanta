@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod flattener;
 pub mod triangulator;
+pub mod simplifier;
 
 #[wasm_bindgen]
 pub fn wasm_engine_version() -> String {
@@ -63,4 +64,9 @@ pub fn has_polygon_self_intersection_flat(coords: &[f64]) -> bool {
 #[wasm_bindgen]
 pub fn ear_clip_polygon_flat(coords: &[f64]) -> Option<Vec<f32>> {
     triangulator::ear_clip_polygon(coords)
+}
+
+#[wasm_bindgen]
+pub fn rdp_simplify_flat(coords: &[f64], epsilon: f64) -> Vec<f64> {
+    simplifier::rdp_simplify(coords, epsilon)
 }
