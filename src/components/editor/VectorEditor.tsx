@@ -2,7 +2,7 @@
  * @file src/components/editor/VectorEditor.tsx
  * @description Komponen ruang kerja utama Vector Editor interaktif (VectorEditor)
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, startTransition } from 'react';
 import ReactDOM from 'react-dom';
 import { DEFAULT_PREFS, VZMIN, VZMAX } from '../../constants/themeAndPrefsConstants.tsx';
 import { RENDER_CONFIG, updateRenderConfig, PERF_TELEMETRY } from '../../utils/renderConfigAndTelemetry.tsx';
@@ -566,7 +566,7 @@ const VectorEditor = ({
 
     }
   };
-  const flushView = (syncRender = true) => {
+  const flushView = (syncRender = false) => {
     if (viewPend.current) {
       cancelAnimationFrame(viewPend.current);
       viewPend.current = 0;
@@ -587,14 +587,13 @@ const VectorEditor = ({
     applyVP(syncRender);
     displayZoomRef.current = z;
     syncZoomSidebarDom(z);
-    setZoom(prevZ => Math.abs(prevZ - z) > 1e-6 ? z : prevZ);
-    // Pan state harus selalu sinkron dengan panRef (tanpa syarat): TextEditOverlay
-    // memposisikan kotak edit dari state `pan`, sementara toDoc/renderer memakai
-    // panRef. Gate lama (hanya saat simplify/rename/debug/>64 terpilih) membuat
-    // state pan tertinggal di nilai awal sehingga overlay teks meleset jauh dari
-    // titik klik — makin jauh saat zoom/pan berubah. setZoom di atas juga tanpa
-    // syarat, jadi ini tidak menambah render baru.
-    setPan(prevP => Math.abs(prevP.x - p.x) > 0.5 || Math.abs(prevP.y - p.y) > 0.5 ? p : prevP);
+    startTransition(() => {
+      setZoom(prevZ => Math.abs(prevZ - z) > 1e-6 ? z : prevZ);
+      // Pan state harus selalu sinkron dengan panRef (tanpa syarat): TextEditOverlay
+      // memposisikan kotak edit dari state `pan`, sementara toDoc/renderer memakai
+      // panRef.
+      setPan(prevP => Math.abs(prevP.x - p.x) > 0.5 || Math.abs(prevP.y - p.y) > 0.5 ? p : prevP);
+    });
   };
   // Gabungkan perubahan kamera ke satu frame, lalu sinkronkan state React saat gestur berhenti.
   const softView = () => {
