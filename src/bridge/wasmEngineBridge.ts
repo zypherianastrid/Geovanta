@@ -102,8 +102,18 @@ export async function initWasmEngine(): Promise<boolean> {
 
   initPromise = (async () => {
     try {
-      // Dynamic import of wasm package
-      const wasm = await import('../../rust/geovanta-wasm/pkg/geovanta_wasm.js');
+      // Isomorphic loader: in browser without preloaded WASM, gracefully fallback to JS
+      // In Node.js / Playwright environment, load the compiled pkg module
+      let wasm: any = null;
+      if (typeof window !== 'undefined' && (window as any).__GEOVANTA_WASM__) {
+        wasm = (window as any).__GEOVANTA_WASM__;
+      } else if (typeof window === 'undefined') {
+        const wasmModulePath = '../../rust/geovanta-wasm/pkg/geovanta_wasm.js';
+        wasm = await import(wasmModulePath);
+      } else {
+        return false;
+      }
+      if (!wasm) return false;
 
       wasmEngine.flattenCubic = (x0, y0, x1, y1, x2, y2, x3, y3, tolSq, maxDepth, minSegLenSq, segVertexLimit) => {
         return wasm.flatten_cubic_adaptive_flat(

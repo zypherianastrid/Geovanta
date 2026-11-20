@@ -98,10 +98,16 @@ async function build() {
   /* Cache-busting (2026-11-16): bundle di web/index.html memakai ?v=<md5>
      supaya browser tidak menyajikan bundle lama sesudah rebuild. */
   const bundleVer = require('node:crypto').createHash('md5').update(fs.readFileSync(path.join(distAssets, 'geovanta.bundle.js'))).digest('hex').slice(0, 8);
-  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8')
+  const htmlSrcPath = fs.existsSync(path.join(root, 'index.html'))
+    ? path.join(root, 'index.html')
+    : path.join(webDir, 'index.html');
+  const html = fs.readFileSync(htmlSrcPath, 'utf8')
     .replaceAll('./dist/assets/', './assets/')
     .replaceAll('./assets/geovanta.bundle.js', './assets/geovanta.bundle.js?v=' + bundleVer);
   fs.writeFileSync(path.join(webDir, 'index.html'), html);
+  if (!fs.existsSync(path.join(root, 'index.html'))) {
+    fs.writeFileSync(path.join(root, 'index.html'), html);
+  }
   console.log('[Geovanta Build] Aset offline CanvasKit GPU/CPU siap di dist/ dan web/.');
 }
 
