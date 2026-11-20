@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 pub mod flattener;
 pub mod triangulator;
 pub mod simplifier;
+pub mod viewport;
 
 #[wasm_bindgen]
 pub fn wasm_engine_version() -> String {
@@ -69,4 +70,90 @@ pub fn ear_clip_polygon_flat(coords: &[f64]) -> Option<Vec<f32>> {
 #[wasm_bindgen]
 pub fn rdp_simplify_flat(coords: &[f64], epsilon: f64) -> Vec<f64> {
     simplifier::rdp_simplify(coords, epsilon)
+}
+
+#[wasm_bindgen]
+pub fn compute_zoom_at_anchor(
+    current_zoom: f64,
+    current_pan_x: f64,
+    current_pan_y: f64,
+    target_zoom: f64,
+    cx: f64,
+    cy: f64,
+    box_w: f64,
+    box_h: f64,
+    box_left: f64,
+    box_top: f64,
+    use_center: bool,
+) -> Vec<f64> {
+    viewport::compute_zoom_at_anchor(
+        current_zoom, current_pan_x, current_pan_y, target_zoom,
+        cx, cy, box_w, box_h, box_left, box_top, use_center,
+    )
+}
+
+#[wasm_bindgen]
+pub fn compute_wheel_zoom_factor(
+    delta_y: f64,
+    delta_mode: u32,
+    client_height: f64,
+    is_ctrl_pinch: bool,
+) -> f64 {
+    viewport::compute_wheel_zoom_factor(delta_y, delta_mode, client_height, is_ctrl_pinch)
+}
+
+#[wasm_bindgen]
+pub fn compute_fit_to(
+    bx: f64,
+    by: f64,
+    bw: f64,
+    bh: f64,
+    client_w: f64,
+    client_h: f64,
+    padding: f64,
+) -> Vec<f64> {
+    viewport::compute_fit_to(bx, by, bw, bh, client_w, client_h, padding)
+}
+
+#[wasm_bindgen]
+pub fn screen_to_world(
+    canvas_x: f64,
+    canvas_y: f64,
+    zoom: f64,
+    pan_x: f64,
+    pan_y: f64,
+) -> Vec<f64> {
+    viewport::screen_to_world(canvas_x, canvas_y, zoom, pan_x, pan_y)
+}
+
+#[wasm_bindgen]
+pub fn world_to_screen(
+    wx: f64,
+    wy: f64,
+    zoom: f64,
+    pan_x: f64,
+    pan_y: f64,
+) -> Vec<f64> {
+    viewport::world_to_screen(wx, wy, zoom, pan_x, pan_y)
+}
+
+#[wasm_bindgen]
+pub fn compute_visible_world_bounds(
+    zoom: f64,
+    pan_x: f64,
+    pan_y: f64,
+    client_w: f64,
+    client_h: f64,
+) -> Vec<f64> {
+    viewport::compute_visible_world_bounds(zoom, pan_x, pan_y, client_w, client_h)
+}
+
+#[wasm_bindgen]
+pub fn zoom_to_slider(zoom: f64) -> f64 {
+    viewport::zoom_to_slider(zoom)
+}
+
+#[wasm_bindgen]
+pub fn slider_to_zoom(slider_val: f64) -> f64 {
+    viewport::slider_to_zoom(slider_val)
 }
