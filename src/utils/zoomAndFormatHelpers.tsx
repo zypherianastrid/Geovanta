@@ -4,9 +4,21 @@
  */
 import { VZMIN, VZMAX, VZ_LOG_SPAN } from '../constants/themeAndPrefsConstants.tsx';
 import { clampN } from './colorMath.tsx';
+import { wasmEngine } from '../bridge/wasmEngineBridge.ts';
 
-const vzToSl = z => Math.round(Math.log(Math.max(VZMIN, Math.min(VZMAX, z || 1)) / VZMIN) / VZ_LOG_SPAN * 10000) / 10;
-const vslToZ = v => VZMIN * Math.pow(VZMAX / VZMIN, clampN(v, 0, 1000) / 1000);
+const vzToSl = z => {
+  if (wasmEngine.isReady && wasmEngine.zoomToSlider) {
+    return wasmEngine.zoomToSlider(z);
+  }
+  return Math.round(Math.log(Math.max(VZMIN, Math.min(VZMAX, z || 1)) / VZMIN) / VZ_LOG_SPAN * 10000) / 10;
+};
+
+const vslToZ = v => {
+  if (wasmEngine.isReady && wasmEngine.sliderToZoom) {
+    return wasmEngine.sliderToZoom(v);
+  }
+  return VZMIN * Math.pow(VZMAX / VZMIN, clampN(v, 0, 1000) / 1000);
+};
 const fmtIntId = n => {
   const s = String(Math.round(n));
   if (s.length <= 3) return s;
