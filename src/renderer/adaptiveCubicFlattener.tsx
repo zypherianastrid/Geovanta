@@ -3,6 +3,7 @@
  * @description Algoritma flattening adaptif kurva Bézier kubik ke polilin dengan toleransi subpiksel
  */
 import { RENDER_CONFIG } from '../utils/renderConfigAndTelemetry.tsx';
+import { wasmEngine } from '../bridge/wasmEngineBridge.ts';
 
 /* =========================================================================
    2.1. ADAPTIVE BÉZIER FLATTENING (DE CASTELJAU + CHORD CONTROL-POINT DISTANCE)
@@ -18,6 +19,9 @@ import { RENDER_CONFIG } from '../utils/renderConfigAndTelemetry.tsx';
 
 /* Jarak kuadrat titik (px, py) terhadap segmen/garis chord (x0, y0) -> (x3, y3) */
 function pointToChordDistSq(px, py, x0, y0, dx, dy, chordLenSq) {
+  if (wasmEngine.isReady && wasmEngine.pointToChordDistSq) {
+    return wasmEngine.pointToChordDistSq(px, py, x0, y0, dx, dy, chordLenSq);
+  }
   const vx = px - x0,
     vy = py - y0;
   if (chordLenSq <= 1e-12) return vx * vx + vy * vy;
@@ -148,13 +152,39 @@ function flattenCubicAdaptive(a, b, tolSq, outPts, depth = 0, minSegLenSq = 0, s
     return;
   }
   const cfgMaxDepth = Math.max(4, Math.min(24, RENDER_CONFIG.maxBezierDepth || 16));
+  const effectiveMaxDepth = stats && stats.segMaxDepth != null ? Math.min(cfgMaxDepth, stats.segMaxDepth) : cfgMaxDepth;
+
+  if (wasmEngine.isReady && wasmEngine.flattenCubic) {
+    const x0 = a.x, y0 = a.y;
+    const x1 = a.handleOut ? a.handleOut.x : a.x;
+    const y1 = a.handleOut ? a.handleOut.y : a.y;
+    const x2 = b.handleIn ? b.handleIn.x : b.x;
+    const y2 = b.handleIn ? b.handleIn.y : b.y;
+    const x3 = b.x, y3 = b.y;
+    const pts = wasmEngine.flattenCubic(
+      x0, y0, x1, y1, x2, y2, x3, y3,
+      tolSq, effectiveMaxDepth, minSegLenSq, segVertexLimit
+    );
+    if (pts && pts.length) {
+      for (let i = 0; i < pts.length; i++) {
+        outPts.push(pts[i]);
+      }
+      if (stats) {
+        const added = pts.length >> 1;
+        stats.vertexCount += added;
+        stats.segmentCount += added;
+      }
+      return;
+    }
+  }
+
   const ctx = FLAT_CTX;
   ctx.outPts = outPts;
   ctx.stats = stats;
   ctx.tolSq = tolSq;
   ctx.minSegLenSq = minSegLenSq;
   ctx.segVertexLimit = segVertexLimit;
-  ctx.maxDepth = stats && stats.segMaxDepth != null ? Math.min(cfgMaxDepth, stats.segMaxDepth) : cfgMaxDepth;
+  ctx.maxDepth = effectiveMaxDepth;
   flattenRec(a.x, a.y, a.handleOut ? a.handleOut.x : a.x, a.handleOut ? a.handleOut.y : a.y, b.handleIn ? b.handleIn.x : b.x, b.handleIn ? b.handleIn.y : b.y, b.x, b.y, depth);
   ctx.outPts = null;
   ctx.stats = null;

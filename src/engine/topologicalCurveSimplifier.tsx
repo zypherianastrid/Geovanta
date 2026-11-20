@@ -7,6 +7,7 @@ import { rdCoord } from './svgPathSerializer.tsx';
 import { hasH, detectAnomalies, collapseClusters, refitChain } from './curveFittingAndAnomalies.tsx';
 import { docBounds } from './imageAndBounds.tsx';
 import { withinCurveTolerance } from './curveDeviation.tsx';
+import { wasmEngine } from '../bridge/wasmEngineBridge.ts';
 
 /* =========================================================================
    PORT IDENTIK DARI VECTORCRAFT (crates/pathops/src/fit.rs & edit.rs & boolean.rs)
@@ -547,6 +548,22 @@ function vcSmoothPoints(pts, sigma) {
 }
 function vcRdp(pts, tol) {
   if (pts.length < 3) return pts.slice();
+  if (wasmEngine.isReady && wasmEngine.rdpSimplify) {
+    const coords = new Float64Array(pts.length * 2);
+    for (let i = 0; i < pts.length; i++) {
+      coords[i * 2] = pts[i].x;
+      coords[i * 2 + 1] = pts[i].y;
+    }
+    const res = wasmEngine.rdpSimplify(coords, tol);
+    if (res && res.length) {
+      const out = [];
+      const n = res.length >> 1;
+      for (let i = 0; i < n; i++) {
+        out.push({ x: res[i * 2], y: res[i * 2 + 1] });
+      }
+      return out;
+    }
+  }
   const keep = new Array(pts.length).fill(false);
   keep[0] = true;
   keep[pts.length - 1] = true;

@@ -5,6 +5,7 @@
 import { isOpaquePaint, vinfo } from './pathInfo.tsx';
 import { GEOMETRY_CACHE, MAX_GPU_MESH_PER_OBJ } from './geometryCache.tsx';
 import { getObjectTessellationLOD } from './objectTessellationLod.tsx';
+import { wasmEngine } from '../bridge/wasmEngineBridge.ts';
 
 /* =========================================================================
    TAHAP 5 — VALIDASI TRIANGULASI EAR-CLIPPING & DEGENERATE / SELF-INTERSECTION CHECK
@@ -48,6 +49,9 @@ function hasPolygonSelfIntersection(ptsX, ptsY) {
   return false;
 }
 function earClipSimplePolygon(coords) {
+  if (wasmEngine.isReady && wasmEngine.earClipPolygon) {
+    return wasmEngine.earClipPolygon(coords);
+  }
   const rawN = coords.length >> 1;
   if (rawN < 3) return null;
   if (rawN > 24) return null; /* Poligon > 24 titik ditangani oleh Hardware Stencil-Then-Cover O(N) */
