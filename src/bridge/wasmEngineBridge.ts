@@ -24,6 +24,57 @@ export interface WasmEngine {
   hasPolygonSelfIntersection: ((coords: Float64Array | number[]) => boolean) | null;
   earClipPolygon: ((coords: Float64Array | number[]) => Float32Array | null) | null;
   rdpSimplify: ((coords: Float64Array | number[], epsilon: number) => Float64Array | number[]) | null;
+  computeZoomAtAnchor: ((
+    currentZoom: number,
+    currentPanX: number,
+    currentPanY: number,
+    targetZoom: number,
+    cx: number,
+    cy: number,
+    boxW: number,
+    boxH: number,
+    boxLeft: number,
+    boxTop: number,
+    useCenter: boolean
+  ) => [number, number, number]) | null;
+  computeWheelZoomFactor: ((
+    deltaY: number,
+    deltaMode: number,
+    clientHeight: number,
+    isCtrlPinch: boolean
+  ) => number) | null;
+  computeFitTo: ((
+    bx: number,
+    by: number,
+    bw: number,
+    bh: number,
+    clientW: number,
+    clientH: number,
+    pad: number
+  ) => [number, number, number, boolean]) | null;
+  screenToWorld: ((
+    canvasX: number,
+    canvasY: number,
+    zoom: number,
+    panX: number,
+    panY: number
+  ) => [number, number]) | null;
+  worldToScreen: ((
+    wx: number,
+    wy: number,
+    zoom: number,
+    panX: number,
+    panY: number
+  ) => [number, number]) | null;
+  computeVisibleBounds: ((
+    zoom: number,
+    panX: number,
+    panY: number,
+    clientW: number,
+    clientH: number
+  ) => [number, number, number, number]) | null;
+  zoomToSlider: ((zoom: number) => number) | null;
+  sliderToZoom: ((sliderVal: number) => number) | null;
 }
 
 export const wasmEngine: WasmEngine = {
@@ -33,6 +84,14 @@ export const wasmEngine: WasmEngine = {
   hasPolygonSelfIntersection: null,
   earClipPolygon: null,
   rdpSimplify: null,
+  computeZoomAtAnchor: null,
+  computeWheelZoomFactor: null,
+  computeFitTo: null,
+  screenToWorld: null,
+  worldToScreen: null,
+  computeVisibleBounds: null,
+  zoomToSlider: null,
+  sliderToZoom: null,
 };
 
 let initPromise: Promise<boolean> | null = null;
@@ -71,6 +130,49 @@ export async function initWasmEngine(): Promise<boolean> {
       wasmEngine.rdpSimplify = (coords, epsilon) => {
         const input = coords instanceof Float64Array ? coords : new Float64Array(coords);
         return wasm.rdp_simplify_flat(input, epsilon);
+      };
+
+      wasmEngine.computeZoomAtAnchor = (
+        currentZoom, currentPanX, currentPanY, targetZoom,
+        cx, cy, boxW, boxH, boxLeft, boxTop, useCenter
+      ) => {
+        const res = wasm.compute_zoom_at_anchor(
+          currentZoom, currentPanX, currentPanY, targetZoom,
+          cx, cy, boxW, boxH, boxLeft, boxTop, useCenter
+        );
+        return [res[0], res[1], res[2]];
+      };
+
+      wasmEngine.computeWheelZoomFactor = (deltaY, deltaMode, clientHeight, isCtrlPinch) => {
+        return wasm.compute_wheel_zoom_factor(deltaY, deltaMode, clientHeight, isCtrlPinch);
+      };
+
+      wasmEngine.computeFitTo = (bx, by, bw, bh, clientW, clientH, pad) => {
+        const res = wasm.compute_fit_to(bx, by, bw, bh, clientW, clientH, pad);
+        return [res[0], res[1], res[2], res[3] > 0.5];
+      };
+
+      wasmEngine.screenToWorld = (canvasX, canvasY, zoom, panX, panY) => {
+        const res = wasm.screen_to_world(canvasX, canvasY, zoom, panX, panY);
+        return [res[0], res[1]];
+      };
+
+      wasmEngine.worldToScreen = (wx, wy, zoom, panX, panY) => {
+        const res = wasm.world_to_screen(wx, wy, zoom, panX, panY);
+        return [res[0], res[1]];
+      };
+
+      wasmEngine.computeVisibleBounds = (zoom, panX, panY, clientW, clientH) => {
+        const res = wasm.compute_visible_world_bounds(zoom, panX, panY, clientW, clientH);
+        return [res[0], res[1], res[2], res[3]];
+      };
+
+      wasmEngine.zoomToSlider = (zoom) => {
+        return wasm.zoom_to_slider(zoom);
+      };
+
+      wasmEngine.sliderToZoom = (sliderVal) => {
+        return wasm.slider_to_zoom(sliderVal);
       };
 
       wasmEngine.isReady = true;
