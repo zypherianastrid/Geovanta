@@ -16,4 +16,17 @@ test('viewport bridge: exposes all viewport functions after initWasmEngine', asy
   const z = wasmEngine.sliderToZoom!(500);
   expect(z).toBeGreaterThan(0.0005);
   expect(z).toBeLessThan(5000);
+
+  // Projection round-trip test
+  const [wx, wy] = wasmEngine.screenToWorld!(400, 300, 2.0, 100, 50);
+  const [sx, sy] = wasmEngine.worldToScreen!(wx, wy, 2.0, 100, 50);
+  expect(sx).toBeCloseTo(400, 6);
+  expect(sy).toBeCloseTo(300, 6);
+
+  // Visible bounds test
+  const [l, t, r, b] = wasmEngine.computeVisibleBounds!(2.0, 100, 50, 800, 600);
+  expect(l).toBeCloseTo(-50, 6);
+  expect(t).toBeCloseTo(-25, 6);
+  expect(r).toBeCloseTo(350, 6);
+  expect(b).toBeCloseTo(275, 6);
 });
