@@ -1,0 +1,43 @@
+[build]
+  publish = "web"
+  functions = "netlify/functions"
+  command = "npm run build:web"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/.well-known/*"
+  to = "/.netlify/functions/mcp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/oauth/*"
+  to = "/.netlify/functions/mcp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mcp"
+  to = "/.netlify/functions/mcp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mcp/*"
+  to = "/.netlify/functions/mcp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/mcp"
+  to = "/.netlify/functions/mcp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/mcp/*"
+  to = "/.netlify/functions/mcp"
+  status = 200
+  force = true

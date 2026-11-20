@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>CanvasKit gradient benchmark</title>
+<script src="../dist/assets/canvaskit-runtime.js"></script>
+<script>
+(async () => {
+  const kit = await initGeovantaCanvasKit();
+  const canvas = document.createElement('canvas');
+  canvas.width = 1280;
+  canvas.height = 800;
+  document.body.append(canvas);
+  const backend = new URLSearchParams(location.search).get('backend') || 'cpu';
+  let surface;
+  try {
+    surface = backend === 'gpu'
+      ? kit.MakeWebGLCanvasSurface(canvas, null, {preserveDrawingBuffer: 1})
+      : kit.MakeSWCanvasSurface(canvas);
+    if (!surface) throw new Error('surface unavailable');
+    const paint = new kit.Paint();
+    paint.setAntiAlias(true);
+    const shader = kit.Shader.MakeSweepGradient(640, 400,
+      [kit.RED, kit.BLUE, kit.GREEN, kit.RED], [0, 0.33, 0.66, 1], kit.TileMode.Clamp);
+    paint.setShader(shader);
+    const rect = [0, 0, canvas.width, canvas.height];
+    const times = [];
+    for (let i = 0; i < 35; i++) {
+      const start = performance.now();
+      surface.getCanvas().clear(kit.TRANSPARENT);
+      surface.getCanvas().drawRect(rect, paint);
+      surface.flush();
+      if (i >= 5) times.push(performance.now() - start);
+    }
+    times.sort((a, b) => a - b);
+    const result = {requested: backend, actual: surface.reportBackendTypeIsGPU() ? 'gpu' : 'cpu',
+      p50: times[Math.floor(times.length * 0.5)], p95: times[Math.floor(times.length * 0.95)]};
+    document.body.dataset.result = JSON.stringify(result);
+    shader.delete(); paint.delete(); surface.dispose();
+  } catch (error) {
+    document.body.dataset.result = JSON.stringify({requested: backend, error: String(error)});
+  }
+})().catch(error => document.body.dataset.result = JSON.stringify({error: String(error)}));
+</script>

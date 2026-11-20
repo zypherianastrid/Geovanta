@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "geovanta": {
+      "command": "node",
+      "args": ["scripts/mcp-server/index.js"],
+      "env": {
+        "GEOVANTA_PORT": "38291"
+      }
+    }
+  }
+}

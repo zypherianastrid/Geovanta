@@ -1,0 +1,16 @@
+# Task 6 review package — diff backup .bak-t6 vs current
+
+## EditorRightInspector.jsx diff
+--- src/components/editor/EditorRightInspector.jsx.bak-t6	2026-11-14 15:20:35.667794784 +0000
++++ src/components/editor/EditorRightInspector.jsx	2026-11-14 15:20:40.749638666 +0000
+@@ -357,7 +357,7 @@
+     }, 'fill', styles) : o, 'p:fill');
+     if (onRecentColor) onRecentColor(hex);
+   };
+-  return <div className="fig-isec fade" data-testid="color-styles-section" data-tip="veColorStyles"><div className="fig-isec-title"><span style={{ whiteSpace: 'nowrap' }}>{L.riColorStyles}</span><span className="flex items-center" style={{ gap: 1, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}><button type="button" className="ved-pill ved-pill--compact text-[10px]" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 2 }} data-tip="veStyleCreate" disabled={!canCreate} onClick={createStyleFromSelection}><Ico n="plus" size={11} /> {L.riStyleCreate}</button><button type="button" className="ved-pill ved-pill--compact text-[10px]" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 2 }} data-tip="frOpen" data-testid="fr-open-styles" onClick={() => setFrOpen(v => !v)}><Ico n="refresh" size={11} /> {L.frOpenBtn}</button><button type="button" className="ved-pill ved-pill--compact text-[10px]" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 2 }} data-tip="rcOpen" data-testid="rc-open-styles" onClick={() => setRcOpen(v => !v)}><Ico n="palette" size={11} /> {L.rcOpenBtn}</button></span></div>{styles.length === 0 ? <div className="text-[11px] mut">{L.riStyleEmpty}</div> : <div className="space-y-1.5">{styles.map(s => {
++  return <div className="fig-isec fade" data-testid="color-styles-section" data-tip="veColorStyles" style={{ padding: '20px 18px' }}><div className="fig-isec-title"><span style={{ whiteSpace: 'nowrap' }}>{L.riColorStyles}</span></div><div className="flex flex-wrap gap-1.5 pb-1.5"><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="veStyleCreate" disabled={!canCreate} onClick={createStyleFromSelection}><Ico n="plus" size={11} /> {L.riStyleCreate}</button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="frOpen" data-testid="fr-open-styles" onClick={() => setFrOpen(v => !v)}><Ico n="refresh" size={11} /> {L.frOpenBtn}</button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="rcOpen" data-testid="rc-open-styles" onClick={() => setRcOpen(v => !v)}><Ico n="palette" size={11} /> {L.rcOpenBtn}</button></div>{styles.length === 0 ? <div className="text-[11px] mut">{L.riStyleEmpty}</div> : <div className="space-y-1.5">{styles.map(s => {
+(diff penuh 1 baris; lihat potongan kunci di bawah)
+
+## Potongan kunci (grep)
+padding: '20px 18px'
+2

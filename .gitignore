@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+.superpowers/
+.netlify/
+scratch/
+src-tauri/target/
+rust/**/target/
+*.log

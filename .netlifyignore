@@ -1,0 +1,11 @@
+node_modules/
+dist/
+test-results/
+.superpowers/
+.netlify/
+scratch/
+src-tauri/
+tests/
+docs/
+*.png
+*.log
