@@ -587,13 +587,15 @@ const VectorEditor = ({
     applyVP(syncRender);
     displayZoomRef.current = z;
     syncZoomSidebarDom(z);
-    startTransition(() => {
-      setZoom(prevZ => Math.abs(prevZ - z) > 1e-6 ? z : prevZ);
-      // Pan state harus selalu sinkron dengan panRef (tanpa syarat): TextEditOverlay
-      // memposisikan kotak edit dari state `pan`, sementara toDoc/renderer memakai
-      // panRef.
-      setPan(prevP => Math.abs(prevP.x - p.x) > 0.5 || Math.abs(prevP.y - p.y) > 0.5 ? p : prevP);
-    });
+    setTimeout(() => {
+      startTransition(() => {
+        setZoom(prevZ => Math.abs(prevZ - z) > 1e-6 ? z : prevZ);
+        // Pan state harus selalu sinkron dengan panRef (tanpa syarat): TextEditOverlay
+        // memposisikan kotak edit dari state `pan`, sementara toDoc/renderer memakai
+        // panRef.
+        setPan(prevP => Math.abs(prevP.x - p.x) > 0.5 || Math.abs(prevP.y - p.y) > 0.5 ? p : prevP);
+      });
+    }, 0);
   };
   // Gabungkan perubahan kamera ke satu frame, lalu sinkronkan state React saat gestur berhenti.
   const softView = () => {

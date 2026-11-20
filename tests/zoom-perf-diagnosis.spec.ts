@@ -9,22 +9,22 @@ test.describe('Geovanta Rapid Zoom Performance & Bottleneck Diagnosis', () => {
     await page.waitForLoadState('networkidle');
 
     // 2. Open or create project
-    const createBtn = page.getByRole('button', { name: 'Create New', exact: true });
-    if (await createBtn.isVisible()) {
-      await createBtn.click();
-      const submitBtn = page.getByRole('button', { name: 'Buat & Buka Proyek' });
-      await submitBtn.waitFor({ state: 'visible' });
-      await submitBtn.click();
+    const openBtn = page.getByRole('button', { name: 'Buka Editor' }).first();
+    if (await openBtn.isVisible()) {
+      await openBtn.click();
     } else {
-      const openBtn = page.getByRole('button', { name: 'Buka Editor' }).first();
-      if (await openBtn.isVisible()) {
-        await openBtn.click();
+      const createBtn = page.getByRole('button', { name: 'Create New', exact: true });
+      if (await createBtn.isVisible()) {
+        await createBtn.click();
+        const submitBtn = page.getByRole('button', { name: 'Buat & Buka Proyek' });
+        await submitBtn.waitFor({ state: 'visible' });
+        await submitBtn.click();
       }
     }
 
     // Wait for editor and CanvasKit initialization
     await page.waitForFunction(() => typeof window.__geovantaEditorApi !== 'undefined');
-    await page.waitForSelector('canvas.ved-scene-canvas');
+    await page.locator('canvas.ved-scene-canvas').first().waitFor({ state: 'attached' });
 
     // 3. Populate canvas with random objects using ALL available drawing tools
     const populateResult = await page.evaluate(async () => {
