@@ -638,9 +638,10 @@ export class CanvasKitScene {
         if (intervals && kit.PathEffect?.MakeDash) {
           const phase = o.strokeDashoffset || 0;
           if (o.nonScalingStroke) {
-            const scIntervals = intervals.map(v => v / zoom);
-            const scPhase = phase / zoom;
-            const key = scIntervals.map(v => Math.round(v * 100) / 100).join(',') + '@' + (Math.round(scPhase * 100) / 100);
+            const qZoom = Math.pow(2, Math.round(Math.log2(Math.max(1e-4, zoom)) * 16) / 16);
+            const scIntervals = intervals.map(v => Math.round((v / qZoom) * 100) / 100);
+            const scPhase = Math.round((phase / qZoom) * 100) / 100;
+            const key = scIntervals.join(',') + '@' + scPhase;
             dashEffect = this.dashEffects.get(key, () => {
               const val = kit.PathEffect.MakeDash(scIntervals, scPhase);
               return { value: val, cost: 1, dispose() { val?.delete?.(); } };
