@@ -1,6 +1,7 @@
 use wasm_bindgen::prelude::*;
 
 pub mod flattener;
+pub mod triangulator;
 
 #[wasm_bindgen]
 pub fn wasm_engine_version() -> String {
@@ -42,4 +43,24 @@ pub fn flatten_cubic_adaptive_flat(
         &mut out_pts,
     );
     out_pts
+}
+
+#[wasm_bindgen]
+pub fn has_polygon_self_intersection_flat(coords: &[f64]) -> bool {
+    let n = coords.len() / 2;
+    if n <= 3 {
+        return false;
+    }
+    let mut pts_x = Vec::with_capacity(n);
+    let mut pts_y = Vec::with_capacity(n);
+    for i in 0..n {
+        pts_x.push(coords[i * 2]);
+        pts_y.push(coords[i * 2 + 1]);
+    }
+    triangulator::has_polygon_self_intersection(&pts_x, &pts_y)
+}
+
+#[wasm_bindgen]
+pub fn ear_clip_polygon_flat(coords: &[f64]) -> Option<Vec<f32>> {
+    triangulator::ear_clip_polygon(coords)
 }
