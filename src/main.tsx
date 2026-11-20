@@ -21,6 +21,10 @@ import { ZipEngine } from './workspace/zipEngine.tsx';
 import { ProjectRepository } from './workspace/projectRepository.tsx';
 import { WorkspaceController } from './workspace/workspaceController.tsx';
 import { isTauriDesktop, syncDesktopWindowTitle } from './vendor/tauriDesktopBridge.tsx';
+import { initWasmEngine, wasmEngine } from './bridge/wasmEngineBridge.ts';
+
+// Inisialisasi akselerasi Rust WebAssembly di background saat startup
+initWasmEngine().catch(err => console.warn('[Geovanta] WASM acceleration startup fallback:', err));
 
 if (typeof window !== 'undefined') {
   window.__GEOVANTA_AUDIT__ = {
@@ -42,7 +46,8 @@ if (typeof window !== 'undefined') {
     ZipEngine,
     ProjectRepository,
     WorkspaceController,
-    isTauriDesktop
+    isTauriDesktop,
+    wasmEngine
   };
   syncDesktopWindowTitle(null, 'saved');
 }

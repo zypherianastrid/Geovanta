@@ -161,9 +161,10 @@ function flattenCubicAdaptive(a, b, tolSq, outPts, depth = 0, minSegLenSq = 0, s
     const x2 = b.handleIn ? b.handleIn.x : b.x;
     const y2 = b.handleIn ? b.handleIn.y : b.y;
     const x3 = b.x, y3 = b.y;
+    const remainingBudget = Math.max(1, segVertexLimit - curTotal);
     const pts = wasmEngine.flattenCubic(
       x0, y0, x1, y1, x2, y2, x3, y3,
-      tolSq, effectiveMaxDepth, minSegLenSq, segVertexLimit
+      tolSq, effectiveMaxDepth, minSegLenSq, remainingBudget
     );
     if (pts && pts.length) {
       for (let i = 0; i < pts.length; i++) {
@@ -173,6 +174,10 @@ function flattenCubicAdaptive(a, b, tolSq, outPts, depth = 0, minSegLenSq = 0, s
         const added = pts.length >> 1;
         stats.vertexCount += added;
         stats.segmentCount += added;
+        if (stats.vertexCount >= segVertexLimit) {
+          stats.budgetHit = true;
+          stats.toleranceMet = false;
+        }
       }
       return;
     }

@@ -14,6 +14,17 @@ import { wasmEngine } from '../bridge/wasmEngineBridge.ts';
      mengembalikan null agar dialihkan ke Hardware Stencil-Then-Cover!
    ========================================================================= */
 function hasPolygonSelfIntersection(ptsX, ptsY) {
+  if (wasmEngine.isReady && wasmEngine.hasPolygonSelfIntersection) {
+    const n = ptsX.length;
+    if (n <= 3) return false;
+    if (n > 24) return true;
+    const coords = new Float64Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      coords[i * 2] = ptsX[i];
+      coords[i * 2 + 1] = ptsY[i];
+    }
+    return wasmEngine.hasPolygonSelfIntersection(coords);
+  }
   const n = ptsX.length;
   if (n <= 3) return false;
   if (n > 24) return true; /* Untuk poligon > 24 titik, gunakan Hardware Stencil-Then-Cover O(N) langsung */
