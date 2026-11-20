@@ -8,6 +8,7 @@ import React, { useEffect, useCallback } from 'react';
 import { VZMIN, VZMAX } from '../../../constants/themeAndPrefsConstants.tsx';
 import { vinfo } from '../../../renderer/pathInfo.tsx';
 import { VE } from '../../../engine/vectorEngine.tsx';
+import { wasmEngine } from '../../../bridge/wasmEngineBridge.ts';
 
 export interface CanvasWheelZoomOptions {
   boxRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -60,15 +61,26 @@ export function useCanvasWheelZoom(options: CanvasWheelZoomOptions): CanvasWheel
       ? boxRectRef.current
       : (boxRectRef.current = b.getBoundingClientRect());
     if (!r.width || !r.height) return;
-    const px = cx == null ? r.width / 2 : cx - r.left;
-    const py = cy == null ? r.height / 2 : cy - r.top;
     const p0 = panRef.current;
-    const wx = (px - p0.x) / s0;
-    const wy = (py - p0.y) / s0;
-    const np = {
-      x: px - wx * nz,
-      y: py - wy * nz,
-    };
+
+    let np: { x: number; y: number };
+    if (wasmEngine.isReady && wasmEngine.computeZoomAtAnchor) {
+      const [nzClamped, npx, npy] = wasmEngine.computeZoomAtAnchor(
+        s0, p0.x, p0.y, nz,
+        cx ?? 0, cy ?? 0, r.width, r.height, r.left, r.top, cx == null || cy == null
+      );
+      nz = nzClamped;
+      np = { x: npx, y: npy };
+    } else {
+      const px = cx == null ? r.width / 2 : cx - r.left;
+      const py = cy == null ? r.height / 2 : cy - r.top;
+      const wx = (px - p0.x) / s0;
+      const wy = (py - p0.y) / s0;
+      np = {
+        x: px - wx * nz,
+        y: py - wy * nz,
+      };
+    }
     zoomRef.current = nz;
     panRef.current = np;
     if (dragRef.current && dragRef.current.type === 'pan') {
@@ -96,6 +108,16 @@ export function useCanvasWheelZoom(options: CanvasWheelZoomOptions): CanvasWheel
     if (!b || b.clientWidth <= 0 || b.clientHeight <= 0) return false;
     boxRectRef.current = b.getBoundingClientRect();
     if (![bx, by, bw, bh].every(Number.isFinite) || bw < 0 || bh < 0) return false;
+
+    if (wasmEngine.isReady && wasmEngine.computeFitTo) {
+      const [s, npx, npy, ok] = wasmEngine.computeFitTo(bx, by, bw, bh, b.clientWidth, b.clientHeight, pad);
+      if (!ok) return false;
+      zoomRef.current = s;
+      panRef.current = { x: npx, y: npy };
+      flushView(true);
+      return true;
+    }
+
     const inset = Math.min(pad, b.clientWidth / 4, b.clientHeight / 4);
     const s = Math.min(
       VZMAX,
@@ -169,15 +191,18 @@ export function useCanvasWheelZoom(options: CanvasWheelZoomOptions): CanvasWheel
     const wh = (e: WheelEvent) => {
       e.preventDefault();
       if (dragRef.current && dragRef.current.type !== 'pan') return;
-      let d = e.deltaY;
-      if (e.deltaMode === 1) d *= 16;
-      else if (e.deltaMode === 2) d *= b.clientHeight;
-      // Clamp single event delta to avoid violent zoom leaps
-      const clampedDelta = Math.max(-120, Math.min(120, d));
-      // Continuous, smooth exponential factor: trackpad pinch (e.ctrlKey) vs standard wheel
-      const zoomFactor = e.ctrlKey
-        ? Math.exp(-clampedDelta * 0.0035)
-        : Math.exp(-clampedDelta * 0.0015);
+      let zoomFactor: number;
+      if (wasmEngine.isReady && wasmEngine.computeWheelZoomFactor) {
+        zoomFactor = wasmEngine.computeWheelZoomFactor(e.deltaY, e.deltaMode, b.clientHeight, e.ctrlKey);
+      } else {
+        let d = e.deltaY;
+        if (e.deltaMode === 1) d *= 16;
+        else if (e.deltaMode === 2) d *= b.clientHeight;
+        const clampedDelta = Math.max(-120, Math.min(120, d));
+        zoomFactor = e.ctrlKey
+          ? Math.exp(-clampedDelta * 0.0035)
+          : Math.exp(-clampedDelta * 0.0015);
+      }
       setZ(zoomRef.current * zoomFactor, e.clientX, e.clientY, true);
     };
     const noMidScroll = (e: MouseEvent) => {
