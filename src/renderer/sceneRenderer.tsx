@@ -567,7 +567,7 @@ class SceneRenderer {
     } else {
       if (this.dragStaticImage || this.dragStaticSurface) this.releaseDragStaticCache();
       const {kit} = scene;
-      const useRgss = !RENDER_CONFIG.antialias && (!interacting || isGpu);
+      const useRgss = !RENDER_CONFIG.antialias && !interacting;
       const zoomChanged = this.camera.zoom !== this._lastCameraZoom;
       this._lastCameraZoom = this.camera.zoom;
       const panKey = `${pw}|${ph}|${this.revisionId}|${this.camera.zoom}|${background || ''}|${this.clipFrames ? 1 : 0}|${this.editingTextId || ''}|${smoothEdges ? 1 : 0}|${this.textPreview ? 1 : 0}`;
