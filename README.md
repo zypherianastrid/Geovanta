@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/assets/geovanta-logo.svg" alt="Geovanta Vector Studio Logo" width="96" height="96" />
+<img src="docs/assets/geovanta-logo.svg" alt="Geovanta Vector Editor Logo" width="96" height="96" />
 
-# Geovanta Vector Studio
+# Geovanta Vector Editor
 
 **Precision vector design without boundaries — 100% offline, desktop-grade speed, and natively AI-ready.**
 
@@ -34,15 +34,15 @@
 
 <br />
 
-<img src="docs/screenshots/01-hero-editor-light.png" alt="Geovanta Vector Studio — Light Mode Workspace" width="100%" />
+<img src="docs/screenshots/01-hero-editor-light.png" alt="Geovanta Vector Editor — Light Mode Workspace" width="100%" />
 
-*Geovanta Vector Studio — Light Theme with live Gradient Canvas Gizmo, Layer Tree, and Precision Inspector*
+*Geovanta Vector Editor — Light Theme with live Gradient Canvas Gizmo, Layer Tree, and Precision Inspector*
 
 <br />
 
-<img src="docs/screenshots/02-hero-editor-dark.png" alt="Geovanta Vector Studio — Dark Mode Workspace" width="100%" />
+<img src="docs/screenshots/02-hero-editor-dark.png" alt="Geovanta Vector Editor — Dark Mode Workspace" width="100%" />
 
-*Geovanta Vector Studio — Dark Theme with full English localization*
+*Geovanta Vector Editor — Dark Theme with full English localization*
 
 </div>
 
@@ -52,7 +52,7 @@
 
 Most modern vector editors force a painful trade-off: cloud-only tools lock your files behind subscriptions and internet connections, while legacy desktop apps feel heavy, dated, and disconnected from modern frontend and AI workflows.
 
-**Geovanta Vector Studio** bridges that gap:
+**Geovanta Vector Editor** bridges that gap:
 
 | Pillar | What You Get |
 | :--- | :--- |
@@ -231,8 +231,8 @@ Requires **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual Stu
 build-windows-64bit.bat
 ```
 Generated 64-bit installers are placed in:
-- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Studio_1.1.0_x64-setup.exe`
-- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Studio_1.1.0_x64_en-US.msi`
+- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.1.0_x64-setup.exe`
+- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.1.0_x64_en-US.msi`
 
 *(Automated CI builds are also preconfigured via `.github/workflows/build-windows-x64.yml`.)*
 

@@ -2,7 +2,7 @@
   "name": "geovanta-vector-studio-win64",
   "version": "1.1.0",
   "private": true,
-  "description": "Geovanta Vector Studio — 64-Bit Windows Desktop Application (Rust + Tauri + React TSX + Tailwind CSS, 100% Offline Bundle)",
+  "description": "Geovanta Vector Editor — 64-Bit Windows Desktop Application (Rust + Tauri + React TSX + Tailwind CSS, 100% Offline Bundle)",
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "build:web": "node scripts/build-offline-bundle.js",

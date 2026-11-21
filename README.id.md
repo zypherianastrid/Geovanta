@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/assets/geovanta-logo.svg" alt="Logo Geovanta Vector Studio" width="96" height="96" />
+<img src="docs/assets/geovanta-logo.svg" alt="Logo Geovanta Vector Editor" width="96" height="96" />
 
-# Geovanta Vector Studio
+# Geovanta Vector Editor
 
 **Desain vektor presisi tanpa batas — 100% offline, secepat aplikasi desktop native, dan siap terhubung dengan AI.**
 
@@ -34,15 +34,15 @@
 
 <br />
 
-<img src="docs/screenshots/01-hero-editor-light.png" alt="Geovanta Vector Studio — Mode Terang" width="100%" />
+<img src="docs/screenshots/01-hero-editor-light.png" alt="Geovanta Vector Editor — Mode Terang" width="100%" />
 
-*Geovanta Vector Studio — Mode Terang lengkap dengan Gradient Canvas Gizmo interaktif, Layer Tree, dan Inspector presisi*
+*Geovanta Vector Editor — Mode Terang lengkap dengan Gradient Canvas Gizmo interaktif, Layer Tree, dan Inspector presisi*
 
 <br />
 
-<img src="docs/screenshots/02-hero-editor-dark.png" alt="Geovanta Vector Studio — Mode Gelap" width="100%" />
+<img src="docs/screenshots/02-hero-editor-dark.png" alt="Geovanta Vector Editor — Mode Gelap" width="100%" />
 
-*Geovanta Vector Studio — Mode Gelap yang nyaman di mata untuk sesi desain panjang*
+*Geovanta Vector Editor — Mode Gelap yang nyaman di mata untuk sesi desain panjang*
 
 </div>
 
@@ -52,7 +52,7 @@
 
 Sebagian besar editor grafis vektor modern memaksa kompromi yang melelahkan: aplikasi berbasis cloud mengunci berkas Anda di balik langganan dan koneksi internet, sementara aplikasi desktop lama terasa berat, kaku, dan tertinggal dari alur kerja frontend serta AI masa kini.
 
-**Geovanta Vector Studio** hadir sebagai jawaban lengkapnya:
+**Geovanta Vector Editor** hadir sebagai jawaban lengkapnya:
 
 | Pilar Utama | Keunggulan yang Anda Dapatkan |
 | :--- | :--- |
@@ -231,8 +231,8 @@ Membutuhkan **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual 
 build-windows-64bit.bat
 ```
 Hasil installer Windows 64-bit akan tersedia di:
-- **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Studio_1.1.0_x64-setup.exe`
-- **WiX MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Studio_1.1.0_x64_en-US.msi`
+- **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.1.0_x64-setup.exe`
+- **WiX MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.1.0_x64_en-US.msi`
 
 *(Build otomatis di GitHub Actions juga sudah disiapkan pada `.github/workflows/build-windows-x64.yml`.)*
 
