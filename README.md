@@ -10,8 +10,8 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
-  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.0.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.0.0" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.0.0-8b5cf6?style=for-the-badge" alt="Changelog v1.0.0" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.1.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.1.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.1.0-8b5cf6?style=for-the-badge" alt="Changelog v1.1.0" /></a>
 </p>
 
 <p>
@@ -277,9 +277,9 @@ flowchart LR
 Launch Geovanta directly in any modern browser (Chrome, Edge, Firefox) with no installation required:
 - **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
 
-### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.0.0` Release)
-Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.0.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0)**:
-1. Download [`Geovanta-Vector-Editor_1.0.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.0.0/Geovanta-Vector-Editor_1.0.0_x64-setup.exe).
+### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.1.0` Release)
+Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.1.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0)**:
+1. Download [`Geovanta-Vector-Editor_1.1.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.1.0/Geovanta-Vector-Editor_1.1.0_x64-setup.exe).
 2. Run the `.exe` installer and follow the setup wizard.
 3. Launch **Geovanta Vector Editor** from your Start Menu or Desktop shortcut.
 

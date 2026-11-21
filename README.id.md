@@ -10,8 +10,8 @@
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
-  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.0.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.0.0" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.0.0-8b5cf6?style=for-the-badge" alt="Changelog v1.0.0" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.1.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.1.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.1.0-8b5cf6?style=for-the-badge" alt="Changelog v1.1.0" /></a>
 </p>
 
 <p>
@@ -277,9 +277,9 @@ flowchart LR
 Buka Geovanta langsung di peramban modern (Chrome, Edge, Firefox) tanpa perlu mengunduh atau memasang apa pun:
 - **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
 
-### Opsi 2: 🪟 Pasang Aplikasi Desktop — Windows 64-Bit (Rilis `v1.0.0`)
-Unduh installer resmi Windows 64-bit langsung dari **[GitHub Releases (v1.0.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0)**:
-1. Unduh [`Geovanta-Vector-Editor_1.0.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.0.0/Geovanta-Vector-Editor_1.0.0_x64-setup.exe).
+### Opsi 2: 🪟 Pasang Aplikasi Desktop — Windows 64-Bit (Rilis `v1.1.0`)
+Unduh installer resmi Windows 64-bit langsung dari **[GitHub Releases (v1.1.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0)**:
+1. Unduh [`Geovanta-Vector-Editor_1.1.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.1.0/Geovanta-Vector-Editor_1.1.0_x64-setup.exe).
 2. Jalankan berkas `.exe` dan ikuti panduan instalasi.
 3. Buka **Geovanta Vector Editor** dari Start Menu atau pintasan Desktop.
 

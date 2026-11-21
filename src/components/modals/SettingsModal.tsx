@@ -24,23 +24,23 @@ import { getAppStr } from '../../constants/appI18n.tsx';
 import { aiLiveConnector } from '../../bridge/aiLiveConnector.tsx';
 
 const AI_TOOLS_LIST = [
-  { name: 'geovanta_workspace_manage', mode: 'Live Full', desc: 'Mengelola ruang kerja & proyek: buat proyek baru, lihat daftar proyek, buka, ganti nama, duplikasi, favorit, pindahkan ke sampah, atau kembali ke layar Workspace.' },
-  { name: 'geovanta_shape_create', mode: 'Dual-Mode', desc: 'Membuat bentuk parametrik (bintang, poligon, lingkaran, kotak, spiral, blob, weave) langsung ke kanvas atau ke SVG.' },
-  { name: 'geovanta_text_create', mode: 'Dual-Mode', desc: 'Membuat dan mengatur tipografi / teks (font, ukuran, warna, ketebalan) langsung di kanvas aktif.' },
-  { name: 'geovanta_iconify_insert', mode: 'Live Full', desc: 'Menyisipkan ribuan ikon vektor dari katalog Iconify (misal mdi:rocket, lucide:sparkles) langsung ke kanvas.' },
-  { name: 'geovanta_layer_manage', mode: 'Live Full', desc: 'Mengelola layer di kanvas: ubah warna/stroke/opacity, geser/skala/putar, ubah urutan layer, duplikasi, kunci, sembunyikan, atau hapus.' },
-  { name: 'geovanta_artboard_and_view', mode: 'Live Full', desc: 'Mengubah ukuran & warna latar artboard, ganti tool aktif di toolbar, Undo/Redo, zoom kanvas, serta tema gelap/terang & warna aksen.' },
-  { name: 'geovanta_curve_simplify', mode: 'Dual-Mode', desc: 'Penyederhanaan kurva topologis (100% presisi) untuk merapikan anchor point berlebih.' },
-  { name: 'geovanta_boolean_operation', mode: 'Dual-Mode', desc: 'Operasi boolean path (union, subtract, intersect, exclude).' },
-  { name: 'geovanta_corner_fillet', mode: 'Dual-Mode', desc: 'Menerapkan radius fillet pembulatan sudut pada node kurva.' },
-  { name: 'geovanta_recolor', mode: 'Dual-Mode', desc: 'Mengubah palet warna atau find/replace warna pada objek vektor.' },
-  { name: 'geovanta_live_get_canvas', mode: 'Live Only', desc: 'Membaca layar aktif, daftar proyek, dokumen, layer, seleksi, dan artboard dari aplikasi.' },
-  { name: 'geovanta_live_mutate_canvas', mode: 'Live Only', desc: 'Menambah, mengubah, atau menghapus objek kanvas secara langsung dengan riwayat Undo/Redo.' },
-  { name: 'geovanta_live_select_objects', mode: 'Live Only', desc: 'Memilih dan memfokuskan objek tertentu di kanvas berdasarkan ID.' },
-  { name: 'geovanta_live_export', mode: 'Live Only', desc: 'Memicu ekspor kanvas aktif ke format SVG atau raster.' },
-  { name: 'geovanta_svg_parse', mode: 'Headless', desc: 'Mengurai markup XML SVG menjadi model dokumen JSON Geovanta.' },
-  { name: 'geovanta_svg_serialize', mode: 'Headless', desc: 'Mengonversi model dokumen Geovanta kembali menjadi string SVG bersih.' },
-  { name: 'geovanta_status', mode: 'Universal', desc: 'Mengecek ketersediaan server MCP, mode bridge (WebSocket / Cloud Live), dan status koneksi aplikasi.' }
+  { name: 'geovanta_workspace_manage', mode: 'Live Full', desc: 'Mengelola ruang kerja & proyek: buat proyek baru, lihat daftar proyek, buka, ganti nama, duplikasi, favorit, pindahkan ke sampah, atau kembali ke layar Workspace.', descEn: 'Manage workspace & projects: create, list, open, rename, duplicate, favorite, move to trash, or return to the Workspace screen.' },
+  { name: 'geovanta_shape_create', mode: 'Dual-Mode', desc: 'Membuat bentuk parametrik (bintang, poligon, lingkaran, kotak, spiral, blob, weave) langsung ke kanvas atau ke SVG.', descEn: 'Create parametric shapes (star, polygon, circle, rectangle, spiral, blob, weave) directly on the canvas or to SVG.' },
+  { name: 'geovanta_text_create', mode: 'Dual-Mode', desc: 'Membuat dan mengatur tipografi / teks (font, ukuran, warna, ketebalan) langsung di kanvas aktif.', descEn: 'Create and style vector typography / text (font, size, color, weight) directly on the active canvas.' },
+  { name: 'geovanta_iconify_insert', mode: 'Live Full', desc: 'Menyisipkan ribuan ikon vektor dari katalog Iconify (misal mdi:rocket, lucide:sparkles) langsung ke kanvas.', descEn: 'Insert thousands of vector icons from the Iconify catalog (e.g. mdi:rocket, lucide:sparkles) directly onto the canvas.' },
+  { name: 'geovanta_layer_manage', mode: 'Live Full', desc: 'Mengelola layer di kanvas: ubah warna/stroke/opacity, geser/skala/putar, ubah urutan layer, duplikasi, kunci, sembunyikan, atau hapus.', descEn: 'Manage canvas layers: change fill/stroke/opacity, translate/scale/rotate, reorder layers, duplicate, lock, hide, or delete.' },
+  { name: 'geovanta_artboard_and_view', mode: 'Live Full', desc: 'Mengubah ukuran & warna latar artboard, ganti tool aktif di toolbar, Undo/Redo, zoom kanvas, serta tema gelap/terang & warna aksen.', descEn: 'Change artboard size & background color, switch active toolbar tool, Undo/Redo, zoom canvas, and set dark/light theme & accent color.' },
+  { name: 'geovanta_curve_simplify', mode: 'Dual-Mode', desc: 'Penyederhanaan kurva topologis (100% presisi) untuk merapikan anchor point berlebih.', descEn: 'Topological curve simplification (100% precision) to clean up redundant anchor points.' },
+  { name: 'geovanta_boolean_operation', mode: 'Dual-Mode', desc: 'Operasi boolean path (union, subtract, intersect, exclude).', descEn: 'Boolean path operations (union, subtract, intersect, exclude).' },
+  { name: 'geovanta_corner_fillet', mode: 'Dual-Mode', desc: 'Menerapkan radius fillet pembulatan sudut pada node kurva.', descEn: 'Apply corner rounding fillet radius to curve nodes.' },
+  { name: 'geovanta_recolor', mode: 'Dual-Mode', desc: 'Mengubah palet warna atau find/replace warna pada objek vektor.', descEn: 'Recolor palettes or find/replace colors across vector objects.' },
+  { name: 'geovanta_live_get_canvas', mode: 'Live Only', desc: 'Membaca layar aktif, daftar proyek, dokumen, layer, seleksi, dan artboard dari aplikasi.', descEn: 'Read active screen, project list, document, layers, selection, and artboard from the app.' },
+  { name: 'geovanta_live_mutate_canvas', mode: 'Live Only', desc: 'Menambah, mengubah, atau menghapus objek kanvas secara langsung dengan riwayat Undo/Redo.', descEn: 'Add, update, or remove canvas objects directly with full Undo/Redo history.' },
+  { name: 'geovanta_live_select_objects', mode: 'Live Only', desc: 'Memilih dan memfokuskan objek tertentu di kanvas berdasarkan ID.', descEn: 'Select and focus specific objects on the canvas by ID.' },
+  { name: 'geovanta_live_export', mode: 'Live Only', desc: 'Memicu ekspor kanvas aktif ke format SVG atau raster.', descEn: 'Trigger export of the active canvas to SVG or raster formats.' },
+  { name: 'geovanta_svg_parse', mode: 'Headless', desc: 'Mengurai markup XML SVG menjadi model dokumen JSON Geovanta.', descEn: 'Parse SVG XML markup into a Geovanta JSON document model.' },
+  { name: 'geovanta_svg_serialize', mode: 'Headless', desc: 'Mengonversi model dokumen Geovanta kembali menjadi string SVG bersih.', descEn: 'Serialize a Geovanta document model back into a clean SVG string.' },
+  { name: 'geovanta_status', mode: 'Universal', desc: 'Mengecek ketersediaan server MCP, mode bridge (WebSocket / Cloud Live), dan status koneksi aplikasi.', descEn: 'Check MCP server availability, bridge mode (WebSocket / Cloud Live), and app connection status.' }
 ];
 
 const ANTIGRAVITY_SNIPPET = `{
@@ -650,8 +650,8 @@ const Settings = ({
 
   <div className="stg-sec">
     <div className="stg-sec-hdr">
-      <span className="stg-sec-lbl"><Ico n="shapes" size={13} /><span>Katalog 12 Tools AI Geovanta</span></span>
-      <span className="text-[11px] mut">{AI_TOOLS_LIST.length} Tools Terdaftar</span>
+      <span className="stg-sec-lbl"><Ico n="shapes" size={13} /><span>{prefs?.lang === 'en' ? `Geovanta AI Tools Catalog (${AI_TOOLS_LIST.length})` : `Katalog ${AI_TOOLS_LIST.length} Tools AI Geovanta`}</span></span>
+      <span className="text-[11px] mut">{AI_TOOLS_LIST.length} {prefs?.lang === 'en' ? 'Registered Tools' : 'Tools Terdaftar'}</span>
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
       {AI_TOOLS_LIST.map(t => (
@@ -665,7 +665,7 @@ const Settings = ({
             className="ai-wrap text-[11px] text-[var(--mut)] leading-relaxed"
             style={{ whiteSpace: 'normal', overflowWrap: 'break-word', wordBreak: 'break-word', lineHeight: 1.55 }}
           >
-            {t.desc}
+            {prefs?.lang === 'en' ? (t.descEn || t.desc) : t.desc}
           </div>
         </div>
       ))}

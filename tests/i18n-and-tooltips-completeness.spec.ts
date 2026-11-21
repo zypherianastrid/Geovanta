@@ -26,6 +26,9 @@ test.describe('English Translation & Tooltip Completeness', () => {
     expect(missingInEn).toEqual([]);
     expect(missingInId).toEqual([]);
 
+    expect(SETTINGS_STR.id.version).toBe('v1.1.0');
+    expect(SETTINGS_STR.en.version).toBe('v1.1.0');
+
     // Required keys for Auto Trace & Inspector
     const requiredKeys = [
       'riStrokeWidth',
@@ -63,6 +66,9 @@ test.describe('English Translation & Tooltip Completeness', () => {
 
     expect(missingInEn).toEqual([]);
     expect(missingInId).toEqual([]);
+
+    expect(SETTINGS_STR.id.version).toBe('v1.1.0');
+    expect(SETTINGS_STR.en.version).toBe('v1.1.0');
 
     // Scan all src files for data-tip="..." and tip="..."
     const srcRoot = path.resolve(__dirname, '../src');
