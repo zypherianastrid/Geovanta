@@ -46,7 +46,11 @@ import {
 } from './svgOptimizer.tsx';
 import {
   DEFAULT_AUTO_TRACE_OPTIONS,
+  getSvgPeakVmt,
+  getSvgPeakVe,
+  buildSvgPeakVmtConfig,
   traceRgbaBufferToSvg,
+  traceRgbaBufferToSvgAsync,
   extractImageObjectRgba,
   traceImageObjectToVectorPaths
 } from './imageTracerEngine.tsx';
@@ -241,7 +245,11 @@ const VE = {
   generateExportCode,
   prettifyXml,
   DEFAULT_AUTO_TRACE_OPTIONS,
+  getSvgPeakVmt,
+  getSvgPeakVe,
+  buildSvgPeakVmtConfig,
   traceRgbaBufferToSvg,
+  traceRgbaBufferToSvgAsync,
   extractImageObjectRgba,
   traceImageObjectToVectorPaths
 };
@@ -265,7 +273,11 @@ export {
   generateExportCode,
   prettifyXml,
   DEFAULT_AUTO_TRACE_OPTIONS,
+  getSvgPeakVmt,
+  getSvgPeakVe,
+  buildSvgPeakVmtConfig,
   traceRgbaBufferToSvg,
+  traceRgbaBufferToSvgAsync,
   extractImageObjectRgba,
   traceImageObjectToVectorPaths
 };

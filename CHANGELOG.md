@@ -8,11 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [1.1.0] — 2026-11-22
 
 ### Added
-- **Rust/WASM Auto Trace Image to SVG Engine (`tracer.rs` + `imageTracerEngine.tsx`)**:
-  - High-speed native Rust/WebAssembly raster-to-vector tracing (`trace_image_rgba_to_svg`) embedded isomorphically for both Desktop (Tauri) and 100% offline WebApp execution.
-  - **2 Trace Modes**: **Black & White (Luminance Threshold)** and **Color (Multi-Layer K-Means Posterized Palette, 2–16 layers)**.
-  - **Precision Trace Controls**: Adjustable *Luminance Threshold (`8–248`)*, *Color Layers (`2–16`)*, *Cubic Bézier Curve Smoothing (`0–135%`)*, *Corner Angle Threshold (`20–140°`)*, *Despeckle / Minimum Area Filter (`0–64 px`)*, *Ignore White Background*, and *Keep Original Image*.
-  - Accessible directly from the **Right Inspector** and **Canvas Context Menu** whenever one or more raster images are selected, with single-step Undo/Redo support.
+- **SVGPeak VMT Bayesian Vectorization Auto Trace Engine (`src/engine/svgpeak/*.js` + `imageTracerEngine.tsx`)**:
+  - Complete 12-module **SVGPeak VMT 1.0 Bayesian Vectorization Engine** integrated verbatim (`00-vmt-compat.js`, `04-ve-export-engine.js`, `05-vmt-color-edge.js` through `14-vmt-orchestrator.js`) alongside the Rust/WASM bridge for 100% offline Desktop (Tauri) and WebApp execution.
+  - **8-Stage Multiscale Image Profiler & Self-Validating Closed-Loop Pipeline**:
+    1. *Alpha Defringing, Edge-Preserving Bilateral Pre-Filtering & DiZenzo Scharr 2D Color-Tensor Edge Field*
+    2. *3D CIE-Lab KD-Tree, K-Means++ Quantization, CIEDE2000 Adaptive Layer Difference & Anti-Halo Pruning*
+    3. *Adaptive QuadTree Partitioning, Barycentric Anti-Aliasing Deconvolution & MRF Potts Simulated Annealing*
+    4. *Morphological Region Cleanup, Detail Protection & Sliver/Parasite Removal*
+    5. *Half-Edge Planar Graph Boundary Tracer & Sub-Pixel Beach Deconvolution*
+    6. *Polak-Ribière Conjugate Gradient Non-Linear Contour Smoother, Taubin Filter & Multi-Scale Curvature Extrema ($C^0$ / $G^1$)*
+    7. *Gauss-Newton Cubic Bézier Curve Fitting & Shared Topology Synchronization*
+    8. *Linear/Radial Multi-Stop SVG Gradient Extraction & Closed-Loop Round-Trip Quality Evaluator*
+  - **Inspector & Context Menu Controls**: Selectable Trace Mode (*Color CIE-Lab*, *Black & White*, *Unlimited*), 8-Stage Adaptive Profile (*Auto*, *Logo/Flat*, *Illustration*, *Photo*), SVG Gradient Mode (*Auto*, *On*, *Flat*), Max Color Layers (`2–32`), Luminance Threshold (`8–248`), Curve Smoothing (`0–135%`), Corner Threshold (`20–140°`), Despeckle (`1–64 px`), Ignore White Background, Keep Original Image, and live stage progress feedback with single-step Undo/Redo support.
 - **Separate Icon Objects (`separateIconObjectsDoc` in `compoundPathEngine.tsx`)**:
   - Dedicated one-click icon separation tool (*Pisahkan Objek Ikon* / *Separate Icon Objects*) available in the **Right Inspector (Appearance)**, **Boolean / Pathfinder Popover**, and **Canvas Context Menu** whenever a multi-subpath icon or icon frame is selected.
   - Automatically analyzes subpath containment topology (`ringContainsPt`) to split an inserted single-path icon into its independent visual objects (e.g., 3+ separate parts) while keeping inner holes (counter-contours) attached to their parent contour.
