@@ -9,6 +9,8 @@
 <p>
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
+  <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.0.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.0.0" /></a>
 </p>
 
 <p>
@@ -21,15 +23,17 @@
   <img src="https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=webassembly&logoColor=white" alt="WebAssembly" />
   <img src="https://img.shields.io/badge/MCP_AI_Ready-13b152?style=for-the-badge&logo=googlegemini&logoColor=white" alt="MCP AI Ready" />
   <img src="https://img.shields.io/badge/Windows_64--Bit-0078D6?style=for-the-badge&logo=windows11&logoColor=white" alt="Windows 64-Bit" />
+  <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-geovanta.netlify.app-00C7B7?style=for-the-badge&logo=googlechrome&logoColor=white" alt="WebApp" /></a>
 </p>
 
 <p>
+  <a href="https://geovanta.netlify.app" target="_blank">🌐 WebApp</a> •
   <a href="#-why-geovanta">Why Geovanta</a> •
   <a href="#-visual-feature-tour">Visual Feature Tour</a> •
   <a href="#-ai--model-context-protocol-mcp">AI & MCP</a> •
   <a href="#%EF%B8%8F-keyboard-shortcuts">Shortcuts</a> •
   <a href="#%EF%B8%8F-architecture">Architecture</a> •
-  <a href="#-quick-start--build">Quick Start & Build</a>
+  <a href="#-installation--quick-start">Installation</a>
 </p>
 
 <br />
@@ -207,12 +211,22 @@ flowchart LR
 
 ---
 
-## 🚀 Quick Start & Build
+## 🚀 Installation & Quick Start
 
-### Option 1: Run Offline Immediately (No Build Required)
+### Option 1: 🌐 Use the WebApp (Zero Install)
+Launch Geovanta directly in any modern browser (Chrome, Edge, Firefox) with no installation required:
+- **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
+
+### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.0.0` Release)
+Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.0.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0)**:
+1. Download [`Geovanta-Vector-Editor_1.0.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.0.0/Geovanta-Vector-Editor_1.0.0_x64-setup.exe).
+2. Run the `.exe` installer and follow the setup wizard.
+3. Launch **Geovanta Vector Editor** from your Start Menu or Desktop shortcut.
+
+### Option 3: 📦 Run Offline Bundle Locally (No Build Required)
 Serve or open `web/index.html` in Chrome, Edge, or any modern Chromium browser. All JavaScript bundles and Skia CanvasKit WebAssembly runtimes are bundled locally — no internet connection required.
 
-### Option 2: Develop & Build from Source
+### Option 4: 🛠️ Develop & Build from Source
 ```sh
 # 1. Install dependencies
 npm ci
@@ -225,7 +239,7 @@ npm run typecheck
 npm run build:web
 ```
 
-### Option 3: Build Windows 64-Bit Desktop Installers (`.exe` & `.msi`)
+#### Build Windows 64-Bit Desktop Installers (`.exe` & `.msi`)
 Requires **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual Studio Build Tools (C++)**, and **Tauri CLI v2**:
 ```bat
 build-windows-64bit.bat

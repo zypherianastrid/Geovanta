@@ -9,6 +9,8 @@
 <p>
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
+  <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.0.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.0.0" /></a>
 </p>
 
 <p>
@@ -21,15 +23,17 @@
   <img src="https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=webassembly&logoColor=white" alt="WebAssembly" />
   <img src="https://img.shields.io/badge/MCP_AI_Ready-13b152?style=for-the-badge&logo=googlegemini&logoColor=white" alt="MCP AI Ready" />
   <img src="https://img.shields.io/badge/Windows_64--Bit-0078D6?style=for-the-badge&logo=windows11&logoColor=white" alt="Windows 64-Bit" />
+  <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-geovanta.netlify.app-00C7B7?style=for-the-badge&logo=googlechrome&logoColor=white" alt="WebApp" /></a>
 </p>
 
 <p>
+  <a href="https://geovanta.netlify.app" target="_blank">🌐 WebApp</a> •
   <a href="#-mengapa-geovanta">Mengapa Geovanta</a> •
   <a href="#-tur-fitur-visual">Tur Fitur Visual</a> •
   <a href="#-integrasi-ai--model-context-protocol-mcp">AI & MCP</a> •
   <a href="#%EF%B8%8F-pintasan-papan-ketik">Pintasan</a> •
   <a href="#%EF%B8%8F-arsitektur">Arsitektur</a> •
-  <a href="#-cara-pakai--build">Cara Pakai & Build</a>
+  <a href="#-instalasi--cara-pakai">Instalasi</a>
 </p>
 
 <br />
@@ -207,12 +211,22 @@ flowchart LR
 
 ---
 
-## 🚀 Cara Pakai & Build
+## 🚀 Instalasi & Cara Pakai
 
-### Opsi 1: Langsung Pakai Offline (Tanpa Build)
+### Opsi 1: 🌐 Gunakan WebApp (Tanpa Instalasi)
+Buka Geovanta langsung di peramban modern (Chrome, Edge, Firefox) tanpa perlu mengunduh atau memasang apa pun:
+- **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
+
+### Opsi 2: 🪟 Pasang Aplikasi Desktop — Windows 64-Bit (Rilis `v1.0.0`)
+Unduh installer resmi Windows 64-bit langsung dari **[GitHub Releases (v1.0.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.0.0)**:
+1. Unduh [`Geovanta-Vector-Editor_1.0.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.0.0/Geovanta-Vector-Editor_1.0.0_x64-setup.exe).
+2. Jalankan berkas `.exe` dan ikuti panduan instalasi.
+3. Buka **Geovanta Vector Editor** dari Start Menu atau pintasan Desktop.
+
+### Opsi 3: 📦 Jalankan Bundle Offline Secara Lokal (Tanpa Build)
 Buka atau jalankan `web/index.html` melalui peramban modern (Chrome / Edge). Seluruh bundle JavaScript dan runtime WebAssembly Skia CanvasKit sudah tersedia secara lokal tanpa koneksi internet.
 
-### Opsi 2: Pengembangan & Build Ulang dari Sumber
+### Opsi 4: 🛠️ Pengembangan & Build Ulang dari Sumber
 ```sh
 # 1. Pasang dependensi
 npm ci
@@ -225,7 +239,7 @@ npm run typecheck
 npm run build:web
 ```
 
-### Opsi 3: Build Installer Desktop Windows 64-Bit (`.exe` & `.msi`)
+#### Build Installer Desktop Windows 64-Bit (`.exe` & `.msi`)
 Membutuhkan **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual Studio Build Tools (Desktop development with C++)**, dan **Tauri CLI v2**:
 ```bat
 build-windows-64bit.bat
