@@ -312,6 +312,22 @@ Hasil installer Windows 64-bit akan tersedia di:
 
 ---
 
+## 👥 Kontributor
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/zypherianastrid">
+        <img src="https://avatars.githubusercontent.com/u/192671882?v=4" width="88" height="88" alt="zypherianastrid" style="border-radius:50%;" /><br />
+        <sub><b>zyphee (@zypherianastrid)</b></sub>
+      </a><br />
+      <sub>Pembuat, Arsitek Utama & Pengembang</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 <div align="center">
-  <sub>Dibangun dengan presisi oleh <strong>Geovanta</strong> • <a href="CHANGELOG.md">Changelog</a> • Baca dalam <a href="README.md">Bahasa Inggris 🇬🇧</a></sub>
+  <sub>Dibangun dengan presisi oleh <strong>Geovanta</strong> (<a href="https://github.com/zypherianastrid">@zypherianastrid</a>) • <a href="CHANGELOG.md">Changelog</a> • Baca dalam <a href="README.md">Bahasa Inggris 🇬🇧</a></sub>
 </div>

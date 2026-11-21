@@ -312,6 +312,22 @@ Generated 64-bit installers are placed in:
 
 ---
 
+## 👥 Contributors
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/zypherianastrid">
+        <img src="https://avatars.githubusercontent.com/u/192671882?v=4" width="88" height="88" alt="zypherianastrid" style="border-radius:50%;" /><br />
+        <sub><b>zyphee (@zypherianastrid)</b></sub>
+      </a><br />
+      <sub>Creator, Lead Architect & Maintainer</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 <div align="center">
-  <sub>Built with precision by <strong>Geovanta</strong> • <a href="CHANGELOG.md">Changelog</a> • Read in <a href="README.id.md">Bahasa Indonesia 🇮🇩</a></sub>
+  <sub>Built with precision by <strong>Geovanta</strong> (<a href="https://github.com/zypherianastrid">@zypherianastrid</a>) • <a href="CHANGELOG.md">Changelog</a> • Read in <a href="README.id.md">Bahasa Indonesia 🇮🇩</a></sub>
 </div>
