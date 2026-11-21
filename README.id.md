@@ -308,8 +308,6 @@ Hasil installer Windows 64-bit akan tersedia di:
 - **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.1.0_x64-setup.exe`
 - **WiX MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.1.0_x64_en-US.msi`
 
-*(Build otomatis di GitHub Actions juga sudah disiapkan pada `.github/workflows/build-windows-x64.yml`.)*
-
 ---
 
 ## 👥 Kontributor

@@ -308,8 +308,6 @@ Generated 64-bit installers are placed in:
 - **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.1.0_x64-setup.exe`
 - **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.1.0_x64_en-US.msi`
 
-*(Automated CI builds are also preconfigured via `.github/workflows/build-windows-x64.yml`.)*
-
 ---
 
 ## 👥 Contributors
