@@ -44,6 +44,12 @@ import {
   generateExportCode,
   prettifyXml
 } from './svgOptimizer.tsx';
+import {
+  DEFAULT_AUTO_TRACE_OPTIONS,
+  traceRgbaBufferToSvg,
+  extractImageObjectRgba,
+  traceImageObjectToVectorPaths
+} from './imageTracerEngine.tsx';
 
 const VE = {
   computeViewBoxTransform,
@@ -231,7 +237,11 @@ const VE = {
   createBrushObject,
   optimizeSvg,
   generateExportCode,
-  prettifyXml
+  prettifyXml,
+  DEFAULT_AUTO_TRACE_OPTIONS,
+  traceRgbaBufferToSvg,
+  extractImageObjectRgba,
+  traceImageObjectToVectorPaths
 };
 
 export {
@@ -249,6 +259,10 @@ export {
   createBrushObject,
   optimizeSvg,
   generateExportCode,
-  prettifyXml
+  prettifyXml,
+  DEFAULT_AUTO_TRACE_OPTIONS,
+  traceRgbaBufferToSvg,
+  extractImageObjectRgba,
+  traceImageObjectToVectorPaths
 };
 export default VE;

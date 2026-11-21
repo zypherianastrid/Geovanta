@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.1.0] — 2026-11-22
+
+### Added
+- **Rust/WASM Auto Trace Image to SVG Engine (`tracer.rs` + `imageTracerEngine.tsx`)**:
+  - High-speed native Rust/WebAssembly raster-to-vector tracing (`trace_image_rgba_to_svg`) embedded isomorphically for both Desktop (Tauri) and 100% offline WebApp execution.
+  - **2 Trace Modes**: **Black & White (Luminance Threshold)** and **Color (Multi-Layer K-Means Posterized Palette, 2–16 layers)**.
+  - **Precision Trace Controls**: Adjustable *Luminance Threshold (`8–248`)*, *Color Layers (`2–16`)*, *Cubic Bézier Curve Smoothing (`0–135%`)*, *Corner Angle Threshold (`20–140°`)*, *Despeckle / Minimum Area Filter (`0–64 px`)*, *Ignore White Background*, and *Keep Original Image*.
+  - Accessible directly from the **Right Inspector** and **Canvas Context Menu** whenever one or more raster images are selected, with single-step Undo/Redo support.
+- **Complete Bilingual (English & Bahasa Indonesia) Translations & Tooltips**:
+  - Added full English translations (`APP_STR.en`, `TOAST_EN`, `TOAST_PATTERNS`) for all Auto Trace controls, Iconify status/toasts, Shape Builder feedback, Node/Path actions, and Stroke Width labels.
+  - Added complete bilingual tooltip entries (`TIPS` and `TIPS_EN`) for every `data-tip` control across the application.
+
+### Fixed
+- **Iconify & Material UI Icon Insertion Fidelity (`iconifyClient.tsx`, `compoundPathEngine.tsx`, `VectorEditor.tsx`)**:
+  - Fixed a bug where inserting Material UI (`ic`, `mdi`, `material-symbols`) and multi-path icons altered their visual appearance due to forced bounding-box subpath re-grouping, forced `evenodd` fill-rule overrides on `nonzero` compound paths, and destructive pre-scale curve simplification.
+  - Added support for Iconify entry and chained-alias transformations (`rotate`, `hFlip`, `vFlip`) and root `fill="currentColor"` inheritance in `buildIconSvg`, while preserving per-element `fill-opacity` on duo-tone icons.
+
+---
+
 ## [1.0.0] — Initial Release
 
 **Geovanta Vector Editor v1.0.0** is a 100% offline-capable, local-first precision vector design studio available as a **64-Bit Windows Desktop Application** (Rust + Tauri v2) and a **Live WebApp** ([geovanta.netlify.app](https://geovanta.netlify.app)), powered by **React 18**, **TypeScript**, **Tailwind CSS**, **Skia CanvasKit 0.40.0 (WebAssembly)**, a **Rust/WASM Geometry Bridge**, and an official **17-Tool Model Context Protocol (MCP) AI Server**.

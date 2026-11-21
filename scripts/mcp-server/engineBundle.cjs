@@ -1364,6 +1364,19 @@ function strokeOutwardExtent(o) {
 }
 
 // src/engine/imageAndBounds.tsx
+function isVisibleFrameBg(o) {
+  if (!o) return false;
+  if (!o.isFrameBg && !o.isAutoFrame) return true;
+  const op = o.opacity ?? 1;
+  if (op <= 0) return false;
+  const hasFill = Boolean(o.fill && o.fill !== "none" && o.fill !== "transparent");
+  const hasGrad = Boolean(gradOn(o));
+  const hasStroke = hasVisibleStroke(o);
+  const hasFx = Boolean(
+    Array.isArray(o.effects) && o.effects.some((e) => e && !e.disabled && e.type !== "backgroundBlur")
+  );
+  return hasFill || hasGrad || hasStroke || hasFx;
+}
 function isSafeImageHref(href) {
   if (typeof href !== "string") return false;
   const trimmed = href.trim();
@@ -1414,7 +1427,7 @@ function imageMatrix(o) {
   });
   return [(x1 - x0) / im.w, 0, 0, (y1 - y0) / im.h, x0, y0];
 }
-function objectVisualPad(o) {
+function objectVisualPad(o, isRaster = false) {
   if (!o) return 0;
   const stroke = hasVisibleStroke(o);
   const miter = o.strokeLinejoin === "miter" ? o.strokeMiterlimit || 4 : o.strokeLinecap === "square" ? Math.SQRT2 : 1;
@@ -1422,12 +1435,12 @@ function objectVisualPad(o) {
   let shadowPad = 0;
   if (Array.isArray(o.effects)) {
     for (const e of o.effects) {
-      if (!e || e.disabled) continue;
+      if (!e || e.disabled || e.type === "backgroundBlur") continue;
       if (e.type === "dropShadow") {
         const dx = Math.abs(Number(e.dx) || 0);
         const dy = Math.abs(Number(e.dy) || 0);
         const blur = Math.max(0, Number(e.blur) || 0);
-        const sp = Math.max(dx, dy) + blur * 3;
+        const sp = isRaster ? Math.max(dx, dy) + blur * 3 : Math.max(dx, dy) + Math.ceil(blur * 1.5);
         if (sp > shadowPad) shadowPad = sp;
       }
     }
@@ -1435,18 +1448,19 @@ function objectVisualPad(o) {
   let blurMargin = 0;
   if (Array.isArray(o.effects)) {
     for (const e of o.effects) {
-      if (!e || e.disabled) continue;
+      if (!e || e.disabled || e.type === "backgroundBlur") continue;
       if (e.type === "layerBlur") {
         const radius = Math.max(0, Number(e.radius) || 0);
-        const bm = Math.ceil(3 * radius);
+        const bm = isRaster ? Math.ceil(3 * radius) : Math.ceil(1.5 * radius);
         if (bm > blurMargin) blurMargin = bm;
       }
     }
   }
   return strokePad + shadowPad + blurMargin;
 }
-function docBounds(doc, only = null) {
+function docBounds(doc, only = null, options = null) {
   let x0 = 1e18, y0 = 1e18, x1 = -1e18, y1 = -1e18;
+  const isRaster = Boolean(options && options.isRaster);
   const add2 = (x, y, pad) => {
     if (x - pad < x0) x0 = x - pad;
     if (x + pad > x1) x1 = x + pad;
@@ -1456,7 +1470,8 @@ function docBounds(doc, only = null) {
   (doc.objects || []).forEach((o) => {
     if (!o || o.hidden) return;
     if (only && !only.has(o.id)) return;
-    const pad = objectVisualPad(o);
+    if ((o.isFrameBg || o.isAutoFrame) && !isVisibleFrameBg(o)) return;
+    const pad = objectVisualPad(o, isRaster);
     const b = isLegacyText(o) ? legacyTextBounds(o) : tightBBox(o);
     if (b && b[0] <= b[2] && b[1] <= b[3]) {
       add2(b[0], b[1], pad);
@@ -3145,7 +3160,8 @@ var wasmEngine = {
   worldToScreen: null,
   computeVisibleBounds: null,
   zoomToSlider: null,
-  sliderToZoom: null
+  sliderToZoom: null,
+  traceImageRgbaToSvg: null
 };
 
 // src/renderer/adaptiveCubicFlattener.tsx
@@ -5107,14 +5123,15 @@ function resolveExportArea(doc, opt = {}) {
     const targetIds = new Set(opt.only);
     for (const o of doc.objects) {
       if (opt.only.has(o.id)) {
-        if ((o.isFrameBg || o.isAutoFrame || o.containerType === "frame") && o.group) {
+        if ((o.isFrameBg || o.isAutoFrame) && o.group) {
           for (const ch of doc.objects) {
             if (ch.group === o.group) targetIds.add(ch.id);
           }
-        }
-        if (o.isIconFrame && o.group) {
+        } else if (o.isIconFrame && o.group) {
           for (const ch of doc.objects) {
-            if (ch.group === o.group && ch.isIconFrame) targetIds.add(ch.id);
+            if (ch.group === o.group && ch.isIconFrame && !ch.isFrameBg && !ch.isAutoFrame) {
+              targetIds.add(ch.id);
+            }
           }
         }
       }
@@ -5129,13 +5146,20 @@ function resolveExportArea(doc, opt = {}) {
   }
   let [vx, vy, vw, vh] = doc.viewBox;
   if (opt.area === "content" || opt.area === "sel") {
-    const bb = docBounds(doc);
+    const bb = docBounds(doc, null, opt);
     if (bb && bb[2] > bb[0] && bb[3] > bb[1]) {
-      const bleed = opt.bleed != null ? opt.bleed : opt.isRaster ? 2 : 1;
-      vx = Math.floor((bb[0] - bleed) * 100) / 100;
-      vy = Math.floor((bb[1] - bleed) * 100) / 100;
-      vw = Math.ceil((bb[2] + bleed - vx) * 100) / 100;
-      vh = Math.ceil((bb[3] + bleed - vy) * 100) / 100;
+      const bleed = opt.bleed != null ? opt.bleed : opt.isRaster ? 2 : 0;
+      if (bleed > 0) {
+        vx = Math.floor((bb[0] - bleed) * 100) / 100;
+        vy = Math.floor((bb[1] - bleed) * 100) / 100;
+        vw = Math.ceil((bb[2] + bleed - vx) * 100) / 100;
+        vh = Math.ceil((bb[3] + bleed - vy) * 100) / 100;
+      } else {
+        vx = bb[0];
+        vy = bb[1];
+        vw = bb[2] - bb[0];
+        vh = bb[3] - bb[1];
+      }
     }
   }
   return { objects: doc.objects, bounds: [vx, vy, Math.max(1, rd(vw)), Math.max(1, rd(vh))] };
@@ -5330,6 +5354,7 @@ function serializeDoc(doc, opt = {}) {
   const r6 = (v) => Math.round(v * 1e6) / 1e6;
   if (opt.bg && opt.bg.mode === "solid") body += '<rect x="0" y="0" width="' + vw + '" height="' + vh + '" fill="' + esc(opt.bg.color || "#ffffff") + '"/>';
   objects.forEach((o) => {
+    if ((o.isFrameBg || o.isAutoFrame) && !isVisibleFrameBg(o)) return;
     if (o.group !== open) {
       if (open) body += "</g>";
       if (o.group) {

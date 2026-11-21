@@ -14,9 +14,10 @@ export interface SegProps {
   cls?: string;
   disabledKeys?: string[] | Set<string>;
   testId?: string;
+  wrap?: boolean;
 }
 
-/* Segmented control dengan pil penanda yang bergeser halus */
+/* Segmented control dengan pil penanda yang bergeser halus (mendukung wrap mode dengan flex-wrap & teks nowrap) */
 const Seg: React.FC<SegProps> = ({
   o,
   v,
@@ -25,23 +26,38 @@ const Seg: React.FC<SegProps> = ({
   tips,
   cls,
   disabledKeys,
-  testId
+  testId,
+  wrap
 }) => {
   const i = o.findIndex(x => x[0] === v);
+  const isWrap = Boolean(wrap || (cls && (cls.includes('seg-wrap') || cls.includes('flex-wrap'))));
   return (
-    <div className={'seg' + (cls ? ' ' + cls : '')} data-tip={tip || undefined} data-testid={testId}>
-      <div
-        className="seg-p"
-        style={{
-          width: `calc((100% - 6px) / ${o.length})`,
-          transform: `translateX(${Math.max(0, i) * 100}%)`,
-          opacity: i < 0 ? 0 : 1
-        }}
-      />
+    <div
+      className={'seg' + (isWrap ? ' seg-wrap flex-wrap' : '') + (cls ? ' ' + cls : '')}
+      data-tip={tip || undefined}
+      data-testid={testId}
+      style={isWrap ? {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 4,
+        height: 'auto'
+      } : undefined}
+    >
+      {!isWrap && (
+        <div
+          className="seg-p"
+          style={{
+            width: `calc((100% - 6px) / ${o.length})`,
+            transform: `translateX(${Math.max(0, i) * 100}%)`,
+            opacity: i < 0 ? 0 : 1
+          }}
+        />
+      )}
       {o.map(([k, t, ic]) => {
         const dis = disabledKeys
           ? (disabledKeys instanceof Set ? disabledKeys.has(k) : disabledKeys.includes(k))
           : false;
+        const isOn = v === k;
         return (
           <button
             key={k}
@@ -49,11 +65,25 @@ const Seg: React.FC<SegProps> = ({
             data-seg-val={k}
             data-tip={(tips && tips[k]) || undefined}
             disabled={dis}
-            className={(v === k ? 'on' : '') + (dis ? ' disabled opacity-40 cursor-not-allowed' : '')}
+            className={(isOn ? 'on' : '') + (dis ? ' disabled opacity-40 cursor-not-allowed' : '')}
             onClick={() => !dis && on(k)}
+            style={isWrap ? {
+              flex: '1 1 auto',
+              whiteSpace: 'nowrap',
+              minWidth: 'fit-content',
+              padding: '5px 8px',
+              ...(isOn ? {
+                background: 'color-mix(in srgb, var(--acc) 18%, var(--card))',
+                color: 'var(--fig-sel-ink)',
+                boxShadow: '0 1px 4px rgba(15, 23, 42, 0.06)',
+                fontWeight: 600
+              } : {})
+            } : undefined}
           >
             {ic && <Ico n={ic} size={cls && cls.includes('stk') ? 15 : 13} />}
-            <span>{t}</span>
+            <span style={isWrap ? { whiteSpace: 'nowrap', overflow: 'visible', textOverflow: 'clip' } : undefined}>
+              {t}
+            </span>
           </button>
         );
       })}

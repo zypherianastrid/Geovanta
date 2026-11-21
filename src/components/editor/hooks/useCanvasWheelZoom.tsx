@@ -63,17 +63,49 @@ export function useCanvasWheelZoom(options: CanvasWheelZoomOptions): CanvasWheel
     if (!r.width || !r.height) return;
     const p0 = panRef.current;
 
+    let targetCx = cx;
+    let targetCy = cy;
+    let useCenter = cx == null || cy == null;
+
+    if (useCenter && getSelObjs) {
+      const selObjects = getSelObjs();
+      if (selObjects && selObjects.length > 0) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const obj of selObjects) {
+          const { bb } = vinfo(obj);
+          if (bb && Number.isFinite(bb[0]) && Number.isFinite(bb[2])) {
+            minX = Math.min(minX, bb[0]);
+            minY = Math.min(minY, bb[1]);
+            maxX = Math.max(maxX, bb[2]);
+            maxY = Math.max(maxY, bb[3]);
+          }
+        }
+        if (Number.isFinite(minX) && Number.isFinite(maxX)) {
+          const selCenterWorldX = (minX + maxX) / 2;
+          const selCenterWorldY = (minY + maxY) / 2;
+          const selScreenX = selCenterWorldX * s0 + p0.x;
+          const selScreenY = selCenterWorldY * s0 + p0.y;
+          if (selScreenX >= -r.width * 0.5 && selScreenX <= r.width * 1.5 &&
+              selScreenY >= -r.height * 0.5 && selScreenY <= r.height * 1.5) {
+            targetCx = selScreenX + r.left;
+            targetCy = selScreenY + r.top;
+            useCenter = false;
+          }
+        }
+      }
+    }
+
     let np: { x: number; y: number };
     if (wasmEngine.isReady && wasmEngine.computeZoomAtAnchor) {
       const [nzClamped, npx, npy] = wasmEngine.computeZoomAtAnchor(
         s0, p0.x, p0.y, nz,
-        cx ?? 0, cy ?? 0, r.width, r.height, r.left, r.top, cx == null || cy == null
+        targetCx ?? 0, targetCy ?? 0, r.width, r.height, r.left, r.top, useCenter
       );
       nz = nzClamped;
       np = { x: npx, y: npy };
     } else {
-      const px = cx == null ? r.width / 2 : cx - r.left;
-      const py = cy == null ? r.height / 2 : cy - r.top;
+      const px = useCenter ? r.width / 2 : (targetCx! - r.left);
+      const py = useCenter ? r.height / 2 : (targetCy! - r.top);
       const wx = (px - p0.x) / s0;
       const wy = (py - p0.y) / s0;
       np = {
@@ -97,7 +129,7 @@ export function useCanvasWheelZoom(options: CanvasWheelZoomOptions): CanvasWheel
     }
     if (soft) softView();
     else flushView();
-  }, [boxRef, boxRectRef, zoomRef, panRef, dragRef, viewPend, viewSettleTimer, softView, flushView]);
+  }, [boxRef, boxRectRef, zoomRef, panRef, dragRef, viewPend, viewSettleTimer, softView, flushView, getSelObjs]);
 
   const zoomBy = useCallback((f: number, cx: number | null = null, cy: number | null = null) => {
     setZ(zoomRef.current * f, cx, cy, true);

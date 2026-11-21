@@ -217,23 +217,38 @@ export function resolveIconEntry(name, setData) {
   if (setData.icons?.[short]) return { name: short, entry: setData.icons[short] };
   if (setData.icons?.[full]) return { name: full, entry: setData.icons[full] };
 
-  // 2. Resolve via aliases chain
+  // 2. Resolve via aliases chain (accumulate rotate, hFlip, vFlip across chain)
   const visited = new Set();
   let currentKey = setData.aliases?.[short] ? short : (setData.aliases?.[full] ? full : null);
   let depth = 0;
+  let accRotate = 0;
+  let accHFlip = false;
+  let accVFlip = false;
+  let overrideProps: any = {};
   while (currentKey && depth < 20) {
     if (visited.has(currentKey)) break; // cycle protection
     visited.add(currentKey);
     const aliasObj = setData.aliases?.[currentKey];
     if (!aliasObj || !aliasObj.parent) break;
+    if (aliasObj.hFlip) accHFlip = !accHFlip;
+    if (aliasObj.vFlip) accVFlip = !accVFlip;
+    if (typeof aliasObj.rotate === 'number') accRotate = (accRotate + aliasObj.rotate) % 4;
+    overrideProps = { ...aliasObj, ...overrideProps };
     const parentKey = aliasObj.parent;
     if (setData.icons?.[parentKey]) {
+      const parentEntry = setData.icons[parentKey];
+      const finalHFlip = Boolean(parentEntry.hFlip) !== accHFlip;
+      const finalVFlip = Boolean(parentEntry.vFlip) !== accVFlip;
+      const finalRotate = ((parentEntry.rotate || 0) + accRotate) % 4;
       return {
         name: parentKey,
         entry: {
-          ...setData.icons[parentKey],
-          ...aliasObj,
-          body: aliasObj.body || setData.icons[parentKey].body,
+          ...parentEntry,
+          ...overrideProps,
+          hFlip: finalHFlip,
+          vFlip: finalVFlip,
+          rotate: finalRotate,
+          body: overrideProps.body || parentEntry.body,
         }
       };
     }
@@ -272,9 +287,33 @@ export function buildIconSvg(name, setData) {
   if (!entry?.body) throw new Error(`Ikon tidak ditemukan di set: ${full}`);
   const left = entry.left ?? setData?.left ?? 0;
   const top = entry.top ?? setData?.top ?? 0;
-  const width = entry.width ?? setData?.width ?? 24;
-  const height = entry.height ?? setData?.height ?? 24;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${left} ${top} ${width} ${height}">${entry.body}</svg>`;
+  let width = entry.width ?? setData?.width ?? 24;
+  let height = entry.height ?? setData?.height ?? 24;
+  const rawRot = Number(entry.rotate || 0);
+  const rotTurns = Number.isFinite(rawRot)
+    ? (Math.abs(rawRot) >= 45 ? Math.round(rawRot / 90) : Math.round(rawRot)) % 4
+    : 0;
+  const normRot = ((rotTurns % 4) + 4) % 4;
+  const hFlip = Boolean(entry.hFlip);
+  const vFlip = Boolean(entry.vFlip);
+
+  let bodyContent = entry.body;
+  if (normRot !== 0 || hFlip || vFlip) {
+    const cx = left + width / 2;
+    const cy = top + height / 2;
+    const transforms = [];
+    if (normRot !== 0) {
+      transforms.push(`rotate(${normRot * 90} ${cx} ${cy})`);
+    }
+    if (hFlip || vFlip) {
+      const sx = hFlip ? -1 : 1;
+      const sy = vFlip ? -1 : 1;
+      transforms.push(`translate(${cx} ${cy}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`);
+    }
+    bodyContent = `<g transform="${transforms.join(' ')}">${bodyContent}</g>`;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${left} ${top} ${width} ${height}" fill="currentColor">${bodyContent}</svg>`;
   if (new TextEncoder().encode(svg).length > MAX_ICON_SVG_BYTES) {
     throw new Error(`SVG ikon "${full}" terlalu besar (maksimal 256 KB)`);
   }

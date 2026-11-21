@@ -94,6 +94,7 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
       clipFrames,
       area: exportArea,
       only: selRef.current.objs,
+      isRaster: isRasterFmt(expFmt),
     };
     try {
       const sourceDoc = documentForExport(docRef.current);
@@ -150,6 +151,7 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
       clipFrames,
       area: exportArea,
       only: selRef.current.objs,
+      isRaster: isRasterFmt(expFmt),
     };
     const note = hasImgs() && ['ai', 'eps'].includes(expFmt) ? ' · gambar raster hanya tersimpan di data round-trip Geovanta' : '';
     try {

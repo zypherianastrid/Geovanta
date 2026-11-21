@@ -16,8 +16,14 @@ const CtxMenu = ({
   const [m, lv] = usePresence(!!menu, 140),
     last = useRef(menu),
     ref = useRef(null),
+    itemsRef = useRef(items),
+    onCloseRef = useRef(onClose),
     [pos, setPos] = useState(null),
-    [hi, setHi] = useState(-1);
+    [hi, setHi] = useState(-1),
+    hiRef = useRef(hi);
+  itemsRef.current = items;
+  onCloseRef.current = onClose;
+  hiRef.current = hi;
   if (menu) last.current = menu;
   const L = last.current;
   useLayoutEffect(() => {
@@ -45,31 +51,32 @@ const CtxMenu = ({
     if (!menu) return;
     const dn = e => {
       if (ref.current && ref.current.contains(e.target)) return;
-      onClose();
+      onCloseRef.current();
     };
     const kd = e => {
+      const curItems = itemsRef.current || [];
       const en = [];
-      items.forEach((it, i) => {
+      curItems.forEach((it, i) => {
         if (!it.sep && !it.dis) en.push(i);
       });
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && en.length) {
         e.preventDefault();
         e.stopPropagation();
-        const p = en.indexOf(hi);
+        const p = en.indexOf(hiRef.current);
         setHi(e.key === 'ArrowDown' ? en[(p + 1) % en.length] : en[(p <= 0 ? en.length : p) - 1]);
-      } else if ((e.key === 'Enter' || e.key === ' ') && hi >= 0 && items[hi] && !items[hi].sep && !items[hi].dis) {
+      } else if ((e.key === 'Enter' || e.key === ' ') && hiRef.current >= 0 && curItems[hiRef.current] && !curItems[hiRef.current].sep && !curItems[hiRef.current].dis) {
         e.preventDefault();
         e.stopPropagation();
-        const it = items[hi];
+        const it = curItems[hiRef.current];
         it.act();
-        onClose();
+        onCloseRef.current();
       }
     };
-    const cl = () => onClose();
+    const cl = () => onCloseRef.current();
     document.addEventListener('pointerdown', dn, true);
     document.addEventListener('keydown', kd, true);
     addEventListener('wheel', cl, {
@@ -85,17 +92,19 @@ const CtxMenu = ({
       removeEventListener('resize', cl);
       removeEventListener('blur', cl);
     };
-  });
+  }, [!!menu]);
   if (!m || !L) return null;
-  return ReactDOM.createPortal(<div ref={ref} role="menu" className={'ctx ' + (lv ? 'out' : 'in')} onContextMenu={e => e.preventDefault()} style={{
+  return ReactDOM.createPortal(<div ref={ref} role="menu" className={'ctx ' + (lv ? 'out' : 'in')} onContextMenu={e => e.preventDefault()} onPointerMove={() => {
+    if (hiRef.current !== -1) setHi(-1);
+  }} style={{
     left: pos ? pos.left : 0,
     top: pos ? pos.top : 0,
     visibility: pos ? 'visible' : 'hidden',
     ['--ox' as any]: (pos ? pos.ox : 0) + 'px',
     ['--oy' as any]: (pos ? pos.oy : 0) + 'px'
-  }}>{items.map((it, i) => it.sep ? <div key={'s' + i} className="ctx-s" /> : <button key={it.k} type="button" role="menuitem" data-tip={it.tip || undefined} disabled={it.dis} className={'ctx-i' + (hi === i ? ' hi' : '')} style={{
+  }}>{items.map((it, i) => it.sep ? <div key={'s' + i} className="ctx-s" /> : <button key={it.k} type="button" role="menuitem" disabled={it.dis} className={'ctx-i' + (hi === i ? ' hi' : '')} style={{
       ['--i' as any]: i
-    }} onMouseEnter={() => setHi(i)} onClick={() => {
+    }} onClick={() => {
       it.act();
       onClose();
     }}><Vi d={it.ic} s={15} /><span className="lb">{it.label}</span>{it.kbd && <span className="ctx-k">{it.kbd}</span>}</button>)}</div>, document.body);

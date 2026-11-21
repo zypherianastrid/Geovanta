@@ -2,6 +2,7 @@
  * @file src/bridge/wasmEngineBridge.ts
  * @description Bridge interface and loader for Geovanta Rust WebAssembly acceleration engine
  */
+import { loadEmbeddedBrowserWasm } from './wasmEmbeddedBinary.ts';
 
 export interface WasmEngine {
   isReady: boolean;
@@ -75,6 +76,18 @@ export interface WasmEngine {
   ) => [number, number, number, number]) | null;
   zoomToSlider: ((zoom: number) => number) | null;
   sliderToZoom: ((sliderVal: number) => number) | null;
+  traceImageRgbaToSvg: ((
+    rgba: Uint8Array,
+    width: number,
+    height: number,
+    mode: number,
+    threshold: number,
+    colorCount: number,
+    despeckle: number,
+    smoothness: number,
+    cornerThresholdDeg: number,
+    ignoreWhite: boolean
+  ) => string) | null;
 }
 
 export const wasmEngine: WasmEngine = {
@@ -92,6 +105,7 @@ export const wasmEngine: WasmEngine = {
   computeVisibleBounds: null,
   zoomToSlider: null,
   sliderToZoom: null,
+  traceImageRgbaToSvg: null,
 };
 
 let initPromise: Promise<boolean> | null = null;
@@ -102,8 +116,6 @@ export async function initWasmEngine(): Promise<boolean> {
 
   initPromise = (async () => {
     try {
-      // Isomorphic loader: in browser without preloaded WASM, gracefully fallback to JS
-      // In Node.js / Playwright environment, load the compiled pkg module
       let wasm: any = null;
       if (typeof window !== 'undefined' && (window as any).__GEOVANTA_WASM__) {
         wasm = (window as any).__GEOVANTA_WASM__;
@@ -111,7 +123,10 @@ export async function initWasmEngine(): Promise<boolean> {
         const wasmModulePath = '../../rust/geovanta-wasm/pkg/geovanta_wasm.js';
         wasm = await import(wasmModulePath);
       } else {
-        return false;
+        wasm = loadEmbeddedBrowserWasm();
+        if (typeof window !== 'undefined') {
+          (window as any).__GEOVANTA_WASM__ = wasm;
+        }
       }
       if (!wasm) return false;
 
@@ -183,6 +198,24 @@ export async function initWasmEngine(): Promise<boolean> {
 
       wasmEngine.sliderToZoom = (sliderVal) => {
         return wasm.slider_to_zoom(sliderVal);
+      };
+
+      wasmEngine.traceImageRgbaToSvg = (
+        rgba, width, height, mode, threshold, colorCount, despeckle, smoothness, cornerThresholdDeg, ignoreWhite
+      ) => {
+        const input = rgba instanceof Uint8Array ? rgba : new Uint8Array(rgba);
+        return wasm.trace_image_rgba_to_svg(
+          input,
+          width,
+          height,
+          mode,
+          threshold,
+          colorCount,
+          despeckle,
+          smoothness,
+          cornerThresholdDeg,
+          ignoreWhite
+        );
       };
 
       wasmEngine.isReady = true;

@@ -182,6 +182,64 @@ const EditorRightInspector = ({
      VectorEditor). */
   const [rcOpen, setRcOpen] = React.useState(false);
   const [dashCustomOpen, setDashCustomOpen] = React.useState(false);
+  const [traceOpts, setTraceOpts] = React.useState<any>({
+    mode: 'bw',
+    threshold: 128,
+    colorCount: 6,
+    despeckle: 4,
+    smoothness: 1.0,
+    cornerThreshold: 60,
+    ignoreWhite: true,
+    keepOriginalImage: false
+  });
+  const [tracingBusy, setTracingBusy] = React.useState(false);
+  const selImages = selObjs.filter(o => o && !o.locked && !o.hidden && o.img);
+  const runAutoTrace = async () => {
+    if (!selImages.length || tracingBusy) return;
+    setTracingBusy(true);
+    try {
+      const curDoc = docRef.current;
+      let nextObjects = [...curDoc.objects];
+      const newIds: string[] = [];
+      let totalNodes = 0;
+      let totalPaths = 0;
+
+      for (const imgObj of selImages) {
+        const res = await VE.traceImageObjectToVectorPaths(imgObj, traceOpts);
+        if (res.objects.length > 0) {
+          totalNodes += res.nodeCount;
+          totalPaths += res.pathCount;
+          newIds.push(...res.objects.map((o: any) => o.id));
+          const idx = nextObjects.findIndex(o => o.id === imgObj.id);
+          if (idx >= 0) {
+            if (traceOpts.keepOriginalImage) {
+              nextObjects.splice(idx + 1, 0, ...res.objects);
+            } else {
+              nextObjects.splice(idx, 1, ...res.objects);
+            }
+          } else {
+            nextObjects.push(...res.objects);
+          }
+        }
+      }
+
+      if (!newIds.length) {
+        say(L.atEmptyResult || (lang === 'en' ? 'Auto Trace produced no vector paths — adjust threshold or colors' : 'Auto Trace tidak menghasilkan path vektor — sesuaikan threshold atau jumlah warna'));
+        return;
+      }
+
+      commit({ ...curDoc, objects: nextObjects }, 'autotrace');
+      setSel({ objs: new Set(newIds), nodes: new Set() });
+      const msg = (L.atSuccess || (lang === 'en' ? 'Auto Trace complete: {p} vector path(s), {n} nodes' : 'Auto Trace selesai: {p} path vektor, {n} node'))
+        .replace('{p}', String(totalPaths))
+        .replace('{n}', String(totalNodes));
+      say(msg);
+    } catch (err: any) {
+      say((L.atFailed || (lang === 'en' ? 'Auto Trace failed: ' : 'Gagal Auto Trace: ')) + (err?.message || 'error'));
+    } finally {
+      setTracingBusy(false);
+    }
+  };
   const selIdsKey = selObjs.map(o => o.id).sort().join(',');
   React.useEffect(() => { setDashCustomOpen(false); }, [selIdsKey]);
   const strokeObjs = selObjs.filter(o => !o.img && o.type !== 'text');
@@ -207,6 +265,11 @@ const EditorRightInspector = ({
   .fig-right-sidebar .fig-isec { contain: layout style; }
   .fig-right-sidebar .fig-ibtn, .fig-right-sidebar .ved-pill, .fig-right-sidebar .fig-aln-bar button, .fig-right-sidebar .seg button, .fig-right-sidebar .gch button, .fig-right-sidebar .opt, .fig-right-sidebar [role="switch"] { transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease; }
   .fig-right-sidebar .fig-ibtn:hover:not(:disabled), .fig-right-sidebar .ved-pill:hover:not(:disabled), .fig-right-sidebar .fig-aln-bar button:hover:not(:disabled), .fig-right-sidebar .seg button:hover:not(:disabled), .fig-right-sidebar .gch button:hover:not(:disabled), .fig-right-sidebar .opt:hover, .fig-right-sidebar [role="switch"]:hover:not(:disabled) { background-color: color-mix(in srgb, var(--acc) 10%, var(--card)); border-color: color-mix(in srgb, var(--acc) 28%, var(--line)); color: var(--ink); }
+  .fig-right-sidebar .seg.seg-wrap, .fig-right-sidebar .seg.flex-wrap { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; height: auto !important; }
+  .fig-right-sidebar .seg.seg-wrap > .seg-p, .fig-right-sidebar .seg.flex-wrap > .seg-p { display: none !important; }
+  .fig-right-sidebar .seg.seg-wrap button, .fig-right-sidebar .seg.flex-wrap button { flex: 1 1 auto !important; min-width: fit-content !important; white-space: nowrap !important; padding: 5px 8px !important; }
+  .fig-right-sidebar .seg.seg-wrap button span, .fig-right-sidebar .seg.flex-wrap button span { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; }
+  .fig-right-sidebar .seg.seg-wrap button.on, .fig-right-sidebar .seg.flex-wrap button.on { background: color-mix(in srgb, var(--acc) 18%, var(--card)) !important; color: var(--fig-sel-ink) !important; font-weight: 600 !important; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06) !important; }
   .fig-right-sidebar .fig-input { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; caret-color: var(--acc); }
   .fig-right-sidebar .fig-input:focus { border-color: var(--acc) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent) !important; background: color-mix(in srgb, var(--acc) 5%, var(--sub)) !important; outline: none; }
   .fig-right-sidebar button:disabled { cursor: not-allowed; }
@@ -315,7 +378,7 @@ const EditorRightInspector = ({
             }}>{detectedCorners.map(c => <XfField key={'xf-' + c.key} label={'#' + c.idx + c.dir} value={c.r} min={0} step={1} on={v => applyRadiusToCorners([c], v, 'cr-one-' + c.key)} />)}</div></div>}</div>}{!primary.img && <div><div className="fig-sub-lbl" data-tip="veFillRule">{L.riFillRule}</div><Seg o={[['nonzero', 'Nonzero'], ['evenodd', 'Even-odd']]} v={primary.fillRule || 'nonzero'} on={v => setProp('fillRule', v)} tip="veFillRule" tips={{
             nonzero: 'veFillNonzero',
             evenodd: 'veFillEvenodd'
-          }} /></div>}<div><div className="fig-sub-lbl" data-tip="veBlendMode">{L.blendMode || (lang === 'en' ? 'Blend Mode' : 'Mode Campur')}</div><Select testId="blend-mode-select" value={primary.blendMode || 'normal'} options={BLEND_MODE_OPTIONS as any} on={v => setProp('blendMode', v === 'normal' ? undefined : v)} /></div></div> : <div className="text-[11px] mut">{L.riHintStyle}</div>}</div>{(() => {
+          }} /></div>}<div><div className="fig-sub-lbl" data-tip="veBlendMode">{L.blendMode || (lang === 'en' ? 'Blend Mode' : 'Mode Campur')}</div><Select testId="blend-mode-select" value={primary.blendMode || 'normal'} options={BLEND_MODE_OPTIONS as any} on={v => setProp('blendMode', v === 'normal' ? undefined : v)} /></div></div> : <div className="text-[11px] mut">{L.riHintStyle}</div>}</div>{selImages.length > 0 && <div className="fig-isec fade" data-testid="auto-trace-section" data-tip="veAutoTrace"><div className="fig-isec-title"><span>{L.atTitle || (lang === 'en' ? 'Auto Trace Image to SVG' : 'Auto Trace Gambar ke SVG')}</span><span className="fig-badge">Rust WASM</span></div><div className="space-y-2.5"><div><div className="fig-sub-lbl" data-tip="veAutoTraceMode">{L.atMode || (lang === 'en' ? 'Trace Mode' : 'Mode Trace')}</div><Seg testId="auto-trace-mode" o={[['bw', L.atModeBw || (lang === 'en' ? 'Black & White' : 'Hitam Putih')], ['color', L.atModeColor || (lang === 'en' ? 'Color (Multi-Layer)' : 'Warna (Multi-Layer)')]]} v={traceOpts.mode} on={m => setTraceOpts((p: any) => ({ ...p, mode: m }))} tip="veAutoTraceMode" /></div>{traceOpts.mode === 'bw' ? <div data-testid="auto-trace-threshold"><Range l={L.atThreshold || (lang === 'en' ? 'Luminance Threshold' : 'Ambang Kecerahan (Threshold)')} v={traceOpts.threshold} min={8} max={248} step={1} on={v => setTraceOpts((p: any) => ({ ...p, threshold: v }))} tip="veAutoTraceThreshold" f={v => String(v)} /></div> : <div data-testid="auto-trace-colors"><Range l={L.atColors || (lang === 'en' ? 'Color Layers' : 'Jumlah Warna')} v={traceOpts.colorCount} min={2} max={16} step={1} on={v => setTraceOpts((p: any) => ({ ...p, colorCount: v }))} tip="veAutoTraceColors" f={v => String(v)} /></div>}<div data-testid="auto-trace-smoothness"><Range l={L.atSmoothness || (lang === 'en' ? 'Curve Smoothing' : 'Kehalusan Kurva Bézier')} v={Math.round(traceOpts.smoothness * 100)} min={0} max={135} step={5} on={v => setTraceOpts((p: any) => ({ ...p, smoothness: v / 100 }))} tip="veAutoTraceSmooth" f={v => v + '%'} /></div><div data-testid="auto-trace-corner"><Range l={L.atCornerAngle || (lang === 'en' ? 'Corner Threshold' : 'Ambang Sudut Tajam')} v={traceOpts.cornerThreshold} min={20} max={140} step={5} on={v => setTraceOpts((p: any) => ({ ...p, cornerThreshold: v }))} tip="veAutoTraceCorner" f={v => v + '°'} /></div><div data-testid="auto-trace-despeckle"><Range l={L.atDespeckle || (lang === 'en' ? 'Despeckle (Min Area)' : 'Hapus Bintik (Despeckle)')} v={traceOpts.despeckle} min={0} max={64} step={1} on={v => setTraceOpts((p: any) => ({ ...p, despeckle: v }))} tip="veAutoTraceDespeckle" f={v => v + ' px'} /></div><div className="space-y-1.5 pt-0.5"><button type="button" role="checkbox" aria-checked={traceOpts.ignoreWhite} data-testid="auto-trace-ignore-white" data-tip="veAutoTraceIgnoreWhite" className={'c-chk' + (traceOpts.ignoreWhite ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, ignoreWhite: !p.ignoreWhite }))}><span className="c-chk-box">{traceOpts.ignoreWhite && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atIgnoreWhite || (lang === 'en' ? 'Ignore White Background' : 'Abaikan Latar Putih')}</span></button><button type="button" role="checkbox" aria-checked={traceOpts.keepOriginalImage} data-testid="auto-trace-keep-img" data-tip="veAutoTraceKeepImg" className={'c-chk' + (traceOpts.keepOriginalImage ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, keepOriginalImage: !p.keepOriginalImage }))}><span className="c-chk-box">{traceOpts.keepOriginalImage && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atKeepOriginal || (lang === 'en' ? 'Keep Original Image' : 'Pertahankan Gambar Asli')}</span></button></div><button type="button" className="btn pri fig-cta-btn w-full" data-testid="auto-trace-run-btn" data-tip="veAutoTraceRun" disabled={tracingBusy} onClick={runAutoTrace}><Ico n="wand" size={14} /><span>{tracingBusy ? (L.atTracing || (lang === 'en' ? 'Tracing…' : 'Memproses Trace…')) : (L.atRunBtn || (lang === 'en' ? 'Trace Image to SVG' : 'Trace Gambar ke SVG'))}</span></button></div></div>}{(() => {
   const styles = doc && Array.isArray(doc.styles) ? doc.styles : [];
   const recents = Array.isArray(recentColors) ? recentColors : [];
   const srcHex = primary && primary.type === 'text' && primary.text ? primary.text.fill : cp && cp.fill;
@@ -522,10 +585,10 @@ const EditorRightInspector = ({
         } : o, 'p:sw')} /></div></div></div>{(() => {
           const hasClosedTarget = strokeObjs.some(o => (o.subs || []).some(sp => sp.closed));
           return <div><div className="fig-sub-lbl" data-tip="veStrokeAlign">{L.strokeAlign || 'Posisi Garis'}</div><Seg testId="stroke-align-seg" o={[['center', L.alignCenter || 'Tengah', 'stkCenter'], ['inside', L.alignInside || 'Dalam', 'stkInside'], ['outside', L.alignOutside || 'Luar', 'stkOutside']]} v={strokeCp.strokeAlign || 'center'} disabledKeys={hasClosedTarget ? undefined : ['inside', 'outside']} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeAlign: v } : o, 'p:salign')} tip="veStrokeAlign" /></div>;
-        })()}<div><div className="fig-sub-lbl" data-tip="vePaintOrder">{L.paintOrder || 'Urutan Gambar'}</div><Seg testId="stroke-paint-order-seg" o={[['fill stroke', L.paintOrderFillStroke || 'Fill Depan', 'paintOrderFillStroke'], ['stroke fill', L.paintOrderStrokeFill || 'Stroke Depan', 'paintOrderStrokeFill']]} v={strokeCp.paintOrder || 'fill stroke'} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, paintOrder: v } : o, 'p:paintorder')} tip="vePaintOrder" /></div><div className="grid grid-cols-2 gap-2"><div><div className="fig-sub-lbl" data-tip="veStrokeLinecap">{L.strokeLinecap || 'Ujung Garis (Cap)'}</div><Seg testId="stroke-linecap-seg" o={[['round', 'Round'], ['butt', 'Butt'], ['square', 'Square']]} v={strokeCp.strokeLinecap || 'round'} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeLinecap: v } : o, 'p:linecap')} tip="veStrokeLinecap" /></div><div><div className="fig-sub-lbl" data-tip="veStrokeLinejoin">{L.strokeLinejoin || 'Sudut Garis (Join)'}</div><Seg testId="stroke-linejoin-seg" o={[['round', 'Round'], ['miter', 'Miter'], ['bevel', 'Bevel']]} v={strokeCp.strokeLinejoin || 'round'} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeLinejoin: v } : o, 'p:linejoin')} tip="veStrokeLinejoin" /></div></div>{strokeCp.strokeLinejoin === 'miter' && <div className="flex items-center justify-between gap-2 pt-0.5"><span className="fig-sub-lbl" data-tip="veStrokeMiterlimit">{L.strokeMiterlimit || 'Batas Miter'}</span><div data-testid="stroke-miterlimit-input" className="w-24" onClick={e => { const el = e.currentTarget.querySelector('[role="textbox"]') as HTMLElement; el?.focus(); }}><XfField label="x" value={strokeCp.strokeMiterlimit ?? 4} min={1} step={1} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeMiterlimit: Math.max(1, Math.min(100, Number(v) || 4)) } : o, 'p:miterlimit')} tip="veStrokeMiterlimit" /></div></div>}<div><div className="fig-sub-lbl" data-tip="veStrokeDash">{L.dashPattern || 'Pola Garis Putus'}</div>{(() => {
+        })()}<div><div className="fig-sub-lbl" data-tip="vePaintOrder">{L.paintOrder || 'Urutan Gambar'}</div><Seg testId="stroke-paint-order-seg" o={[['fill stroke', L.paintOrderFillStroke || 'Fill Depan', 'paintOrderFillStroke'], ['stroke fill', L.paintOrderStrokeFill || 'Stroke Depan', 'paintOrderStrokeFill']]} v={strokeCp.paintOrder || 'fill stroke'} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, paintOrder: v } : o, 'p:paintorder')} tip="vePaintOrder" /></div><div className="grid grid-cols-2 gap-2"><div><div className="fig-sub-lbl" data-tip="veStrokeLinecap">{L.strokeLinecap || 'Ujung Garis (Cap)'}</div><Seg wrap cls="flex-wrap" testId="stroke-linecap-seg" o={[['round', 'Round'], ['butt', 'Butt'], ['square', 'Square']]} v={strokeCp.strokeLinecap || 'round'} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeLinecap: v } : o, 'p:linecap')} tip="veStrokeLinecap" /></div><div><div className="fig-sub-lbl" data-tip="veStrokeLinejoin">{L.strokeLinejoin || 'Sudut Garis (Join)'}</div><Seg wrap cls="flex-wrap" testId="stroke-linejoin-seg" o={[['round', 'Round'], ['miter', 'Miter'], ['bevel', 'Bevel']]} v={strokeCp.strokeLinejoin || 'round'} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeLinejoin: v } : o, 'p:linejoin')} tip="veStrokeLinejoin" /></div></div>{strokeCp.strokeLinejoin === 'miter' && <div className="flex items-center justify-between gap-2 pt-0.5"><span className="fig-sub-lbl" data-tip="veStrokeMiterlimit">{L.strokeMiterlimit || 'Batas Miter'}</span><div data-testid="stroke-miterlimit-input" className="w-24" onClick={e => { const el = e.currentTarget.querySelector('[role="textbox"]') as HTMLElement; el?.focus(); }}><XfField label="x" value={strokeCp.strokeMiterlimit ?? 4} min={1} step={1} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeMiterlimit: Math.max(1, Math.min(100, Number(v) || 4)) } : o, 'p:miterlimit')} tip="veStrokeMiterlimit" /></div></div>}<div><div className="fig-sub-lbl" data-tip="veStrokeDash">{L.dashPattern || 'Pola Garis Putus'}</div>{(() => {
           const detectedPreset = VE.detectDashPreset(strokeCp.strokeDasharray, strokeCp.strokeWidth || 1);
           const activePreset = dashCustomOpen ? 'custom' : (detectedPreset === 'dashdot' ? 'dash-dot' : detectedPreset);
-          return <><Seg testId="stroke-dash-preset" o={[['solid', L.dashPresetSolid || 'Solid'], ['dashed', L.dashPresetDashed || 'Dashed'], ['dotted', L.dashPresetDotted || 'Dotted'], ['dash-dot', L.dashPresetDashDot || 'Dash-dot'], ['custom', L.dashPresetCustom || 'Custom']]} v={activePreset} on={p => {
+          return <><Seg wrap cls="flex-wrap" testId="stroke-dash-preset" o={[['solid', L.dashPresetSolid || 'Solid'], ['dashed', L.dashPresetDashed || 'Dashed'], ['dotted', L.dashPresetDotted || 'Dotted'], ['dash-dot', L.dashPresetDashDot || 'Dash-dot'], ['custom', L.dashPresetCustom || 'Custom']]} v={activePreset} on={p => {
             if (p === 'solid') {
               setDashCustomOpen(false);
               commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeDasharray: null } : o, 'p:dash');

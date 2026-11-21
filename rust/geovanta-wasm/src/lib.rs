@@ -4,6 +4,7 @@ pub mod flattener;
 pub mod triangulator;
 pub mod simplifier;
 pub mod viewport;
+pub mod tracer;
 
 #[wasm_bindgen]
 pub fn wasm_engine_version() -> String {
@@ -156,4 +157,31 @@ pub fn zoom_to_slider(zoom: f64) -> f64 {
 #[wasm_bindgen]
 pub fn slider_to_zoom(slider_val: f64) -> f64 {
     viewport::slider_to_zoom(slider_val)
+}
+
+#[wasm_bindgen]
+pub fn trace_image_rgba_to_svg(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    mode: u32,
+    threshold: u8,
+    color_count: u32,
+    despeckle: u32,
+    smoothness: f64,
+    corner_threshold_deg: f64,
+    ignore_white: bool,
+) -> String {
+    tracer::trace_image_rgba_to_svg(
+        rgba,
+        width,
+        height,
+        mode,
+        threshold,
+        color_count,
+        despeckle,
+        smoothness,
+        corner_threshold_deg,
+        ignore_white,
+    )
 }

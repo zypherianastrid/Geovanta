@@ -249,86 +249,28 @@ export const stitchContiguousSubpaths = (subpaths: any[], tol = 0.05) => {
 
 /**
  * Membersihkan dan menjahit objek-objek ikon yang diimpor:
- * 1. Menjahit kuadran/segmen busur terbuka (seperti dot dadu streamline) menjadi 1 objek lingkaran tertutup utuh.
- * 2. Mempertahankan subpath bersarang (lubang compound path) dalam 1 objek dengan fillRule 'evenodd'.
- * 3. Memisahkan pulau-pulau independen yang tidak berhubungan agar dapat dipilih/diedit terpisah tanpa tumpukan objek sampah.
+ * 1. Menjahit kuadran/segmen busur terbuka (seperti dot dadu streamline) di dalam objek yang sama menjadi 1 subpath tertutup utuh.
+ * 2. Mempertahankan struktur objek, urutan layer, opacity, dan fillRule ('nonzero' vs 'evenodd') asli SVG tanpa menggabungkan atau memecah subpath tertutup secara paksa (agar ikon Material UI / compound path tampil 100% identik dengan aslinya).
  */
 export const cleanAndStitchIconObjects = (objects: any[], tol = 0.05) => {
   const result: any[] = [];
-  const styleKey = (o: any) => [
-    o.fill || 'none',
-    o.stroke || 'none',
-    o.strokeWidth || 0,
-    o.strokeLinecap || 'round',
-    o.strokeLinejoin || 'round',
-    o.opacity ?? 1,
-    o.fillRule || 'nonzero'
-  ].join('|');
-
-  const groups: { [key: string]: any[] } = {};
-  objects.forEach(o => {
-    const k = styleKey(o);
-    if (!groups[k]) groups[k] = [];
-    groups[k].push(o);
-  });
-
-  for (const k of Object.keys(groups)) {
-    const groupObjs = groups[k];
-    const template = groupObjs[0];
-
-    const allSubs: any[] = [];
-    groupObjs.forEach(o => {
-      (o.subs || []).forEach((sp: any) => allSubs.push(sp));
-    });
-
-    const stitchedSubs = stitchContiguousSubpaths(allSubs, tol);
-
-    const subBoxes = stitchedSubs.map(sp => {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const n of sp.nodes) {
-        if (n.x < minX) minX = n.x;
-        if (n.x > maxX) maxX = n.x;
-        if (n.y < minY) minY = n.y;
-        if (n.y > maxY) maxY = n.y;
-      }
-      return { minX, minY, maxX, maxY, sp };
-    });
-
-    const assigned = new Set<number>();
-    const shapeGroups: any[][] = [];
-
-    for (let i = 0; i < subBoxes.length; i++) {
-      if (assigned.has(i)) continue;
-      assigned.add(i);
-      const currentGroup = [subBoxes[i].sp];
-      const b1 = subBoxes[i];
-
-      for (let j = 0; j < subBoxes.length; j++) {
-        if (assigned.has(j)) continue;
-        const b2 = subBoxes[j];
-        const b2InsideB1 = b2.minX >= b1.minX - tol && b2.maxX <= b1.maxX + tol &&
-                          b2.minY >= b1.minY - tol && b2.maxY <= b1.maxY + tol;
-        const b1InsideB2 = b1.minX >= b2.minX - tol && b1.maxX <= b2.maxX + tol &&
-                          b1.minY >= b2.minY - tol && b1.maxY <= b2.maxY + tol;
-        if (b2InsideB1 || b1InsideB2) {
-          assigned.add(j);
-          currentGroup.push(b2.sp);
-        }
-      }
-      shapeGroups.push(currentGroup);
-    }
-
-    shapeGroups.forEach((subs, sIdx) => {
-      const isCircle = subs.length === 1 && isCircleSubpath(subs[0], tol);
-      const baseName = isCircle ? 'Lingkaran' : (template.name || 'path');
-      result.push({
-        ...template,
-        id: uid(),
-        name: baseName,
-        subs,
-        fillRule: subs.length > 1 ? 'evenodd' : (template.fillRule || 'nonzero'),
-        isCircle
-      });
+  for (const o of (objects || [])) {
+    if (!o) continue;
+    const rawSubs = Array.isArray(o.subs) ? o.subs : [];
+    const hasOpenSub = rawSubs.some((sp: any) => sp && !sp.closed);
+    const stitchedSubs = hasOpenSub ? stitchContiguousSubpaths(rawSubs, tol) : rawSubs.map((sp: any) => ({
+      ...sp,
+      nodes: (sp.nodes || []).map((n: any) => ({ ...n }))
+    }));
+    const isCircle = stitchedSubs.length === 1 && isCircleSubpath(stitchedSubs[0], tol);
+    const baseName = isCircle && (!o.name || /^path-\d+$/.test(o.name)) ? 'Lingkaran' : (o.name || 'path');
+    result.push({
+      ...o,
+      id: o.id || uid(),
+      name: baseName,
+      subs: stitchedSubs,
+      fillRule: o.fillRule || 'nonzero',
+      isCircle
     });
   }
   return result;

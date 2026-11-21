@@ -6,10 +6,26 @@ import { uid, rd, mmul } from './vectorPrimitives.tsx';
 import { parsePath } from './svgPathParser.tsx';
 import { serializePath } from './svgPathSerializer.tsx';
 import { computeViewBoxTransform } from './transformMatrixParser.tsx';
-import { mapGrad } from './gradientEngine.tsx';
+import { mapGrad, gradOn } from './gradientEngine.tsx';
 import { tightBBox } from './spatialIndexAndHitTest.tsx';
 import { isLegacyText, legacyTextBounds } from './legacyText.tsx';
 import { hasVisibleStroke, strokeOutwardExtent } from './strokeStyles.tsx';
+
+/** Apakah objek latar frame (isFrameBg/isAutoFrame) memiliki tampilan visual tampak (fill/gradien/stroke/efek) */
+function isVisibleFrameBg(o: any): boolean {
+  if (!o) return false;
+  if (!o.isFrameBg && !o.isAutoFrame) return true;
+  const op = o.opacity ?? 1;
+  if (op <= 0) return false;
+  const hasFill = Boolean(o.fill && o.fill !== 'none' && o.fill !== 'transparent');
+  const hasGrad = Boolean(gradOn(o));
+  const hasStroke = hasVisibleStroke(o);
+  const hasFx = Boolean(
+    Array.isArray(o.effects) &&
+    o.effects.some((e: any) => e && !e.disabled && e.type !== 'backgroundBlur')
+  );
+  return hasFill || hasGrad || hasStroke || hasFx;
+}
 
 function isSafeImageHref(href) {
   if (typeof href !== 'string') return false;
@@ -148,7 +164,7 @@ function scaleObj(o, ax, ay, k) {
   return next;
 }
 /* Hitung padding visual objek (stroke miter, drop shadow, layer blur) */
-function objectVisualPad(o) {
+function objectVisualPad(o, isRaster = false) {
   if (!o) return 0;
   const stroke = hasVisibleStroke(o);
   const miter = o.strokeLinejoin === 'miter' ? (o.strokeMiterlimit || 4) : (o.strokeLinecap === 'square' ? Math.SQRT2 : 1);
@@ -156,12 +172,12 @@ function objectVisualPad(o) {
   let shadowPad = 0;
   if (Array.isArray(o.effects)) {
     for (const e of o.effects) {
-      if (!e || e.disabled) continue;
+      if (!e || e.disabled || e.type === 'backgroundBlur') continue;
       if (e.type === 'dropShadow') {
         const dx = Math.abs(Number(e.dx) || 0);
         const dy = Math.abs(Number(e.dy) || 0);
         const blur = Math.max(0, Number(e.blur) || 0);
-        const sp = Math.max(dx, dy) + blur * 3;
+        const sp = isRaster ? Math.max(dx, dy) + blur * 3 : Math.max(dx, dy) + Math.ceil(blur * 1.5);
         if (sp > shadowPad) shadowPad = sp;
       }
     }
@@ -169,10 +185,10 @@ function objectVisualPad(o) {
   let blurMargin = 0;
   if (Array.isArray(o.effects)) {
     for (const e of o.effects) {
-      if (!e || e.disabled) continue;
+      if (!e || e.disabled || e.type === 'backgroundBlur') continue;
       if (e.type === 'layerBlur') {
         const radius = Math.max(0, Number(e.radius) || 0);
-        const bm = Math.ceil(3 * radius);
+        const bm = isRaster ? Math.ceil(3 * radius) : Math.ceil(1.5 * radius);
         if (bm > blurMargin) blurMargin = bm;
       }
     }
@@ -181,11 +197,12 @@ function objectVisualPad(o) {
 }
 
 /* kotak batas semua konten (kurva disampel, + stroke miter + efek visual) → [x0,y0,x1,y1] atau null */
-function docBounds(doc: any, only: any = null) {
+function docBounds(doc: any, only: any = null, options: any = null) {
   let x0 = 1e18,
     y0 = 1e18,
     x1 = -1e18,
     y1 = -1e18;
+  const isRaster = Boolean(options && options.isRaster);
   const add = (x, y, pad) => {
     if (x - pad < x0) x0 = x - pad;
     if (x + pad > x1) x1 = x + pad;
@@ -195,7 +212,8 @@ function docBounds(doc: any, only: any = null) {
   (doc.objects || []).forEach(o => {
     if (!o || o.hidden) return;
     if (only && !only.has(o.id)) return;
-    const pad = objectVisualPad(o);
+    if ((o.isFrameBg || o.isAutoFrame) && !isVisibleFrameBg(o)) return;
+    const pad = objectVisualPad(o, isRaster);
     const b = isLegacyText(o) ? legacyTextBounds(o) : tightBBox(o);
     if (b && b[0] <= b[2] && b[1] <= b[3]) {
       add(b[0], b[1], pad);
@@ -207,4 +225,4 @@ function docBounds(doc: any, only: any = null) {
 /* opt: { bg:{mode:'transparent'|'solid',color}, area:'board'|'content' } */
 /* ---- gradien per objek: o.grad disimpan dalam koordinat dokumen (userSpaceOnUse) supaya ikut translate/scale/rotate; valid selama o.fill masih sama dengan grad.base ---- */
 
-export { makeImageObj, isSafeImageHref, imageMatrix, computeImageParGeometry, scaleObj, docBounds, objectVisualPad };
+export { makeImageObj, isSafeImageHref, imageMatrix, computeImageParGeometry, scaleObj, docBounds, objectVisualPad, isVisibleFrameBg };

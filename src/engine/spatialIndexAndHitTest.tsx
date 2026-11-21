@@ -490,6 +490,7 @@ function updateSpatialIndexForObjects(prevObjects, nextObjects, dirtyIds) {
     const entry = {
       o,
       order: oi,
+      idx: objEntries.length,
       bb,
       pbb
     };

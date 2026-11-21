@@ -2,7 +2,7 @@
  * @file src/engine/svgDocumentSerializer.tsx
  * @description Serialisasi dokumen Geovanta kembali menjadi kode standar XML SVG
  */
-import { docBounds, imageMatrix, isSafeImageHref } from './imageAndBounds.tsx';
+import { docBounds, imageMatrix, isSafeImageHref, isVisibleFrameBg } from './imageAndBounds.tsx';
 import { rd, esc } from './vectorPrimitives.tsx';
 import { gradOn, gradXml, strokeGradOn } from './gradientEngine.tsx';
 import { serializePath, serializeSub } from './svgPathSerializer.tsx';
@@ -26,17 +26,19 @@ export function resolveExportArea(doc, opt: Record<string, any> = {}) {
   }; /* layer tersembunyi tidak ikut diekspor (ala Figma) */
   if (opt.area === 'sel' && opt.only) {
     const targetIds = new Set(opt.only);
-    // Masukkan semua anggota frame atau frame ikon bila kontainernya dipilih
+    // Masukkan semua anggota frame bila kontainernya (latar) dipilih secara eksplisit
     for (const o of doc.objects) {
       if (opt.only.has(o.id)) {
-        if ((o.isFrameBg || o.isAutoFrame || o.containerType === 'frame') && o.group) {
+        if ((o.isFrameBg || o.isAutoFrame) && o.group) {
           for (const ch of doc.objects) {
             if (ch.group === o.group) targetIds.add(ch.id);
           }
-        }
-        if (o.isIconFrame && o.group) {
+        } else if (o.isIconFrame && o.group) {
+          // Bila anggota bentuk ikon dipilih, masukkan semua bentuk visual ikon (kecuali latar frame)
           for (const ch of doc.objects) {
-            if (ch.group === o.group && ch.isIconFrame) targetIds.add(ch.id);
+            if (ch.group === o.group && ch.isIconFrame && !ch.isFrameBg && !ch.isAutoFrame) {
+              targetIds.add(ch.id);
+            }
           }
         }
       }
@@ -51,14 +53,21 @@ export function resolveExportArea(doc, opt: Record<string, any> = {}) {
   }
   let [vx, vy, vw, vh] = doc.viewBox;
   if (opt.area === 'content' || opt.area === 'sel') {
-    const bb = docBounds(doc);
+    const bb = docBounds(doc, null, opt);
     if (bb && bb[2] > bb[0] && bb[3] > bb[1]) {
-      // Bleed safety margin untuk antialiasing dan ekstensi stroke/efek (min 2px pada raster)
-      const bleed = opt.bleed != null ? opt.bleed : (opt.isRaster ? 2 : 1);
-      vx = Math.floor((bb[0] - bleed) * 100) / 100;
-      vy = Math.floor((bb[1] - bleed) * 100) / 100;
-      vw = Math.ceil((bb[2] + bleed - vx) * 100) / 100;
-      vh = Math.ceil((bb[3] + bleed - vy) * 100) / 100;
+      // Bleed safety margin: 0 untuk SVG vektor murni (tanpa white stroke / gap), 2px untuk raster (antialiasing)
+      const bleed = opt.bleed != null ? opt.bleed : (opt.isRaster ? 2 : 0);
+      if (bleed > 0) {
+        vx = Math.floor((bb[0] - bleed) * 100) / 100;
+        vy = Math.floor((bb[1] - bleed) * 100) / 100;
+        vw = Math.ceil((bb[2] + bleed - vx) * 100) / 100;
+        vh = Math.ceil((bb[3] + bleed - vy) * 100) / 100;
+      } else {
+        vx = bb[0];
+        vy = bb[1];
+        vw = bb[2] - bb[0];
+        vh = bb[3] - bb[1];
+      }
     }
   }
   return {objects: doc.objects, bounds: [vx, vy, Math.max(1, rd(vw)), Math.max(1, rd(vh))]};
@@ -275,6 +284,7 @@ function serializeDoc(doc, opt: Record<string, any> = {}) {
   const r6 = v => Math.round(v * 1e6) / 1e6;
   if (opt.bg && opt.bg.mode === 'solid') body += '<rect x="0" y="0" width="' + vw + '" height="' + vh + '" fill="' + esc(opt.bg.color || '#ffffff') + '"/>';
   objects.forEach(o => {
+    if ((o.isFrameBg || o.isAutoFrame) && !isVisibleFrameBg(o)) return;
     if (o.group !== open) {
       if (open) body += '</g>';
       if (o.group) {

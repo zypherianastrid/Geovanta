@@ -27,7 +27,7 @@ const VE_DRAW_GROUP = [
 /* Kunci tool grup gambar (selain Pen yang memiliki perilaku Escape sesi sendiri) — dipakai VectorEditor (shortcut, kursor, Esc). */
 const VE_DRAW_TOOLS = ['pencil', 'brush', 'curvature', 'shapebuilder', 'line', 'arc', 'blob', 'weave'];
 
-/* Daftar item pada floating bar (urutan konsisten & selaras): Bentuk berupa 1 tombol tunggal */
+/* Daftar item pada floating bar (urutan konsisten & selaras): Bentuk diakses lewat rail kiri */
 const VE_TOOLS = [{
   type: 'single',
   item: ['select', 'veSelect', 'M5.5 4.2l12.8 6.4a1.2 1.2 0 0 1-.12 2.2l-5.2 1.65-2.15 5.05a1.2 1.2 0 0 1-2.25-.12L4.1 5.6a1.1 1.1 0 0 1 1.4-1.4z']
@@ -39,9 +39,6 @@ const VE_TOOLS = [{
   type: 'group',
   id: 'drawGrp',
   items: VE_DRAW_GROUP
-}, {
-  type: 'single',
-  item: ['shape', 'veShape', 'M4 4h16v16H4z']
 }, {
   type: 'single',
   item: ['text', 'veText', 'M4 5h16 M12 5v15 M7 20h10 M5 5v3 M19 5v3']

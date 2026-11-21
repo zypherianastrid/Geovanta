@@ -367,7 +367,9 @@ const IconifyPanel = ({
                 <button
                   key={`ellipsis-${idx}`}
                   type="button"
-                  title="Lompat halaman"
+                  data-tip="icJumpPage"
+                  title={L?.icJumpPage || 'Lompat halaman'}
+                  aria-label={L?.icJumpPage || 'Lompat halaman'}
                   onClick={() => onSelectPage(jumpTarget)}
                   style={{
                     minWidth: 28,
@@ -485,6 +487,7 @@ const IconifyPanel = ({
           type="button"
           className="fig-ibtn"
           onClick={onClose}
+          data-tip="closeDlg"
           aria-label={L.frClose || 'Tutup'}
           data-testid="ic-close"
           style={{ width: 34, height: 34, borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, cursor: 'pointer' }}

@@ -3,9 +3,12 @@ dist/
 test-results/
 .superpowers/
 .netlify/
+.git/
 scratch/
 src-tauri/
+rust/**/target/
 tests/
 docs/
 *.png
+*.zip
 *.log

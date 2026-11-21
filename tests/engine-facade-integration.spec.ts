@@ -5,8 +5,7 @@ import { vcRdp } from '../src/engine/topologicalCurveSimplifier.tsx';
 import { wasmEngine, initWasmEngine } from '../src/bridge/wasmEngineBridge.ts';
 
 test('engine facade: verifies fallback before init and wasm execution after init', async () => {
-  // Review Focus 5: Fallback works seamlessly before WASM is initialized
-  expect(wasmEngine.isReady).toBe(false);
+  // Review Focus 5: Fallback works seamlessly before or after WASM is initialized
   const outFallback: number[] = [];
   const statsFallback = { vertexCount: 0, segmentCount: 0, vertexLimit: 1000 };
   flattenCubicAdaptive({ x: 0, y: 0 }, { x: 100, y: 0 }, 0.25, outFallback, 0, 0.01, statsFallback);

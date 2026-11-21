@@ -15,7 +15,7 @@ import { getAppStr, translateToast } from '../../constants/appI18n.tsx';
 import { setSceneInteractingZoom, buildObjectGpuBuffers } from '../../renderer/polygonTriangulatorAndStroke.tsx';
 import { DEFAULT_SNAP_CFG, VE_NODE_GROUP, VE_GEO_GROUP, VE_DRAW_GROUP, VE_DRAW_TOOLS, SHAPES, SHAPE_EN, SNAP_TOOL_CAPABILITIES, SNAP_OPTS } from '../../constants/editorToolsAndShapes.tsx';
 import { ACTIVE_DEVICE_PROFILE } from '../../utils/deviceProfiles.tsx';
-import { cssToHex, parseColorWithAlpha } from '../../utils/colorParserAndFormatter.tsx';
+import { cssToHex, parseColorWithAlpha, formatColorWithAlpha } from '../../utils/colorParserAndFormatter.tsx';
 import { vinfo } from '../../renderer/pathInfo.tsx';
 import { LAYER_ROW_EST_PX } from './LayerTreeViewport.tsx';
 import { SceneRenderer, calcGridStep } from '../../renderer/sceneRenderer.tsx';
@@ -348,15 +348,23 @@ const VectorEditor = ({
       while (usedGroups.has(gid)) gid = fullName + '-' + gi++;
 
       /* Frame-split & Stitching:
-         1. Terapkan warna aktif pada ikon monokrom.
+         1. Terapkan warna aktif pada ikon monokrom (dengan mempertahankan alpha/fill-opacity asli bila ada).
          2. Jahit kuadran/segmen busur terbuka menjadi lingkaran tertutup utuh,
-            serta satukan subpath bersarang (lubang) dalam compound path fillRule 'evenodd'.
-         3. Bentuk independen (mis. titik dadu, wajah dadu) menjadi objek mandiri yang bersih.
-         4. Simplifikasi per subpath level 100 sebelum skala. */
+            dan pertahankan topologi kurva & fillRule asli SVG tanpa penyederhanaan yang merusak bentuk. */
       const styledObjects = parsed.objects.map(o => {
         let q = { ...o };
         if (!palette && !q.grad) {
-          if (q.fill && q.fill !== 'none') q = { ...q, fill: st.fill };
+          if (q.fill && q.fill !== 'none') {
+            let nextFill = st.fill;
+            if (typeof parseColorWithAlpha === 'function' && typeof formatColorWithAlpha === 'function') {
+              const orig = parseColorWithAlpha(q.fill);
+              const act = parseColorWithAlpha(st.fill);
+              if (orig && !orig.isNone && orig.a < 0.999) {
+                nextFill = formatColorWithAlpha(act.hex || st.fill, orig.a * (act.a ?? 1));
+              }
+            }
+            q = { ...q, fill: nextFill };
+          }
           if (q.stroke && q.stroke !== 'none') {
             q = { ...q, stroke: st.stroke, strokeWidth: st.sw > 0 ? st.sw : (q.strokeWidth || 0) };
           }
@@ -370,13 +378,15 @@ const VectorEditor = ({
       const fallback = [];
       cleaned.forEach((o, pi) => {
         let q = o;
-        const simplifiedSubs = (q.subs || []).map(sp => {
-          try {
-            const s = VE.simplifySubpath(sp, { tolerance: VE.simplifyLevelTolerance(100) / k });
-            return s && s.nodes && s.nodes.length >= 2 ? s : sp;
-          } catch (e) { return sp; }
-        });
-        q = { ...q, subs: simplifiedSubs };
+        if (autoSimplifyOnRef.current) {
+          const simplifiedSubs = (q.subs || []).map(sp => {
+            try {
+              const s = VE.simplifySubpath(sp, { tolerance: VE.simplifyLevelTolerance(100) / k });
+              return s && s.nodes && s.nodes.length >= 2 ? s : sp;
+            } catch (e) { return sp; }
+          });
+          q = { ...q, subs: simplifiedSubs };
+        }
         q = VE.scaleObj(q, 0, 0, k);
         if (q.stroke && q.stroke !== 'none' && (q.strokeWidth || 0) > 0) q = { ...q, strokeWidth: q.strokeWidth * k };
         q = VE.translate(q, dx, dy);
@@ -1575,6 +1585,50 @@ const VectorEditor = ({
       say(convertedMap.size + ' objek teks diubah menjadi path vektor (Ctrl+Z untuk kembali)');
     } catch (e) {
       say('Gagal mengubah teks ke path: ' + (e && e.message || 'font tidak tersedia'));
+    }
+  };
+  const autoTraceSelectedImages = async (opts: any = {}) => {
+    const d = docRef.current;
+    const S = selRef.current.objs;
+    const targets = d.objects.filter(o => S.has(o.id) && !o.locked && !o.hidden && o.img);
+    if (!targets.length) {
+      say('Pilih objek gambar dulu untuk Auto Trace');
+      return null;
+    }
+    try {
+      let nextObjects = [...d.objects];
+      const newIds: string[] = [];
+      let totalNodes = 0;
+      let totalPaths = 0;
+      for (const imgObj of targets) {
+        const res = await VE.traceImageObjectToVectorPaths(imgObj, opts);
+        if (res.objects.length > 0) {
+          totalNodes += res.nodeCount;
+          totalPaths += res.pathCount;
+          newIds.push(...res.objects.map((o: any) => o.id));
+          const idx = nextObjects.findIndex(o => o.id === imgObj.id);
+          if (idx >= 0) {
+            if (opts && opts.keepOriginalImage) {
+              nextObjects.splice(idx + 1, 0, ...res.objects);
+            } else {
+              nextObjects.splice(idx, 1, ...res.objects);
+            }
+          } else {
+            nextObjects.push(...res.objects);
+          }
+        }
+      }
+      if (!newIds.length) {
+        say('Auto Trace tidak menghasilkan path vektor — sesuaikan threshold atau jumlah warna');
+        return null;
+      }
+      commit({ ...d, objects: nextObjects }, 'autotrace');
+      setSel({ objs: new Set(newIds), nodes: new Set() });
+      say(`Auto Trace selesai: ${totalPaths} path vektor, ${totalNodes} node`);
+      return { ids: newIds, totalPaths, totalNodes };
+    } catch (e: any) {
+      say('Gagal Auto Trace: ' + (e?.message || 'kesalahan tidak diketahui'));
+      return null;
     }
   };
   const importFontFiles = async fileList => {
@@ -8457,6 +8511,13 @@ const VectorEditor = ({
     kbd: 'Ctrl+Shift+O',
     dis: false,
     act: convertTextSelectionToPath
+  }] : []), ...(selObjs.some(o => o && o.img && !o.locked && !o.hidden) ? [{
+    k: 'auto-trace-img',
+    label: prefs?.lang === 'en' ? 'Auto Trace Image to SVG' : (L.atTitle || 'Auto Trace Gambar ke SVG'),
+    ic: ICONS.wand,
+    tip: 'veAutoTraceRun',
+    dis: false,
+    act: () => autoTraceSelectedImages()
   }] : []), {
     sep: 1
   }, {
@@ -9640,6 +9701,7 @@ const VectorEditor = ({
                 getOffsetStripState: () => offStripRef.current,
                 onIconifyInsert,
                 getIconifyCascadeCount: () => iconifyCascadeRef.current,
+                autoTraceSelectedImages,
                 openBoolPopup: () => setBoolOpen(true),
                 closeBoolPopup: () => setBoolOpen(false),
                 openNodeGrp: () => setOpenGrp('nodeGrp'),

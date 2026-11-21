@@ -454,7 +454,7 @@ class SceneRenderer {
       allObjects: this.doc.objects
     };
     const background = this.bg.mode === 'solid' ? this.bg.color || '#ffffff' : null;
-    const smoothEdges = Boolean(RENDER_CONFIG.antialias);
+    const smoothEdges = true;
     const isObjectDragging = Boolean(this.dragOffset && this.dragOffset.ids && this.dragOffset.ids.size > 0);
     const interacting = Boolean(this.cameraInteracting || this.sceneInteracting || isObjectDragging);
     const canvas = this.surface.getCanvas();
@@ -568,7 +568,7 @@ class SceneRenderer {
     } else {
       if (this.dragStaticImage || this.dragStaticSurface) this.releaseDragStaticCache();
       const {kit} = scene;
-      const useRgss = !RENDER_CONFIG.antialias && !interacting;
+      const useRgss = !RENDER_CONFIG.antialias;
       const zoomChanged = this.camera.zoom !== this._lastCameraZoom;
       this._lastCameraZoom = this.camera.zoom;
       const panKey = `${pw}|${ph}|${this.revisionId}|${this.camera.zoom}|${background || ''}|${this.clipFrames ? 1 : 0}|${this.editingTextId || ''}|${smoothEdges ? 1 : 0}|${this.textPreview ? 1 : 0}`;
@@ -860,6 +860,7 @@ class SceneRenderer {
       }
     }
     if (!skipFlush) this.surface.flush();
+    this.lastRenderStats = stats;
     scene.pruneImages(this.doc.objects);
     PERF_TELEMETRY.updateSceneMetrics({
       ...stats,

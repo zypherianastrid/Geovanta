@@ -616,7 +616,7 @@ export class CanvasKitScene {
   }
 
   drawVector(canvas, o, path, x, y, zoom, fill, stroke, opacity, smoothEdges) {
-    const aa = true;
+    const aa = Boolean(smoothEdges);
     if (this._paintAA !== aa) {
       this.paint.setAntiAlias(aa);
       this.layerPaint.setAntiAlias?.(aa);
@@ -1233,7 +1233,7 @@ export class CanvasKitScene {
         const strokeW = o.strokeWidth || 0;
         const strokeOutward = hasVisibleStroke(o) ? strokeOutwardExtent(o) : 0;
         const strokePad = strokeOutward * (o.nonScalingStroke ? 1 / zoom : 1) * (o.strokeMiterlimit || 4);
-        const pad = Math.max(2, strokePad) + shadowPad + blurMargin;
+        const pad = Math.max(4, strokePad) + shadowPad + blurMargin;
         if (bb[2] + dx + pad < cx0 || bb[0] + dx - pad > cx1 ||
             bb[3] + dy + pad < cy0 || bb[1] + dy - pad > cy1) {
           stats.culledObjects++;
