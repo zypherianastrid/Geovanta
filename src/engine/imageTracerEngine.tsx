@@ -234,8 +234,20 @@ export async function traceRgbaBufferToSvgAsync(
       ? rgba
       : new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength);
 
+  let srcImg: any = { _rgba: inputRgba, w: width, h: height };
+  if (typeof document !== 'undefined' && typeof ImageData !== 'undefined') {
+    const cv = document.createElement('canvas');
+    cv.width = width;
+    cv.height = height;
+    const cctx = cv.getContext('2d');
+    if (cctx && typeof (cv as any).toDataURL === 'function') {
+      cctx.putImageData(new ImageData(new Uint8ClampedArray(inputRgba), width, height), 0, 0);
+      srcImg = cv;
+    }
+  }
+
   const res = await VMT.vectorize(
-    { rgba: inputRgba, img: { _rgba: inputRgba, w: width, h: height }, w: width, h: height },
+    { rgba: inputRgba, img: srcImg, w: width, h: height },
     vmtCfg,
     onProgress || (() => {})
   );
