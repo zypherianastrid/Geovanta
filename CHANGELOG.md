@@ -13,12 +13,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **2 Trace Modes**: **Black & White (Luminance Threshold)** and **Color (Multi-Layer K-Means Posterized Palette, 2–16 layers)**.
   - **Precision Trace Controls**: Adjustable *Luminance Threshold (`8–248`)*, *Color Layers (`2–16`)*, *Cubic Bézier Curve Smoothing (`0–135%`)*, *Corner Angle Threshold (`20–140°`)*, *Despeckle / Minimum Area Filter (`0–64 px`)*, *Ignore White Background*, and *Keep Original Image*.
   - Accessible directly from the **Right Inspector** and **Canvas Context Menu** whenever one or more raster images are selected, with single-step Undo/Redo support.
+- **Separate Icon Objects (`separateIconObjectsDoc` in `compoundPathEngine.tsx`)**:
+  - Dedicated one-click icon separation tool (*Pisahkan Objek Ikon* / *Separate Icon Objects*) available in the **Right Inspector (Appearance)**, **Boolean / Pathfinder Popover**, and **Canvas Context Menu** whenever a multi-subpath icon or icon frame is selected.
+  - Automatically analyzes subpath containment topology (`ringContainsPt`) to split an inserted single-path icon into its independent visual objects (e.g., 3+ separate parts) while keeping inner holes (counter-contours) attached to their parent contour.
 - **Complete Bilingual (English & Bahasa Indonesia) Translations & Tooltips**:
-  - Added full English translations (`APP_STR.en`, `TOAST_EN`, `TOAST_PATTERNS`) for all Auto Trace controls, Iconify status/toasts, Shape Builder feedback, Node/Path actions, and Stroke Width labels.
+  - Added full English translations (`APP_STR.en`, `TOAST_EN`, `TOAST_PATTERNS`) for all Auto Trace controls, Separate Icon Objects action, Iconify status/toasts, Shape Builder feedback, Node/Path actions, and Stroke Width labels.
   - Added complete bilingual tooltip entries (`TIPS` and `TIPS_EN`) for every `data-tip` control across the application.
 
 ### Fixed
-- **Iconify & Material UI Icon Insertion Fidelity (`iconifyClient.tsx`, `compoundPathEngine.tsx`, `VectorEditor.tsx`)**:
+- **Iconify & Material UI Icon Insertion Fidelity & Overlapping Subpath Node Cleanup (`iconifyClient.tsx`, `compoundPathEngine.tsx`, `VectorEditor.tsx`)**:
+  - Fixed weird interior nodes appearing in the middle of inserted icons (such as slashed Material Symbols / Material UI icons) by automatically detecting and performing a high-precision Greiner-Hormann Boolean Union (`mergeOverlappingSubpathsInObject`) on same-winding subpaths whose edges cross (`ringsCrossEachOther`), while leaving true opposite-winding holes and disjoint parts untouched.
   - Fixed a bug where inserting Material UI (`ic`, `mdi`, `material-symbols`) and multi-path icons altered their visual appearance due to forced bounding-box subpath re-grouping, forced `evenodd` fill-rule overrides on `nonzero` compound paths, and destructive pre-scale curve simplification.
   - Added support for Iconify entry and chained-alias transformations (`rotate`, `hFlip`, `vFlip`) and root `fill="currentColor"` inheritance in `buildIconSvg`, while preserving per-element `fill-opacity` on duo-tone icons.
 

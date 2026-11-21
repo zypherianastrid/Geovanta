@@ -7831,6 +7831,19 @@ const VectorEditor = ({
     const st = res.stats;
     say(prefs?.lang === 'en' ? `Compound Path released (${st.inObjects} compound → ${st.outObjects} objects)` : `Compound Path dilepas (${st.inObjects} compound → ${st.outObjects} objek)`);
   };
+
+  /* ---- Separate Icon Objects: pisahkan bagian-bagian ikon menjadi objek terpisah (lubang tetap menyatu dengan induknya) ---- */
+  const applySeparateIconObjects = () => {
+    const res = VE.separateIconObjectsDoc(docRef.current, selRef.current.objs);
+    if (!res.changed) {
+      if (res.reason === 'singleisland') return say('Ikon ini hanya terdiri dari 1 bentuk utuh (tidak ada bagian terpisah)');
+      return say('Pilih ikon atau objek dengan 2+ bagian terpisah terlebih dahulu');
+    }
+    commit(res.doc, 'separate-icon');
+    setSel({ objs: new Set(res.resultIds), nodes: new Set() });
+    const st = res.stats;
+    say(`Ikon dipisahkan menjadi ${st.outObjects} objek mandiri`);
+  };
   /* ---- Outline Stroke: ubah stroke jadi bentuk berisi (fill = warna stroke) ---- */
   const applyOutlineStroke = () => {
     const res = VE.outlineStrokeDoc(docRef.current, selRef.current.objs);
@@ -8358,6 +8371,9 @@ const VectorEditor = ({
   const eligiblePaths = selObjs.filter(o => !o.locked && !o.hidden && !o.img && !o.text && o.subs && o.subs.length > 0);
   const canMakeCompound = eligiblePaths.length >= 2;
   const canReleaseCompound = eligiblePaths.some(o => o.subs && o.subs.length > 1);
+  const selectedIconGroups = new Set(selObjs.filter(o => o.group && (o.isIconFrame || o.icon)).map(o => o.group));
+  const canSeparateIcon = eligiblePaths.some(o => o.subs && o.subs.length > 1) ||
+    doc.objects.some(o => !o.locked && !o.hidden && !o.isFrameBg && !o.isAutoFrame && o.group && selectedIconGroups.has(o.group) && o.subs && o.subs.length > 1);
   const canBool = eligiblePaths.length >= 2;
   const ctxItems = [{
     k: 'copy',
@@ -8494,6 +8510,13 @@ const VectorEditor = ({
     tip: 'veReleaseCompound',
     dis: !canReleaseCompound,
     act: applyReleaseCompoundPath
+  }, {
+    k: 'separate-icon',
+    label: L.edSeparateIcon || (prefs?.lang === 'en' ? 'Separate Icon Objects' : 'Pisahkan Objek Ikon'),
+    ic: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+    tip: 'veSeparateIcon',
+    dis: !canSeparateIcon,
+    act: applySeparateIconObjects
   }, {
     sep: 1
   }, {
@@ -9646,7 +9669,7 @@ const VectorEditor = ({
                   setRenamingId(null);
                 }} /></div>;
             }
-          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} onOpenCodeInspector={openCodeInspector} isCodeInspectorOpen={isCodeInspectorOpen} />{(() => {
+          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} applySeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} onOpenCodeInspector={openCodeInspector} isCodeInspectorOpen={isCodeInspectorOpen} />{(() => {
             if (typeof window !== 'undefined') {
               Object.defineProperty(window, '__geovantaAutoSimplifyOn', {
                 get: () => autoSimplifyOnRef.current,
@@ -9693,6 +9716,7 @@ const VectorEditor = ({
                 applyBoolean,
                 applyMakeCompoundPath,
                 applyReleaseCompoundPath,
+                applySeparateIconObjects,
                 applyOutlineStroke,
                 openOffsetStrip,
                 updateOffsetStrip,
@@ -9963,7 +9987,7 @@ const VectorEditor = ({
           })()}</div></div><div className="flex h-full min-h-0 relative select-none order-3 lg:order-none"><button type="button" className={'fig-sidebar-edge-toggle fig-sidebar-edge-toggle-right' + (rightOpen ? ' on' : '')} data-tip={rightOpen ? 'veRightSidebarHide' : 'veRightSidebarShow'} aria-label={rightOpen ? L.edRightSidebarHide : L.edRightSidebarShow} aria-expanded={rightOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
             e.stopPropagation();
             setRightOpen(o => !o);
-          }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M14.5 4v16" /><path d={rightOpen ? 'M9 9.5L11.5 12 9 14.5' : 'M11 9.5L8.5 12 11 14.5'} /></svg></button>{rightOpen && <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} onExportBackup={onExportBackup} onOpenCodeInspector={openCodeInspector} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} textControls={primary && primary.type === 'text' ? (() => {
+          }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M14.5 4v16" /><path d={rightOpen ? 'M9 9.5L11.5 12 9 14.5' : 'M11 9.5L8.5 12 11 14.5'} /></svg></button>{rightOpen && <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} onSeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} onExportBackup={onExportBackup} onOpenCodeInspector={openCodeInspector} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} textControls={primary && primary.type === 'text' ? (() => {
             void fontCatalogVer;
             const reg = sceneRendererRef.current?.scene?.fontRegistry || null;
             const availFonts = reg && typeof reg.listFamilies === 'function' ? reg.listFamilies().map(f => typeof f === 'string' ? f : f && f.family).filter(Boolean) : ['IBM Plex Sans'];

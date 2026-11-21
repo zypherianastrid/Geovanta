@@ -25,7 +25,7 @@ import { arcToCubics } from './arcToBezier.tsx';
 import { kasaFit, schneiderFit, detectAnomalies, EMPTY_INSPECTION } from './curveFittingAndAnomalies.tsx';
 import { fixAnomaly, fixAllAnomalies, SIMPLIFY_LEVEL, simplifyLevelTolerance, autoSimplifyLevel, simplifyWith, simplifySubpath, simplifyPart, simplifyDoc, autoSimplifyDoc } from './topologicalCurveSimplifier.tsx';
 import { booleanDoc } from './pathBoolean.tsx';
-import { makeCompoundPathDoc, releaseCompoundPathDoc, isCircleSubpath, stitchContiguousSubpaths, cleanAndStitchIconObjects } from './compoundPathEngine.tsx';
+import { makeCompoundPathDoc, releaseCompoundPathDoc, isCircleSubpath, stitchContiguousSubpaths, mergeOverlappingSubpathsInObject, cleanAndStitchIconObjects, separateIconObjectsDoc } from './compoundPathEngine.tsx';
 import { outlineStrokeDoc, offsetDoc, alignedStrokeOutlineSubs } from './pathOffset.tsx';
 import { isLegacyText, legacyTextSpec, normalizeTextObject, normalizeTextDocument, applyTextCase, legacyTextBounds } from './legacyText.tsx';
 import { textToPathObject, convertDocumentTextToPaths } from './textToPath.tsx';
@@ -204,7 +204,9 @@ const VE = {
   releaseCompoundPathDoc,
   isCircleSubpath,
   stitchContiguousSubpaths,
+  mergeOverlappingSubpathsInObject,
   cleanAndStitchIconObjects,
+  separateIconObjectsDoc,
   outlineStrokeDoc,
   alignedStrokeOutlineSubs,
   offsetDoc,
@@ -250,7 +252,9 @@ export {
   releaseCompoundPathDoc,
   isCircleSubpath,
   stitchContiguousSubpaths,
+  mergeOverlappingSubpathsInObject,
   cleanAndStitchIconObjects,
+  separateIconObjectsDoc,
   distanceFilter,
   smoothPoints,
   fitPointsToSubpath,

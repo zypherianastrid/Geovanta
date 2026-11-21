@@ -100,6 +100,7 @@ const APP_STR = {
     edBoolDivide: 'Bagi (Divide)',
     edMakeCompound: 'Buat Compound Path',
     edReleaseCompound: 'Lepas Compound Path',
+    edSeparateIcon: 'Pisahkan Objek Ikon',
     vePencil: 'Pensil',
     veBrush: 'Kuas',
     edOutlineStroke: 'Outline Stroke',
@@ -640,6 +641,7 @@ const APP_STR = {
     edBoolDivide: 'Divide',
     edMakeCompound: 'Make Compound Path',
     edReleaseCompound: 'Release Compound Path',
+    edSeparateIcon: 'Separate Icon Objects',
     vePencil: 'Pencil',
     veBrush: 'Brush',
     edOutlineStroke: 'Outline Stroke',
@@ -1228,6 +1230,8 @@ const TOAST_EN = {
   'Make Compound Path: tidak ada perubahan': 'Make Compound Path: no changes',
   'Pilih compound path (dengan 2+ subpath) untuk dilepas': 'Select a compound path (with 2+ subpaths) to release',
   'Release Compound Path: tidak ada perubahan': 'Release Compound Path: no changes',
+  'Ikon ini hanya terdiri dari 1 bentuk utuh (tidak ada bagian terpisah)': 'This icon consists of only 1 continuous shape (no separate parts)',
+  'Pilih ikon atau objek dengan 2+ bagian terpisah terlebih dahulu': 'Select an icon or object with 2+ separate parts first',
   'Garis hanya melewati 1 bentuk — seret melintasi 2+ bentuk yang tumpang tindih': 'Line only crossed 1 shape — drag across 2+ overlapping shapes',
   'Bentuk yang dilewati garis tidak saling tumpang tindih': 'Shapes crossed by the line do not overlap',
   'Shape Builder: tidak ada perubahan': 'Shape Builder: no change',
@@ -1353,6 +1357,7 @@ const TOAST_PATTERNS = [
   [/^Auto-Simplify 100%: (\d+) objek dioptimalkan · (\d+) → (\d+) node$/, 'Auto-Simplify 100%: $1 object(s) optimized · $2 → $3 nodes'],
   [/^Compound Path dibuat \((\d+) objek → 1 compound path, (\d+) subpath\)$/, 'Compound Path created ($1 objects → 1 compound path, $2 subpaths)'],
   [/^Compound Path dilepas \((\d+) compound → (\d+) objek\)$/, 'Compound Path released ($1 compound → $2 objects)'],
+  [/^Ikon dipisahkan menjadi (\d+) objek mandiri$/, 'Icon separated into $1 independent objects'],
   [/^Gagal mengonversi teks untuk flatten: (.*)$/, 'Failed to convert text for flatten: $1'],
 ];
 

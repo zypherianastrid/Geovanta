@@ -3511,5 +3511,7 @@ TIPS.veAutoTraceRun = {t: 'Trace Gambar ke SVG', d: 'Jalankan konversi Auto Trac
 TIPS_EN.veAutoTraceRun = {t: 'Trace Image to SVG', d: 'Run Rust/WASM Auto Trace conversion on the selected image (single Undo step).'};
 TIPS.icJumpPage = {t: 'Lompat Halaman', d: 'Lompat 5 halaman sekaligus pada daftar ikon.'};
 TIPS_EN.icJumpPage = {t: 'Jump Page', d: 'Jump 5 pages forward or backward in the icon grid.'};
+TIPS.veSeparateIcon = {t: 'Pisahkan Objek Ikon', d: 'Memecah ikon atau compound path yang terdiri dari beberapa bagian terpisah menjadi objek-objek mandiri yang bisa dipilih dan diwarnai sendiri-sendiri, sambil menjaga lubang (hole) tetap menyatu dengan induknya.'};
+TIPS_EN.veSeparateIcon = {t: 'Separate Icon Objects', d: 'Splits a multi-part icon or compound path into independent objects that can be selected and styled individually, while keeping inner holes attached to their parent shape.'};
 export { TIPS, TIPS_EN };
 export default TIPS;
