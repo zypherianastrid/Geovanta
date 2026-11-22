@@ -7,6 +7,7 @@
 import { getSvgPeakVmtEngine } from './svgpeak/vmtEngineBundle.js';
 import {
   getAutoTraceGpuInfo,
+  maskEdgeConnectedWhiteBackdrop,
   traceUltraExactVectorSvg,
   type AutoTraceGpuInfo,
 } from './gpuAutoTrace.ts';
@@ -79,7 +80,7 @@ export const DEFAULT_AUTO_TRACE_OPTIONS: Required<AutoTraceOptions> = {
   layerDifference: 4.2,
   closedLoop: true,
   stroke: true,
-  ignoreWhite: true,
+  ignoreWhite: false,
   keepOriginalImage: false,
   maxSampleDim: 880,
   useGpu: true,
@@ -145,48 +146,6 @@ export function buildSvgPeakVmtConfig(options: AutoTraceOptions = {}): any {
     maxDim: Math.max(64, Math.min(2048, Math.round(opts.maxSampleDim || 880))),
     fastPreview: true,
   };
-}
-
-/**
- * Detects near-white background palette labels so they can be hidden when `ignoreWhite` is enabled.
- */
-function computeHiddenWhiteLabels(
-  palette: any[],
-  labels: Int16Array | number[] | null,
-  w: number,
-  h: number,
-  ignoreWhite: boolean
-): number[] {
-  if (!ignoreWhite || !Array.isArray(palette) || palette.length <= 1) return [];
-  const whiteCandidates = new Set<number>();
-  for (let i = 0; i < palette.length; i++) {
-    const c = palette[i];
-    if (!c) continue;
-    if (c.r >= 238 && c.g >= 238 && c.b >= 238) {
-      whiteCandidates.add(i);
-    }
-  }
-  if (!whiteCandidates.size || whiteCandidates.size >= palette.length) return [];
-
-  if (labels && labels.length === w * h && w > 2 && h > 2) {
-    const borderHits = new Map<number, number>();
-    for (let x = 0; x < w; x++) {
-      const lTop = labels[x];
-      const lBot = labels[(h - 1) * w + x];
-      if (whiteCandidates.has(lTop)) borderHits.set(lTop, (borderHits.get(lTop) || 0) + 1);
-      if (whiteCandidates.has(lBot)) borderHits.set(lBot, (borderHits.get(lBot) || 0) + 1);
-    }
-    for (let y = 1; y < h - 1; y++) {
-      const lLeft = labels[y * w];
-      const lRight = labels[y * w + (w - 1)];
-      if (whiteCandidates.has(lLeft)) borderHits.set(lLeft, (borderHits.get(lLeft) || 0) + 1);
-      if (whiteCandidates.has(lRight)) borderHits.set(lRight, (borderHits.get(lRight) || 0) + 1);
-    }
-    if (borderHits.size > 0) {
-      return Array.from(borderHits.keys());
-    }
-  }
-  return Array.from(whiteCandidates);
 }
 
 /**
@@ -271,12 +230,18 @@ export async function traceRgbaBufferToSvgAsync(
   }
 
   const vmtCfg = buildSvgPeakVmtConfig(opts);
-  const inputRgba =
+  const rawRgba =
     opts.mode === 'bw' && options.threshold != null
       ? preprocessBwThresholdRgba(rgba, opts.threshold, opts.ignoreWhite)
       : rgba instanceof Uint8ClampedArray
       ? rgba
       : new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength);
+  // Flood-fill ONLY outer border-connected white backdrop when ignoreWhite is enabled;
+  // never hide global palette labels inside the illustration!
+  const inputRgba =
+    opts.ignoreWhite && opts.mode !== 'bw'
+      ? maskEdgeConnectedWhiteBackdrop(rawRgba, width, height, 244)
+      : rawRgba;
 
   let srcImg: any = { _rgba: inputRgba, w: width, h: height };
   if (typeof document !== 'undefined' && typeof ImageData !== 'undefined') {
@@ -296,13 +261,12 @@ export async function traceRgbaBufferToSvgAsync(
     onProgress || (() => {})
   );
 
-  const hiddenLabels = computeHiddenWhiteLabels(res.palette, res.labels, res.w, res.h, opts.ignoreWhite);
   const svg = VMT.assembleSVG(res.regs, res.W, res.H, {
     stackMode: vmtCfg.stackMode || 'stack',
     stroke: vmtCfg.stroke !== false,
     bg: 'none',
     safetyBg: !opts.ignoreWhite && !(res.stats?.alpha?.hasAlpha),
-    hiddenLabels,
+    hiddenLabels: [],
     frameId: false,
   });
 
@@ -335,14 +299,29 @@ export function traceRgbaBufferToSvg(
 
   const VMT = getSvgPeakVmt();
   const opts = { ...DEFAULT_AUTO_TRACE_OPTIONS, ...options };
+  if (opts.mode === 'ultra') {
+    const gpuInfo = getAutoTraceGpuInfo();
+    const allowGpu = opts.useGpu !== false && gpuInfo.gpuAvailable;
+    return traceUltraExactVectorSvg(rgba, w0, h0, VMT, {
+      colorCount: options.colorCount != null && options.colorCount > 32 ? options.colorCount : 250,
+      despeckle: opts.despeckle,
+      smoothness: opts.smoothness,
+      ignoreWhite: opts.ignoreWhite,
+      useGpu: allowGpu,
+    }).svg;
+  }
   const vmtCfg = buildSvgPeakVmtConfig(opts);
 
-  const inputRgba =
+  const rawRgba =
     opts.mode === 'bw' && options.threshold != null
       ? preprocessBwThresholdRgba(rgba, opts.threshold, opts.ignoreWhite)
       : rgba instanceof Uint8ClampedArray
       ? rgba
       : new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength);
+  const inputRgba =
+    opts.ignoreWhite && opts.mode !== 'bw'
+      ? maskEdgeConnectedWhiteBackdrop(rawRgba, w0, h0, 244)
+      : rawRgba;
 
   const work = VMT.makeWork(
     { rgba: inputRgba, img: { _rgba: inputRgba, w: w0, h: h0 }, w: w0, h: h0 },
@@ -522,13 +501,12 @@ export function traceRgbaBufferToSvg(
 
   VMT.synchronizeSharedTopology(smoothed, rawLoops);
   const regs = VMT.buildRegions(smoothed, palette, 1, null);
-  const hiddenLabels = computeHiddenWhiteLabels(palette, labels, w, h, opts.ignoreWhite);
   return VMT.assembleSVG(regs, W, H, {
     stackMode: vmtCfg.stackMode || 'stack',
     stroke: vmtCfg.stroke !== false,
     bg: 'none',
     safetyBg: !opts.ignoreWhite && !alphaInfo.hasAlpha,
-    hiddenLabels,
+    hiddenLabels: [],
     frameId: false,
   });
 }

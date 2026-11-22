@@ -8540,7 +8540,14 @@ const VectorEditor = ({
     ic: ICONS.wand,
     tip: 'veAutoTraceRun',
     dis: false,
-    act: () => autoTraceSelectedImages()
+    act: () => autoTraceSelectedImages({
+      mode: 'ultra',
+      colorCount: 250,
+      despeckle: 1,
+      smoothness: 0.2,
+      ignoreWhite: false,
+      useGpu: true,
+    })
   }] : []), {
     sep: 1
   }, {

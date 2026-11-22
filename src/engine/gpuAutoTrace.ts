@@ -295,6 +295,56 @@ function extractUltraPalette(
 }
 
 /**
+ * Flood-fills contiguous near-white backdrop pixels starting only from the image's outer borders.
+ * Never removes interior white regions (such as eyes, white shirts, or face highlights) enclosed by darker contours.
+ */
+export function maskEdgeConnectedWhiteBackdrop(
+  rgba: Uint8Array | Uint8ClampedArray,
+  w: number,
+  h: number,
+  whiteMin = 244
+): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(rgba.length);
+  out.set(rgba);
+  if (w < 2 || h < 2) return out;
+  const n = w * h;
+  const isNearWhite = (p: number) => {
+    const i = p * 4;
+    if (out[i + 3] < 32) return false;
+    return out[i] >= whiteMin && out[i + 1] >= whiteMin && out[i + 2] >= whiteMin;
+  };
+  const visited = new Uint8Array(n);
+  const queue = new Int32Array(n);
+  let head = 0;
+  let tail = 0;
+  const push = (p: number) => {
+    if (!visited[p] && isNearWhite(p)) {
+      visited[p] = 1;
+      queue[tail++] = p;
+    }
+  };
+  for (let x = 0; x < w; x++) {
+    push(x);
+    push((h - 1) * w + x);
+  }
+  for (let y = 1; y < h - 1; y++) {
+    push(y * w);
+    push(y * w + (w - 1));
+  }
+  while (head < tail) {
+    const p = queue[head++];
+    out[p * 4 + 3] = 0;
+    const x = p % w;
+    const y = (p / w) | 0;
+    if (x > 0) push(p - 1);
+    if (x < w - 1) push(p + 1);
+    if (y > 0) push(p - w);
+    if (y < h - 1) push(p + w);
+  }
+  return out;
+}
+
+/**
  * Traces an RGBA buffer in Ultra-Fidelity (99%+) mode using GPU WebGL2 palette labeling
  * (with automatic CPU fallback) and exact directed crack-following contours.
  */
@@ -313,34 +363,17 @@ export function traceUltraExactVectorSvg(
   onProgress?: (stage: string, frac: number, detail: string) => void
 ): { svg: string; palette: any[]; stats: any } {
   const t0 = performance.now();
+  const workRgba = opts.ignoreWhite ? maskEdgeConnectedWhiteBackdrop(rgba, w, h, 244) : rgba;
+
   onProgress?.('palette', 0.2, 'Extracting Ultra-Fidelity CIE/RGB palette…');
-  const palette = extractUltraPalette(rgba, w, h, opts.colorCount || 250, VMT.hexOf);
+  const palette = extractUltraPalette(workRgba, w, h, opts.colorCount || 250, VMT.hexOf);
 
   onProgress?.('segment', 0.45, opts.useGpu !== false ? 'Assigning pixels via GPU WebGL2…' : 'Assigning pixels via CPU…');
-  const assign = gpuAssignNearestPalette(rgba, w, h, palette, opts.useGpu !== false);
+  const assign = gpuAssignNearestPalette(workRgba, w, h, palette, opts.useGpu !== false);
   const labels = assign.labels;
 
   if ((opts.despeckle ?? 1) >= 2 && typeof VMT.enforceMinPixels === 'function') {
     VMT.enforceMinPixels(labels, w, h, Math.min(8, Math.round(opts.despeckle || 2)), null, palette);
-  }
-
-  // Detect border-touching near-white background label if ignoreWhite is true
-  const hiddenSet = new Set<number>();
-  if (opts.ignoreWhite && palette.length > 1) {
-    const whiteCands = new Set<number>();
-    palette.forEach((c, idx) => {
-      if (c.r >= 242 && c.g >= 242 && c.b >= 242) whiteCands.add(idx);
-    });
-    if (whiteCands.size > 0 && whiteCands.size < palette.length) {
-      for (let x = 0; x < w; x++) {
-        if (whiteCands.has(labels[x])) hiddenSet.add(labels[x]);
-        if (whiteCands.has(labels[(h - 1) * w + x])) hiddenSet.add(labels[(h - 1) * w + x]);
-      }
-      for (let y = 1; y < h - 1; y++) {
-        if (whiteCands.has(labels[y * w])) hiddenSet.add(labels[y * w]);
-        if (whiteCands.has(labels[y * w + (w - 1)])) hiddenSet.add(labels[y * w + (w - 1)]);
-      }
-    }
   }
 
   onProgress?.('trace', 0.72, 'Tracing exact sub-pixel crack contours…');
@@ -365,7 +398,7 @@ export function traceUltraExactVectorSvg(
     const row = y * w;
     for (let x = 0; x < w; x++) {
       const L = labels[row + x];
-      if (L < 0 || hiddenSet.has(L)) continue;
+      if (L < 0) continue;
       if (y === 0 || labels[row - w + x] !== L) addEdge(L, V(x, y), V(x + 1, y));
       if (x === w - 1 || labels[row + x + 1] !== L) addEdge(L, V(x + 1, y), V(x + 1, y + 1));
       if (y === h - 1 || labels[row + w + x] !== L) addEdge(L, V(x + 1, y + 1), V(x, y + 1));

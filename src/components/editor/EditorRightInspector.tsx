@@ -185,15 +185,15 @@ const EditorRightInspector = ({
   const [rcOpen, setRcOpen] = React.useState(false);
   const [dashCustomOpen, setDashCustomOpen] = React.useState(false);
   const [traceOpts, setTraceOpts] = React.useState<any>({
-    mode: 'color',
+    mode: 'ultra',
     adaptiveProfileMode: 'auto',
     gradientMode: 'auto',
     threshold: 128,
-    colorCount: 16,
-    despeckle: 4,
-    smoothness: 0.66,
+    colorCount: 250,
+    despeckle: 1,
+    smoothness: 0.2,
     cornerThreshold: 44,
-    ignoreWhite: true,
+    ignoreWhite: false,
     keepOriginalImage: false,
     useGpu: true
   });
