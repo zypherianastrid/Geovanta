@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   getSvgPeakVmt,
+  getAutoTraceGpuInfo,
   traceRgbaBufferToSvg,
   traceRgbaBufferToSvgAsync,
 } from '../src/engine/imageTracerEngine.tsx';
@@ -97,5 +98,36 @@ test.describe('SVGPeak VMT Bayesian Auto Trace Engine Integration', () => {
     });
     expect(syncSvg).toContain('<svg');
     expect(syncSvg).toContain('<path');
+  });
+
+  test('getAutoTraceGpuInfo reports hardware backend and mode=ultra traces accurately with CPU fallback', async () => {
+    const hwInfo = getAutoTraceGpuInfo();
+    expect(hwInfo).toBeDefined();
+    expect(typeof hwInfo.gpuAvailable).toBe('boolean');
+    expect(typeof hwInfo.backend).toBe('string');
+
+    const w = 32;
+    const h = 32;
+    const rgba = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        rgba[i] = Math.round((x / 31) * 240);
+        rgba[i + 1] = Math.round((y / 31) * 200);
+        rgba[i + 2] = 180;
+        rgba[i + 3] = 255;
+      }
+    }
+
+    const ultraCpuRes = await traceRgbaBufferToSvgAsync(rgba, w, h, {
+      mode: 'ultra',
+      useGpu: false,
+      colorCount: 64,
+      ignoreWhite: false,
+    });
+    expect(ultraCpuRes.svg).toContain('<svg');
+    expect(ultraCpuRes.svg).toContain('<path');
+    expect(ultraCpuRes.stats.hw.gpuUsed).toBe(false);
+    expect(ultraCpuRes.stats.hw.gpuBackend).toContain('CPU');
   });
 });

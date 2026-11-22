@@ -5,6 +5,11 @@
  * Beach Sub-Pixel Deconvolution, Polak-Ribière Conjugate Gradient Smoother, Cubic Bézier Fitting & Gradient Assembly).
  */
 import { getSvgPeakVmtEngine } from './svgpeak/vmtEngineBundle.js';
+import {
+  getAutoTraceGpuInfo,
+  traceUltraExactVectorSvg,
+  type AutoTraceGpuInfo,
+} from './gpuAutoTrace.ts';
 import { parseSVG } from './svgDocumentParser.tsx';
 import { tightBBox } from './spatialIndexAndHitTest.tsx';
 import { scaleObjXY } from './selectionTransformAndAlign.tsx';
@@ -12,8 +17,8 @@ import { translate } from './bezierSubdivisionAndMove.tsx';
 import { uid } from './vectorPrimitives.tsx';
 
 export interface AutoTraceOptions {
-  /** 'bw' (Two Colors) | 'color' (Automatic / Custom Colors) | 'auto' | 'two' | 'unlimited' */
-  mode?: 'bw' | 'color' | 'auto' | 'two' | 'unlimited';
+  /** 'bw' (Two Colors) | 'color' (Automatic / Custom Colors) | 'auto' | 'two' | 'unlimited' | 'ultra' (99%+ Exact) */
+  mode?: 'bw' | 'color' | 'auto' | 'two' | 'unlimited' | 'ultra';
   /** SVGPeak VMT color mode: 'auto' | 'two' | 'custom' | 'unlimited' */
   colorMode?: 'auto' | 'two' | 'custom' | 'unlimited';
   /** SVGPeak 8-Stage Image Profiler mode: 'auto' | 'flat' | 'illustration' | 'photo' */
@@ -28,7 +33,7 @@ export interface AutoTraceOptions {
   stackMode?: 'stack' | 'cutout' | 'grouped';
   /** Luminance cutoff (0..255) for strict B&W pre-thresholding when mode === 'bw' */
   threshold?: number;
-  /** Maximum / target color layers (2..64, default 16) */
+  /** Maximum / target color layers (2..250, default 16) */
   colorCount?: number;
   /** Whether to cap automatic palette count to colorCount */
   maxColorEnabled?: boolean;
@@ -50,8 +55,10 @@ export interface AutoTraceOptions {
   ignoreWhite?: boolean;
   /** Keep original raster image object underneath traced vector paths */
   keepOriginalImage?: boolean;
-  /** Maximum working resolution dimension (default 880) */
+  /** Maximum working resolution dimension (default 880; 2048 for ultra) */
   maxSampleDim?: number;
+  /** Prefer WebGL2 GPU acceleration when available, automatically falling back to CPU (default true) */
+  useGpu?: boolean;
 }
 
 export const DEFAULT_AUTO_TRACE_OPTIONS: Required<AutoTraceOptions> = {
@@ -75,7 +82,10 @@ export const DEFAULT_AUTO_TRACE_OPTIONS: Required<AutoTraceOptions> = {
   ignoreWhite: true,
   keepOriginalImage: false,
   maxSampleDim: 880,
+  useGpu: true,
 };
+
+export { getAutoTraceGpuInfo, type AutoTraceGpuInfo };
 
 /**
  * Returns the full 85-function SVGPeak VMT Bayesian Vectorization Engine instance.
@@ -226,6 +236,40 @@ export async function traceRgbaBufferToSvgAsync(
 ): Promise<{ svg: string; palette: any[]; regions: any[]; stats: any }> {
   const VMT = getSvgPeakVmt();
   const opts = { ...DEFAULT_AUTO_TRACE_OPTIONS, ...options };
+  const gpuInfo = getAutoTraceGpuInfo();
+  const allowGpu = opts.useGpu !== false && gpuInfo.gpuAvailable;
+
+  if (typeof VMT.setHwConfig === 'function') {
+    VMT.setHwConfig({
+      useGpu: allowGpu,
+      gpuPipeline: allowGpu ? 'full' : 'off',
+      multiThread: true,
+    });
+  }
+
+  if (opts.mode === 'ultra') {
+    const ultraRes = traceUltraExactVectorSvg(
+      rgba,
+      width,
+      height,
+      VMT,
+      {
+        colorCount: options.colorCount != null && options.colorCount > 32 ? options.colorCount : 250,
+        despeckle: opts.despeckle,
+        smoothness: opts.smoothness,
+        ignoreWhite: opts.ignoreWhite,
+        useGpu: allowGpu,
+      },
+      onProgress
+    );
+    return {
+      svg: ultraRes.svg,
+      palette: ultraRes.palette,
+      regions: [],
+      stats: ultraRes.stats,
+    };
+  }
+
   const vmtCfg = buildSvgPeakVmtConfig(opts);
   const inputRgba =
     opts.mode === 'bw' && options.threshold != null
@@ -546,7 +590,8 @@ export async function traceImageObjectToVectorPaths(
     throw new Error('Invalid image object');
   }
   const opts = { ...DEFAULT_AUTO_TRACE_OPTIONS, ...options };
-  const { rgba, width, height } = await extractImageObjectRgba(imageObj.img.href, opts.maxSampleDim);
+  const sampleMaxDim = opts.mode === 'ultra' && options.maxSampleDim == null ? 2048 : opts.maxSampleDim;
+  const { rgba, width, height } = await extractImageObjectRgba(imageObj.img.href, sampleMaxDim);
   const traceRes = await traceRgbaBufferToSvgAsync(rgba, width, height, opts, onProgress);
   const svg = traceRes.svg;
   const parsed = parseSVG(svg);
