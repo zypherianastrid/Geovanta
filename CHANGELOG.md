@@ -5,6 +5,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.3.1] — 2026-11-25
+
+### Added
+- **Settings About Credits, License & GitHub Links (`SettingsModal.tsx`, `settingsI18n.tsx`, `brandAndIcons.tsx`)**:
+  - Added creator attribution (`Created By zypherianastrid with Antigravity`), **MIT License** badge/link, and **GitHub Repository** link (`https://github.com/zypherianastrid/Geovanta`) with custom `github`, `shield`, and `externalLink` vector icons in the **About the App** section.
+- **Native Android Material You Dynamic Color Bridge (`MainActivity.java`, `androidNativeBridge.ts`, `proguard-rules.pro`)**:
+  - Added `@JavascriptInterface` (`GeovantaAndroidTheme`) in `MainActivity.java` to read `android.R.color.system_accent1_600` (Light) and `android.R.color.system_accent1_200` (Dark) on Android 12+ (API 31+), with `android.R.attr.colorAccent` fallback and live `geovanta-android-theme-changed` dispatch on `onResume` & `onConfigurationChanged`.
+- **Windows Explorer Accent Fallback & Live Desktop Polling (`src-tauri/src/lib.rs`, `App.tsx`)**:
+  - Added `Software\Microsoft\Windows\CurrentVersion\Explorer\Accent\AccentColorMenu` registry fallback alongside DWM `AccentColor` and `ColorizationColor`, plus 3-second active-window sync polling in Tauri Desktop mode.
+
+### Fixed
+- **Multi-Platform Automatic Accent Color Resolution (`themeAndPrefsManager.tsx`, `SettingsModal.tsx`, `index.html`)**:
+  - Fixed Desktop Windows EXE synchronous fallback overwriting cached DWM accent with WebView2 default `#0075ff`.
+  - Added `<meta name="color-scheme" content="light dark">` and `root.style.colorScheme` synchronization so CSS `AccentColor` tracks Light/Dark mode transitions.
+  - Added platform-specific tooltip descriptions and an informational privacy note in Settings when desktop browsers lock `AccentColor` to `#0075ff` due to anti-fingerprinting policies.
+
+### Changed
+- Bumped application version to **`v1.3.1`** across `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `android/app/build.gradle` (`versionCode 4`, `versionName 1.3.1`), `src/constants/settingsI18n.tsx`, `scripts/build-android-apk.ps1`, `.github/workflows/release-desktop-windows.yml`, `README.md`, and `README.id.md`.
+
+---
+
 ## [1.3.0] — 2026-11-24
 
 ### Added

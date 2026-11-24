@@ -6,9 +6,10 @@ import { LS_KEY, DEFAULT_PREFS } from '../constants/themeAndPrefsConstants.tsx';
 import { updateRenderConfig } from './renderConfigAndTelemetry.tsx';
 import { hex2hsv, hsv2hex } from './colorMath.tsx';
 import { isTauriDesktop, invokeTauriCommand } from '../vendor/tauriDesktopBridge.tsx';
-import { isNativeAndroid } from '../bridge/androidNativeBridge.ts';
+import { isNativeAndroid, getAndroidMaterialYouAccent } from '../bridge/androidNativeBridge.ts';
 
 let _lastSysAccent = '#0078d4';
+let _cachedDesktopAccent: string | null = null;
 
 export type AccentPlatformSource = 'desktop_windows' | 'mobile_android_material_you' | 'webapp_browser_chrome';
 
@@ -44,12 +45,24 @@ const parseComputedCssColorToHex = (cssColor: string): string | null => {
   return null;
 };
 
+const getEffectiveColorScheme = (): 'light' | 'dark' => {
+  if (typeof document !== 'undefined') {
+    const dt = document.documentElement.getAttribute('data-theme');
+    if (dt === 'dark') return 'dark';
+    if (dt === 'light') return 'light';
+  }
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light';
+};
+
 const probeCssSystemColor = (keyword: string): string | null => {
   if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return null;
   const host = document.body || document.documentElement;
   if (!host) return null;
   const probe = document.createElement('span');
-  probe.style.cssText = `position:fixed;left:-9999px;top:-9999px;visibility:hidden;pointer-events:none;color:${keyword}`;
+  probe.style.cssText = `position:fixed;left:-9999px;top:-9999px;visibility:hidden;pointer-events:none;color-scheme:inherit;accent-color:auto;color:${keyword}`;
   host.appendChild(probe);
   try {
     const computed = getComputedStyle(probe).color;
@@ -65,14 +78,12 @@ const probeCssSystemColor = (keyword: string): string | null => {
 
 /**
  * Resolusi aksen Material You dinamis di Android (API 31+):
- * WebView Chromium secara native memetakan CSS AccentColor ke system_accent1_600.
- * Mendukung override diagnostik untuk pengujian otomatis.
+ * Memprioritaskan native bridge GeovantaAndroidTheme (system_accent1_600/200),
+ * lalu fallback ke CSS AccentColor WebView dan warna standar Material 3.
  */
 const detectAndroidMaterialYouAccent = (): string => {
-  if (typeof window !== 'undefined' && (window as any).__geovantaAndroidMaterialYouColor) {
-    const ov = (window as any).__geovantaAndroidMaterialYouColor;
-    if (typeof ov === 'string' && /^#[0-9a-f]{6}$/i.test(ov)) return ov.toLowerCase();
-  }
+  const fromNative = getAndroidMaterialYouAccent(getEffectiveColorScheme());
+  if (fromNative) return fromNative;
   const fromAccent = probeCssSystemColor('AccentColor');
   if (fromAccent) return fromAccent;
   return '#006a6a'; // Standar Material 3 Dynamic Teal/Primary
@@ -96,6 +107,18 @@ const detectWebBrowserAccent = (): string => {
 };
 
 /**
+ * Mendeteksi apakah browser desktop membatasi pembacaan aksen tema/OS demi anti-fingerprinting
+ * sehingga CSS AccentColor selalu mengembalikan biru standar Chromium (#0075ff / #99c8ff).
+ */
+const isWebBrowserAccentRestricted = (): boolean => {
+  if (typeof window === 'undefined' || getAccentPlatformSource() !== 'webapp_browser_chrome') return false;
+  if ((window as any).__geovantaWebBrowserAccentColor) return false;
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(forced-colors: active)').matches) return false;
+  const fromAccent = probeCssSystemColor('AccentColor');
+  return fromAccent === '#0075ff' || fromAccent === '#99c8ff';
+};
+
+/**
  * Resolusi aksen desktop Windows (Tauri Desktop App / EXE):
  * Mengambil nilai aksen sistem Windows dari DWM Registry via Tauri bridge.
  */
@@ -104,11 +127,13 @@ const detectDesktopWindowsAccent = async (): Promise<string> => {
     try {
       const winColor = await invokeTauriCommand('get_windows_accent_color');
       if (typeof winColor === 'string' && /^#[0-9a-f]{6}$/i.test(winColor)) {
-        _lastSysAccent = winColor.toLowerCase();
-        return _lastSysAccent;
+        _cachedDesktopAccent = winColor.toLowerCase();
+        _lastSysAccent = _cachedDesktopAccent;
+        return _cachedDesktopAccent;
       }
     } catch (e) {}
   }
+  if (_cachedDesktopAccent) return _cachedDesktopAccent;
   const fromAccent = probeCssSystemColor('AccentColor');
   if (fromAccent) return fromAccent;
   const fromHighlight = probeCssSystemColor('Highlight');
@@ -132,7 +157,10 @@ const detectSystemAccentColor = (): string => {
     _lastSysAccent = col;
     return col;
   }
-  // desktop_windows fallback
+  // desktop_windows: prioritaskan nilai DWM Registry yang sudah di-cache agar tidak tertimpa #0075ff WebView2
+  if (_cachedDesktopAccent) {
+    return _cachedDesktopAccent;
+  }
   const fromAccent = probeCssSystemColor('AccentColor') || probeCssSystemColor('Highlight') || _lastSysAccent || '#0078d4';
   _lastSysAccent = fromAccent;
   return fromAccent;
@@ -271,7 +299,16 @@ const savePrefs = p => {
 };
 const applyTheme = theme => {
   const root = document.documentElement;
-  if (theme === 'light') root.setAttribute('data-theme', 'light');else if (theme === 'dark') root.setAttribute('data-theme', 'dark');else root.removeAttribute('data-theme');
+  if (theme === 'light') {
+    root.setAttribute('data-theme', 'light');
+    root.style.colorScheme = 'light';
+  } else if (theme === 'dark') {
+    root.setAttribute('data-theme', 'dark');
+    root.style.colorScheme = 'dark';
+  } else {
+    root.removeAttribute('data-theme');
+    root.style.colorScheme = 'light dark';
+  }
 };
 /* Preferensi OS `prefers-reduced-motion: reduce` menang atas pref manual `on`
    (Task 6 / C-5); pref manual `off` tetap menang. Listener didaftarkan sekali
@@ -318,5 +355,6 @@ export {
   detectSystemAccentColor,
   resolveSystemAccentColorAsync,
   generateRandomAccentColor,
-  getAccentPlatformSource
+  getAccentPlatformSource,
+  isWebBrowserAccentRestricted
 };

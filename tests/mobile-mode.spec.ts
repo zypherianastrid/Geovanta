@@ -113,7 +113,7 @@ test.describe('Geovanta Dedicated Mobile Mode (<= 768px)', () => {
     expect(stgMetrics.left).toBeGreaterThanOrEqual(0);
     expect(stgMetrics.right).toBeLessThanOrEqual(375.5);
     expect(stgMetrics.scrollW).toBeLessThanOrEqual(stgMetrics.clientW + 2);
-    await expect(stg.locator('.abt-ver', { hasText: 'v1.3.0' })).toHaveCount(1);
+    await expect(stg.locator('.abt-ver', { hasText: 'v1.3.1' })).toHaveCount(1);
     await stg.locator('button[data-tip="closeDlg"]').click();
 
     // Check tablet portrait boundary (exact 768px)

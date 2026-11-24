@@ -1,6 +1,6 @@
 {
   "name": "geovanta-vector-studio-win64",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Geovanta Vector Editor — 64-Bit Windows Desktop Application (Rust + Tauri + React TSX + Tailwind CSS, 100% Offline Bundle)",
   "scripts": {

@@ -12,6 +12,7 @@
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
+-keep class com.geovanta.vectorstudio.MainActivity$* { *; }
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.

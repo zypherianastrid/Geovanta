@@ -62,6 +62,27 @@ export function isNativeAndroid(): boolean {
   return isRealNativeAndroid();
 }
 
+/** Reads Android Material You dynamic accent color from diagnostic override or native JavascriptInterface. */
+export function getAndroidMaterialYouAccent(theme: 'light' | 'dark' = 'light'): string | null {
+  if (typeof window === 'undefined') return null;
+  const ov = (window as any).__geovantaAndroidMaterialYouColor;
+  if (typeof ov === 'string' && /^#[0-9a-f]{6}$/i.test(ov)) {
+    return ov.toLowerCase();
+  }
+  const bridge = (window as any).GeovantaAndroidTheme;
+  if (bridge && typeof bridge.getDynamicAccentColor === 'function') {
+    try {
+      const col = bridge.getDynamicAccentColor(theme === 'dark');
+      if (typeof col === 'string' && /^#[0-9a-f]{6}$/i.test(col)) {
+        return col.toLowerCase();
+      }
+    } catch {
+      // Ignore native bridge invocation errors
+    }
+  }
+  return null;
+}
+
 /** Registers a hardware Back button handler ordered by descending priority. */
 export function registerAndroidBackHandler(priority: number, handler: () => boolean): () => void {
   const entry: BackEntry = { id: nextHandlerId++, priority, handler };
@@ -272,6 +293,7 @@ export function getAndroidBridgeDiagnostics(): AndroidBridgeDiagnostics {
 if (typeof window !== 'undefined') {
   (window as any).__geovantaAndroidBridge = {
     isNativeAndroid,
+    getMaterialYouAccent: getAndroidMaterialYouAccent,
     dispatchBack: dispatchAndroidBack,
     triggerHaptic,
     syncStatusBar,

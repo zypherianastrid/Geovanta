@@ -65,8 +65,8 @@ mod win_accent {
         s.encode_utf16().chain(std::iter::once(0)).collect()
     }
 
-    fn read_dwm_dword(name: &str) -> Option<u32> {
-        let subkey = to_wide("Software\\Microsoft\\Windows\\DWM");
+    fn read_hkcu_dword(subkey_path: &str, name: &str) -> Option<u32> {
+        let subkey = to_wide(subkey_path);
         let val_name = to_wide(name);
         let mut data: u32 = 0;
         let mut size: u32 = std::mem::size_of::<u32>() as u32;
@@ -90,14 +90,21 @@ mod win_accent {
 
     pub fn read_windows_accent_hex() -> Result<String, String> {
         // Windows DWM AccentColor is stored as 0xAABBGGRR (ABGR little-endian).
-        if let Some(abgr) = read_dwm_dword("AccentColor") {
+        if let Some(abgr) = read_hkcu_dword("Software\\Microsoft\\Windows\\DWM", "AccentColor") {
+            let r = abgr & 0xff;
+            let g = (abgr >> 8) & 0xff;
+            let b = (abgr >> 16) & 0xff;
+            return Ok(format!("#{:02x}{:02x}{:02x}", r, g, b));
+        }
+        // Explorer AccentColorMenu is also stored as 0xAABBGGRR (ABGR little-endian).
+        if let Some(abgr) = read_hkcu_dword("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent", "AccentColorMenu") {
             let r = abgr & 0xff;
             let g = (abgr >> 8) & 0xff;
             let b = (abgr >> 16) & 0xff;
             return Ok(format!("#{:02x}{:02x}{:02x}", r, g, b));
         }
         // ColorizationColor is stored as 0xAARRGGBB (ARGB).
-        if let Some(argb) = read_dwm_dword("ColorizationColor") {
+        if let Some(argb) = read_hkcu_dword("Software\\Microsoft\\Windows\\DWM", "ColorizationColor") {
             let r = (argb >> 16) & 0xff;
             let g = (argb >> 8) & 0xff;
             let b = argb & 0xff;

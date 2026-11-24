@@ -10,8 +10,8 @@
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
-  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.3.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.3.0" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.3.0-8b5cf6?style=for-the-badge" alt="Changelog v1.3.0" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.1" target="_blank"><img src="https://img.shields.io/badge/Release-v1.3.1-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.3.1" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.3.1-8b5cf6?style=for-the-badge" alt="Changelog v1.3.1" /></a>
 </p>
 
 <p>
@@ -279,17 +279,17 @@ flowchart LR
 Buka Geovanta langsung di peramban modern (Chrome, Edge, Firefox) tanpa perlu mengunduh atau memasang apa pun:
 - **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
 
-### Opsi 2: 🪟 Pasang Aplikasi Desktop — Windows 64-Bit (Rilis `v1.3.0`)
-Unduh installer resmi Windows 64-bit langsung dari **[GitHub Releases (v1.3.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.0)**:
-1. Unduh [`Geovanta-Vector-Editor_1.3.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.0/Geovanta-Vector-Editor_1.3.0_x64-setup.exe) (atau berkas `.msi`).
+### Opsi 2: 🪟 Pasang Aplikasi Desktop — Windows 64-Bit (Rilis `v1.3.1`)
+Unduh installer resmi Windows 64-bit langsung dari **[GitHub Releases (v1.3.1)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.1)**:
+1. Unduh [`Geovanta.Vector.Editor_1.3.1_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.1/Geovanta.Vector.Editor_1.3.1_x64-setup.exe) (atau berkas `.msi`).
 2. Jalankan berkas `.exe` dan ikuti panduan instalasi.
 3. Buka **Geovanta Vector Editor** dari Start Menu atau pintasan Desktop.
 
-### Opsi 3: 📱 Pasang Aplikasi Android (`.apk` — Rilis `v1.3.0`)
+### Opsi 3: 📱 Pasang Aplikasi Android (`.apk` — Rilis `v1.3.1`)
 Pasang Geovanta langsung di ponsel atau tablet Android (dilengkapi Dedicated Mobile Mode, Material 3 Action Sheet, gestur 2-jari Undo & 3-jari Redo, warna aksen dinamis Material You, serta integrasi native Capacitor 7):
-1. Unduh [`Geovanta-v1.3.0-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.0/Geovanta-v1.3.0-android.apk) dari **[GitHub Releases (v1.3.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.0)**.
+1. Unduh [`Geovanta-v1.3.1-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.1/Geovanta-v1.3.1-android.apk) dari **[GitHub Releases (v1.3.1)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.1)**.
 2. Ketuk file `.apk` di perangkat Android Anda dan izinkan instalasi aplikasi bila diminta.
-3. *(Opsional)* Build APK secara lokal dari kode sumber via `npm run android:build:apk` atau `build-android-apk.bat` (hasil keluar di `dist/android/Geovanta-v1.3.0-android.apk`).
+3. *(Opsional)* Build APK secara lokal dari kode sumber via `npm run android:build:apk` atau `build-android-apk.bat` (hasil keluar di `dist/android/Geovanta-v1.3.1-android.apk`).
 
 ### Opsi 4: 📦 Jalankan Bundle Offline Secara Lokal (Tanpa Build)
 Buka atau jalankan `web/index.html` melalui peramban modern (Chrome / Edge). Seluruh bundle JavaScript, font, dan runtime WebAssembly Skia CanvasKit sudah tersedia secara lokal tanpa koneksi internet.
@@ -306,7 +306,7 @@ npm run typecheck
 # 3. Bangun ulang bundle web 100% offline (memperbarui dist/ & web/)
 npm run build:web
 
-# 4. Build APK Android secara lokal (hasil di dist/android/Geovanta-v1.3.0-android.apk)
+# 4. Build APK Android secara lokal (hasil di dist/android/Geovanta-v1.3.1-android.apk)
 npm run android:build:apk
 ```
 
@@ -316,8 +316,8 @@ Membutuhkan **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual 
 build-windows-64bit.bat
 ```
 Hasil installer Windows 64-bit akan tersedia di:
-- **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.3.0_x64-setup.exe`
-- **WiX MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.3.0_x64_en-US.msi`
+- **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.3.1_x64-setup.exe`
+- **WiX MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.3.1_x64_en-US.msi`
 
 ---
 

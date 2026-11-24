@@ -7,7 +7,7 @@ import ReactDOM from 'react-dom';
 import { AboutVectorHeroBg, AboutAnimatedLogo } from './AboutVectorHeroBg.tsx';
 import { RENDER_CONFIG, updateRenderConfig, PERF_TELEMETRY } from '../../utils/renderConfigAndTelemetry.tsx';
 import { usePresence } from '../../utils/presenceAndFilePicker.tsx';
-import { applyTheme, applyMotion, applyAccent, previewAccent, savePrefs, detectSystemAccentColor, resolveSystemAccentColorAsync, generateRandomAccentColor, getAccentPlatformSource } from '../../utils/themeAndPrefsManager.tsx';
+import { applyTheme, applyMotion, applyAccent, previewAccent, savePrefs, detectSystemAccentColor, resolveSystemAccentColorAsync, generateRandomAccentColor, getAccentPlatformSource, isWebBrowserAccentRestricted } from '../../utils/themeAndPrefsManager.tsx';
 import { LS_KEY, DEFAULT_PREFS, ACCENT_PALETTE } from '../../constants/themeAndPrefsConstants.tsx';
 import { GEOMETRY_CACHE } from '../../renderer/geometryCache.tsx';
 import { Ico, Keys } from '../ui/IconGlyphs.tsx';
@@ -166,11 +166,20 @@ const Settings = ({
   useEffect(() => {
     if (!open) return;
     let active = true;
-    resolveSystemAccentColorAsync().then(c => {
-      if (active && c) setSysAccentHex(c);
-    });
-    return () => { active = false; };
-  }, [open]);
+    const refreshSysAccent = () => {
+      resolveSystemAccentColorAsync().then(c => {
+        if (active && c) setSysAccentHex(c);
+      });
+    };
+    refreshSysAccent();
+    window.addEventListener('focus', refreshSysAccent);
+    window.addEventListener('geovanta-android-theme-changed', refreshSysAccent);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refreshSysAccent);
+      window.removeEventListener('geovanta-android-theme-changed', refreshSysAccent);
+    };
+  }, [open, prefs.theme, prefs.accent, prefs.accentMode]);
 
   const copyText = (text: string, label: string) => {
     if (navigator?.clipboard?.writeText) {
@@ -257,8 +266,14 @@ const Settings = ({
     platform === 'mobile_android_material_you' ? 'sparkle' :
     'auto';
   const autoAccentLabel = L.accentSystemAuto || 'Otomatis';
-  const autoAccentSub = L.accentSystemAutoSub || (prefs.lang === 'en' ? 'Follow browser or system accent color automatically' : 'Mengikuti warna aksen browser atau sistem secara otomatis');
+  const autoAccentSub =
+    platform === 'desktop_windows'
+      ? (L.accentSystemWinSub || L.accentSystemAutoSub)
+      : platform === 'mobile_android_material_you'
+      ? (L.accentSystemAndroidSub || L.accentSystemAutoSub)
+      : (L.accentSystemWebSub || L.accentSystemAutoSub || (prefs.lang === 'en' ? 'Follow browser or system accent color automatically' : 'Mengikuti warna aksen browser atau sistem secara otomatis'));
   const platformSubText = `${autoAccentSub} (${sysAccentHex.toUpperCase()})`;
+  const showWebAccentPrivacyNote = prefs.accentMode === 'system' && platform === 'webapp_browser_chrome' && isWebBrowserAccentRestricted();
   return ReactDOM.createPortal(<div className={'ov ' + (lv ? 'out' : 'in')} onPointerDown={e => {
     if (e.target === e.currentTarget) onClose();
   }}><div className="hp stg-modal" role="dialog" aria-label={L.title} style={{
@@ -314,7 +329,7 @@ const Settings = ({
                         background: hex,
                         forcedColorAdjust: 'none'
                       }}>{active && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{name}</span></button>;
-                  })}</div></div></div></div><div className="stg-sec"><div className="stg-sec-hdr"><span className="stg-sec-lbl"><Ico n="sliders" size={13} /><span>{L.secInteraction}</span></span></div><div className="stg-group"><div className="stg-row" data-tip="setMotion"><div className="stg-meta"><span className="stg-ico"><Ico n="bolt" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.motionLabel}</span><span className="stg-sub">{L.motionSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.motion} on={set('motion')} o={[['system', L.themeSystem], ['on', L.on], ['off', L.off]]} tip="setMotion" /></div></div><div className="stg-row" data-tip="setTips"><div className="stg-meta"><span className="stg-ico"><Ico n="sparkle" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.tipsLabel}</span><span className="stg-sub">{L.tipsSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.tips ? 'on' : 'off'} on={k => set('tips')(k === 'on')} o={[['on', L.on], ['off', L.off]]} tip="setTips" /></div></div><div className="stg-row" data-tip="setAntialias"><div className="stg-meta"><span className="stg-ico"><Ico n="sparkle" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.antialiasLabel}</span><span className="stg-sub">{L.antialiasSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.antialias ? 'on' : 'off'} on={k => { const on = k === 'on'; set('antialias')(on); setRenderCfg({ antialias: on }); }} o={[['off', L.antialiasReduceSeams], ['on', L.antialiasStandard]]} tip="setAntialias" /></div></div><div className="stg-row" data-tip="setPersist"><div className="stg-meta"><span className="stg-ico"><Ico n="database" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.persistLabel}</span><span className="stg-sub">{L.persistSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.persist ? 'on' : 'off'} on={k => set('persist')(k === 'on')} o={[['on', L.yes], ['off', L.no]]} tip="setPersist" /></div></div><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="reset" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.resetLabel}</span><span className="stg-sub">{L.resetSub}</span></div></div><div className="stg-ctrl"><button type="button" className="btn sec text-xs" style={{
+                  })}</div>{showWebAccentPrivacyNote && <div data-testid="accent-web-privacy-note" className="text-[11px] leading-relaxed mut px-2.5 py-2 rounded-lg" style={{ background: 'var(--sub)', border: '1px solid var(--line)', marginTop: 6 }}>{L.accentWebPrivacyNote}</div>}</div></div></div><div className="stg-sec"><div className="stg-sec-hdr"><span className="stg-sec-lbl"><Ico n="sliders" size={13} /><span>{L.secInteraction}</span></span></div><div className="stg-group"><div className="stg-row" data-tip="setMotion"><div className="stg-meta"><span className="stg-ico"><Ico n="bolt" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.motionLabel}</span><span className="stg-sub">{L.motionSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.motion} on={set('motion')} o={[['system', L.themeSystem], ['on', L.on], ['off', L.off]]} tip="setMotion" /></div></div><div className="stg-row" data-tip="setTips"><div className="stg-meta"><span className="stg-ico"><Ico n="sparkle" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.tipsLabel}</span><span className="stg-sub">{L.tipsSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.tips ? 'on' : 'off'} on={k => set('tips')(k === 'on')} o={[['on', L.on], ['off', L.off]]} tip="setTips" /></div></div><div className="stg-row" data-tip="setAntialias"><div className="stg-meta"><span className="stg-ico"><Ico n="sparkle" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.antialiasLabel}</span><span className="stg-sub">{L.antialiasSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.antialias ? 'on' : 'off'} on={k => { const on = k === 'on'; set('antialias')(on); setRenderCfg({ antialias: on }); }} o={[['off', L.antialiasReduceSeams], ['on', L.antialiasStandard]]} tip="setAntialias" /></div></div><div className="stg-row" data-tip="setPersist"><div className="stg-meta"><span className="stg-ico"><Ico n="database" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.persistLabel}</span><span className="stg-sub">{L.persistSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.persist ? 'on' : 'off'} on={k => set('persist')(k === 'on')} o={[['on', L.yes], ['off', L.no]]} tip="setPersist" /></div></div><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="reset" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.resetLabel}</span><span className="stg-sub">{L.resetSub}</span></div></div><div className="stg-ctrl"><button type="button" className="btn sec text-xs" style={{
                     padding: '7px 11px',
                     borderRadius: 9
                   }} data-tip="setReset" onClick={reset}><Ico n="reset" size={13} /><span>{L.resetBtn}</span></button><button type="button" className="btn sec text-xs" style={{
@@ -342,7 +357,7 @@ const Settings = ({
                   })} f={v => 'Depth ' + v} /></div></div></div></div><div className="stg-sec"><div className="stg-sec-hdr"><span className="stg-sec-lbl" data-tip="setAbout"><Ico n="sparkle" size={13} /><span>{L.aboutTitle}</span></span></div><div className="stg-about-hero" ref={aboutHeroRef}><AboutVectorHeroBg active={open && sTab === 'umum'} motionPref={prefs && prefs.motion} containerRef={aboutHeroRef} /><div className="stg-about-scrim" aria-hidden="true" /><div className="stg-about-top"><div className="stg-about-logo"><AboutAnimatedLogo active={open && sTab === 'umum'} motionPref={prefs && prefs.motion} /></div><div className="flex flex-wrap items-center gap-2"><span className="abt-ver" style={{
                     padding: '4px 11px',
                     fontSize: 11.5
-                  }}><Ico n="sparkle" size={11} /><span>{L.version}</span></span></div></div></div></div></div>{sTab === 'keys' && <div className="space-y-4 fade" key="s-keys"><div className="stg-group"><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="keyboard" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.keysTitle}</span><span className="stg-sub">{L.keysSubPrefix}<kbd className="kbd">?</kbd>{L.keysSubSuffix}</span></div></div></div></div><div className="hp-g">{scList.map(([g, rows]: any) => <div key={g} className="stg-group p-3"><div className="hp-t flex items-center gap-1.5"><Ico n="keyboard" size={12} /><span>{g}</span></div>{rows.map(([k, t]: any) => <div key={t} className="hp-r flex-wrap"><span>{t}</span><Keys s={k} /></div>)}</div>)}</div></div>}
+                  }}><Ico n="sparkle" size={11} /><span>{L.version}</span></span></div></div></div><div className="stg-group" data-testid="about-credits-group"><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="sparkle" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.aboutCreatorLabel}</span><span className="stg-sub" style={{ color: 'var(--txt)', fontWeight: 500 }}>{L.aboutCreatorValue}</span></div></div></div><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="shield" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.aboutLicenseLabel}</span><span className="stg-sub">{L.aboutLicenseValue}</span></div></div><div className="stg-ctrl"><a href="https://github.com/zypherianastrid/Geovanta" target="_blank" rel="noreferrer" className="btn sec text-[11px]" style={{ padding: '5px 10px', borderRadius: 9, textDecoration: 'none' }}><Ico n="shield" size={13} /><span>{L.aboutLicenseValue}</span></a></div></div><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="github" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.aboutGithubLabel}</span><span className="stg-sub font-mono">https://github.com/zypherianastrid/Geovanta</span></div></div><div className="stg-ctrl"><a href="https://github.com/zypherianastrid/Geovanta" target="_blank" rel="noreferrer" className="btn sec text-[11px]" style={{ padding: '5px 10px', borderRadius: 9, textDecoration: 'none' }}><Ico n="github" size={13} /><span>GitHub</span><Ico n="externalLink" size={12} /></a></div></div></div></div></div>{sTab === 'keys' && <div className="space-y-4 fade" key="s-keys"><div className="stg-group"><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="keyboard" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.keysTitle}</span><span className="stg-sub">{L.keysSubPrefix}<kbd className="kbd">?</kbd>{L.keysSubSuffix}</span></div></div></div></div><div className="hp-g">{scList.map(([g, rows]: any) => <div key={g} className="stg-group p-3"><div className="hp-t flex items-center gap-1.5"><Ico n="keyboard" size={12} /><span>{g}</span></div>{rows.map(([k, t]: any) => <div key={t} className="hp-r flex-wrap"><span>{t}</span><Keys s={k} /></div>)}</div>)}</div></div>}
 {sTab === 'ai' && <div className="space-y-4 fade" key="s-ai" data-testid="settings-ai-tab">
   <div className="stg-sec">
     <div className="stg-sec-hdr">

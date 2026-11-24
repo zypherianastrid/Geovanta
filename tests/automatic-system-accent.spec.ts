@@ -1,4 +1,4 @@
-import { test, expect, Page, Browser } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -74,8 +74,6 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
       // Pastikan teks chip adalah "Otomatis" (atau "Automatic System" bila English)
       const chipText = (await autoChip.textContent()) || '';
       expect(chipText).toMatch(/Otomatis|Automatic/i);
-
-      // Pastikan TIDAK ADA teks "Sistem Windows" di dalam chip aksen tersebut
       expect(chipText).not.toContain('Sistem Windows');
 
       // Verifikasi tooltip chip menjelaskan bahwa warna mengikuti browser / sistem secara otomatis
@@ -96,18 +94,19 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
     }
   });
 
-  test('2. Web App Mode: Aksen otomatis mengikuti aksen browser Chrome & sistem secara dinamis', async ({ browser }) => {
+  test('2. Web App Mode: color-scheme aktif, catatan privasi muncul saat #0075ff, & aksen mengikuti override browser Chrome', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     try {
-      // Simulasikan browser Chrome dengan aksen ungu kustom (#8b5cf6)
-      await page.addInitScript(() => {
-        (window as any).__geovantaWebBrowserAccentColor = '#8b5cf6';
-      });
-
       await page.goto(baseUrl, { waitUntil: 'networkidle' });
 
-      // Buka pengaturan dan aktifkan mode otomatis
+      // Verifikasi meta color-scheme dan root colorScheme
+      const metaColorScheme = await page.locator('meta[name="color-scheme"]').getAttribute('content');
+      expect(metaColorScheme).toBe('light dark');
+      const rootColorScheme = await page.evaluate(() => document.documentElement.style.colorScheme);
+      expect(rootColorScheme).toBe('light');
+
+      // Buka pengaturan dan aktifkan mode otomatis (di headless Chromium AccentColor default = #0075ff)
       await page.evaluate(() => {
         if ((window as any).__geovantaOpenSettings) {
           (window as any).__geovantaOpenSettings(true);
@@ -117,32 +116,43 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
       await autoChip.waitFor({ state: 'visible', timeout: 5000 });
       await autoChip.click();
 
-      // Verifikasi CSS root --acc mengikuti warna aksen browser yang disimulasikan (#8b5cf6)
-      const rootAcc = await page.evaluate(() => {
-        return getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase();
-      });
-      expect(rootAcc).toBe('#8b5cf6');
-
-      // Verifikasi platform source adalah webapp_browser_chrome
       const platformSource = await autoChip.getAttribute('data-platform-source');
       expect(platformSource).toBe('webapp_browser_chrome');
+
+      // Di desktop browser tanpa flag Chrome, catatan privasi harus muncul saat AccentColor = #0075ff
+      const privacyNote = page.locator('[data-testid="accent-web-privacy-note"]');
+      await expect(privacyNote).toBeVisible();
+
+      // Simulasikan browser Chrome yang mengekspos aksen tema ungu kustom (#8b5cf6) lalu trigger focus
+      await page.evaluate(() => {
+        (window as any).__geovantaWebBrowserAccentColor = '#8b5cf6';
+        window.dispatchEvent(new Event('focus'));
+      });
+
+      await expect.poll(async () => {
+        return await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase());
+      }).toBe('#8b5cf6');
+      await expect(privacyNote).toBeHidden();
     } finally {
       await context.close();
     }
   });
 
-  test('3. Desktop Installer Mode (Tauri EXE): Resolver memprioritaskan aksen Windows DWM', async ({ browser }) => {
+  test('3. Desktop Installer Mode (Tauri v2 EXE): Resolver memprioritaskan aksen Windows DWM & sync live saat focus', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     try {
-      // Simulasikan lingkungan Tauri Desktop Windows EXE
+      // Simulasikan Tauri v2 Desktop Windows EXE dengan warna DWM non-default (#2475ce)
       await page.addInitScript(() => {
+        (window as any).__mockDwmAccent = '#2475ce';
         (window as any).__TAURI__ = {
-          invoke: async (cmd: string) => {
-            if (cmd === 'get_windows_accent_color') {
-              return '#0078d4'; // Windows 11 DWM Accent Blue
-            }
-            return null;
+          core: {
+            invoke: async (cmd: string) => {
+              if (cmd === 'get_windows_accent_color') {
+                return (window as any).__mockDwmAccent;
+              }
+              return null;
+            },
           },
         };
       });
@@ -162,20 +172,29 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
       const platformSource = await autoChip.getAttribute('data-platform-source');
       expect(platformSource).toBe('desktop_windows');
 
-      // Klik aktifkan otomatis
+      // Klik aktifkan otomatis: --acc harus menjadi #2475ce (BUKAN tertimpa #0075ff WebView2!)
       await autoChip.click();
+      await expect.poll(async () => {
+        return await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase());
+      }).toBe('#2475ce');
 
-      // Verifikasi CSS root --acc mengikuti aksen Windows (#0078d4)
-      const rootAcc = await page.evaluate(() => {
-        return getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase();
+      // Pastikan catatan privasi web TIDAK muncul di mode Desktop EXE
+      await expect(page.locator('[data-testid="accent-web-privacy-note"]')).toBeHidden();
+
+      // Simulasikan pengguna mengganti warna aksen Windows DWM lalu fokus kembali ke aplikasi
+      await page.evaluate(() => {
+        (window as any).__mockDwmAccent = '#e74856';
+        window.dispatchEvent(new Event('focus'));
       });
-      expect(rootAcc).toBe('#0078d4');
+      await expect.poll(async () => {
+        return await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase());
+      }).toBe('#e74856');
     } finally {
       await context.close();
     }
   });
 
-  test('4. Android Mobile Mode: Resolver otomatis mengikuti Material You Dynamic Color', async ({ browser }) => {
+  test('4. Android Mobile Mode: Resolver mengikuti bridge Material You native & sinkron saat tema/wallpaper berubah', async ({ browser }) => {
     const context = await browser.newContext({
       viewport: { width: 412, height: 915 },
       deviceScaleFactor: 2.625,
@@ -185,10 +204,16 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
     });
     const page = await context.newPage();
     try {
-      // Simulasikan native Android dengan Material You Dynamic Color (#006a6a - Android 14 dynamic teal)
+      // Simulasikan native Android dengan JavascriptInterface GeovantaAndroidTheme (Material You API 31+)
       await page.addInitScript(() => {
         (window as any).__geovantaForceAndroidNative = true;
-        (window as any).__geovantaAndroidMaterialYouColor = '#006a6a';
+        (window as any).__mockMaterialYouLight = '#386a20';
+        (window as any).__mockMaterialYouDark = '#9cd67e';
+        (window as any).GeovantaAndroidTheme = {
+          isDynamicColorSupported: () => true,
+          getDynamicAccentColor: (isDark: boolean) =>
+            isDark ? (window as any).__mockMaterialYouDark : (window as any).__mockMaterialYouLight,
+        };
       });
 
       await page.goto(baseUrl, { waitUntil: 'networkidle' });
@@ -202,18 +227,30 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
       const autoChip = page.locator('[data-testid~="accent-system-auto"]');
       await autoChip.waitFor({ state: 'visible', timeout: 5000 });
 
-      // Verifikasi platform source terdeteksi sebagai mobile_android_material_you
       const platformSource = await autoChip.getAttribute('data-platform-source');
       expect(platformSource).toBe('mobile_android_material_you');
 
-      // Klik aktifkan otomatis
+      // Klik aktifkan otomatis pada tema Light -> system_accent1_600 (#386a20)
       await autoChip.click();
+      await expect.poll(async () => {
+        return await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase());
+      }).toBe('#386a20');
 
-      // Verifikasi CSS root --acc mengikuti warna dynamic Material You (#006a6a)
-      const rootAcc = await page.evaluate(() => {
-        return getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase();
+      // Ubah tema ke Gelap (Dark) -> otomatis mengambil system_accent1_200 (#9cd67e)
+      const darkBtn = page.locator('[data-tip="setTheme"] button', { hasText: /Gelap|Dark/i });
+      await darkBtn.click();
+      await expect.poll(async () => {
+        return await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase());
+      }).toBe('#9cd67e');
+
+      // Simulasikan wallpaper Android berubah & MainActivity memicu geovanta-android-theme-changed
+      await page.evaluate(() => {
+        (window as any).__mockMaterialYouDark = '#ffb1c8';
+        window.dispatchEvent(new CustomEvent('geovanta-android-theme-changed'));
       });
-      expect(rootAcc).toBe('#006a6a');
+      await expect.poll(async () => {
+        return await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase());
+      }).toBe('#ffb1c8');
     } finally {
       await context.close();
     }
@@ -240,7 +277,6 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
       await expect(figmaBlueChip).toHaveClass(/on/);
       await expect(autoChip).not.toHaveClass(/on/);
 
-      // Verifikasi CSS root --acc menjadi #0d99ff
       let rootAcc = await page.evaluate(() => {
         return getComputedStyle(document.documentElement).getPropertyValue('--acc').trim().toLowerCase();
       });
@@ -254,7 +290,6 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
       // 3. Reload halaman untuk memastikan persistensi mode otomatis
       await page.reload({ waitUntil: 'networkidle' });
 
-      // Periksa localStorage bahwa accentMode adalah system
       const storedPrefs = await page.evaluate(() => {
         try {
           const raw = localStorage.getItem('trace-svg-settings-v1');
@@ -265,6 +300,31 @@ test.describe('Warna Aksen Otomatis Multi-Platform (Web, Desktop EXE, Android)',
       });
       expect(storedPrefs).not.toBeNull();
       expect(storedPrefs.accentMode).toBe('system');
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('6. Tab Pengaturan: menampilkan Created By zypherianastrid with Antigravity, Lisensi MIT, & link GitHub berikon', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    try {
+      await page.goto(baseUrl, { waitUntil: 'networkidle' });
+      await page.evaluate(() => {
+        if ((window as any).__geovantaOpenSettings) {
+          (window as any).__geovantaOpenSettings(true);
+        }
+      });
+      const creditsGroup = page.locator('[data-testid="about-credits-group"]');
+      await creditsGroup.waitFor({ state: 'visible', timeout: 5000 });
+      await expect(creditsGroup).toContainText('Created By zypherianastrid with Antigravity');
+      await expect(creditsGroup).toContainText('MIT License');
+      await expect(creditsGroup).toContainText('https://github.com/zypherianastrid/Geovanta');
+
+      const links = creditsGroup.locator('a[href="https://github.com/zypherianastrid/Geovanta"]');
+      await expect(links).toHaveCount(2);
+      const svgs = creditsGroup.locator('svg');
+      expect(await svgs.count()).toBeGreaterThanOrEqual(5);
     } finally {
       await context.close();
     }

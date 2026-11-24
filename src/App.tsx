@@ -23,6 +23,7 @@ import { getAppStr, translateToast } from './constants/appI18n.tsx';
 import { aiLiveConnector } from './bridge/aiLiveConnector.tsx';
 import { useMobileViewport } from './hooks/useMobileViewport.ts';
 import { initAndroidBackButton, initAndroidKeyboardSync, registerAndroidBackHandler, syncStatusBar, exitAndroidApp } from './bridge/androidNativeBridge.ts';
+import { isTauriDesktop } from './vendor/tauriDesktopBridge.tsx';
 
 function resolveEffectiveTheme(themePref: string): 'light' | 'dark' {
   if (themePref === 'dark') return 'dark';
@@ -61,19 +62,34 @@ function App() {
       if (typeof document === 'undefined' || document.visibilityState === 'visible') syncSystemAccent();
     };
     window.addEventListener('focus', onFocusOrVis);
+    window.addEventListener('pageshow', onFocusOrVis);
+    window.addEventListener('geovanta-android-theme-changed', onFocusOrVis);
     document.addEventListener('visibilitychange', onFocusOrVis);
     const mqScheme = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     const mqForced = typeof window.matchMedia === 'function' ? window.matchMedia('(forced-colors: active)') : null;
+    const mqContrast = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-contrast: more)') : null;
     mqScheme?.addEventListener?.('change', onFocusOrVis);
     mqForced?.addEventListener?.('change', onFocusOrVis);
+    mqContrast?.addEventListener?.('change', onFocusOrVis);
+    const desktopPollTimer = isTauriDesktop()
+      ? window.setInterval(() => {
+          if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+            syncSystemAccent();
+          }
+        }, 3000)
+      : 0;
     return () => {
       cancelled = true;
       window.removeEventListener('focus', onFocusOrVis);
+      window.removeEventListener('pageshow', onFocusOrVis);
+      window.removeEventListener('geovanta-android-theme-changed', onFocusOrVis);
       document.removeEventListener('visibilitychange', onFocusOrVis);
       mqScheme?.removeEventListener?.('change', onFocusOrVis);
       mqForced?.removeEventListener?.('change', onFocusOrVis);
+      mqContrast?.removeEventListener?.('change', onFocusOrVis);
+      if (desktopPollTimer) window.clearInterval(desktopPollTimer);
     };
-  }, [prefs.accentMode]);
+  }, [prefs.accentMode, prefs.theme]);
   useEffect(() => {
     if (prefs.persist) savePrefs(prefs);
   }, [prefs]);
