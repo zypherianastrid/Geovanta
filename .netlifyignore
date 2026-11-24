@@ -6,9 +6,11 @@ test-results/
 .git/
 scratch/
 src-tauri/
+android/
 rust/**/target/
 tests/
 docs/
 *.png
 *.zip
+*.apk
 *.log
