@@ -28,12 +28,13 @@ const CtxMenu = ({
   const L = last.current;
   useLayoutEffect(() => {
     if (!m || !L || !ref.current) return;
+    const isMob = typeof window !== 'undefined' && window.innerWidth <= 768;
     const el = ref.current,
-      w = el.offsetWidth,
-      h = el.offsetHeight,
+      w = Math.min(el.offsetWidth, Math.max(160, innerWidth - 16)),
+      h = Math.min(el.offsetHeight, isMob ? Math.round(innerHeight * 0.65) : innerHeight - 16),
       left = clampN(L.x, 8, Math.max(8, innerWidth - w - 8)),
       flip = L.y + h > innerHeight - 8,
-      top = flip ? Math.max(8, L.y - h) : L.y;
+      top = clampN(flip ? L.y - h : L.y, 8, Math.max(8, innerHeight - h - 8));
     setPos({
       left,
       top,
@@ -94,11 +95,15 @@ const CtxMenu = ({
     };
   }, [!!menu]);
   if (!m || !L) return null;
+  const isMobMenu = typeof window !== 'undefined' && window.innerWidth <= 768;
   return ReactDOM.createPortal(<div ref={ref} role="menu" className={'ctx ' + (lv ? 'out' : 'in')} onContextMenu={e => e.preventDefault()} onPointerMove={() => {
     if (hiRef.current !== -1) setHi(-1);
   }} style={{
     left: pos ? pos.left : 0,
     top: pos ? pos.top : 0,
+    maxWidth: isMobMenu ? Math.max(160, window.innerWidth - 16) : undefined,
+    maxHeight: isMobMenu ? Math.round(window.innerHeight * 0.65) : undefined,
+    overflowY: isMobMenu ? 'auto' : undefined,
     visibility: pos ? 'visible' : 'hidden',
     ['--ox' as any]: (pos ? pos.ox : 0) + 'px',
     ['--oy' as any]: (pos ? pos.oy : 0) + 'px'

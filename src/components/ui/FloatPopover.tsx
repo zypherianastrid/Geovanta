@@ -42,8 +42,10 @@ const Float: React.FC<FloatProps> = ({
       // Lebar popover = lebar tombol, tapi tidak pernah di bawah minW: tanpa
       // ini, dropdown yang tombolnya sempit (mis. Ketebalan, ~73px) memaksa
       // baris opsi menyusut hingga label meluber dan menimpa ikon centang.
-      const W = Math.max(w || a.width, minW || 0),
-        h = el.offsetHeight || 220;
+      const maxMobileW = Math.max(180, window.innerWidth - 16);
+      const W = Math.min(Math.max(w || a.width, minW || 0), maxMobileW),
+        maxH = window.innerWidth <= 768 ? Math.round(window.innerHeight * 0.62) : Math.max(200, window.innerHeight - 24),
+        h = Math.min(el.offsetHeight || 220, maxH);
       const inBottomBar = !!(btnEl.closest && btnEl.closest('.fig-floating-bar'));
       const spaceBelow = window.innerHeight - a.bottom - 12;
       const spaceAbove = a.top - 12;
@@ -61,7 +63,8 @@ const Float: React.FC<FloatProps> = ({
         left,
         top,
         up,
-        W
+        W,
+        maxH: window.innerWidth <= 768 ? maxH : undefined
       });
     };
     place();
@@ -106,6 +109,8 @@ const Float: React.FC<FloatProps> = ({
     left: pos ? pos.left : 0,
     top: pos ? pos.top : 0,
     width: pos ? pos.W : undefined,
+    maxHeight: pos && pos.maxH ? pos.maxH : undefined,
+    overflowY: pos && pos.maxH ? 'auto' : undefined,
     visibility: pos ? 'visible' : 'hidden'
   }}>{children}</div>, document.fullscreenElement || document.body);
 };

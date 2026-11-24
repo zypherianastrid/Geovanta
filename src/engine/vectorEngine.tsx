@@ -26,6 +26,7 @@ import { kasaFit, schneiderFit, detectAnomalies, EMPTY_INSPECTION } from './curv
 import { fixAnomaly, fixAllAnomalies, SIMPLIFY_LEVEL, simplifyLevelTolerance, autoSimplifyLevel, simplifyWith, simplifySubpath, simplifyPart, simplifyDoc, autoSimplifyDoc } from './topologicalCurveSimplifier.tsx';
 import { booleanDoc } from './pathBoolean.tsx';
 import { makeCompoundPathDoc, releaseCompoundPathDoc, isCircleSubpath, stitchContiguousSubpaths, mergeOverlappingSubpathsInObject, cleanAndStitchIconObjects, separateIconObjectsDoc } from './compoundPathEngine.tsx';
+import { fillEmptySpaceDoc } from './fillEmptySpaceEngine.tsx';
 import { outlineStrokeDoc, offsetDoc, alignedStrokeOutlineSubs } from './pathOffset.tsx';
 import { isLegacyText, legacyTextSpec, normalizeTextObject, normalizeTextDocument, applyTextCase, legacyTextBounds } from './legacyText.tsx';
 import { textToPathObject, convertDocumentTextToPaths } from './textToPath.tsx';
@@ -212,6 +213,7 @@ const VE = {
   mergeOverlappingSubpathsInObject,
   cleanAndStitchIconObjects,
   separateIconObjectsDoc,
+  fillEmptySpaceDoc,
   outlineStrokeDoc,
   alignedStrokeOutlineSubs,
   offsetDoc,
@@ -265,6 +267,7 @@ export {
   mergeOverlappingSubpathsInObject,
   cleanAndStitchIconObjects,
   separateIconObjectsDoc,
+  fillEmptySpaceDoc,
   distanceFilter,
   smoothPoints,
   fitPointsToSubpath,

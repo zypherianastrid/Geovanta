@@ -5,6 +5,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.2.0] — 2026-11-24
+
+### Added
+- **Dedicated Mobile Mode (`<= 768px`) (`useMobileViewport.ts`, `mobileStyles.ts`, `MobileEditorTopBar.tsx`, `VectorEditor.tsx`)**:
+  - Full-bleed mobile studio canvas locked to dynamic viewport height (`--app-dvh`) with zero unintended page scroll or horizontal overflow across `WorkspaceHome` and `VectorEditor`.
+  - Compact `MobileEditorTopBar` featuring project navigation, live save status indicator, Undo/Redo, tap-to-fit Zoom % pill, Quick Actions strip toggle, and mutually exclusive bottom sheets for **Layers** and **Properties & Inspector** with backdrop dismissal.
+  - Multi-touch canvas gestures: **two-finger pinch-to-zoom & two-finger pan**, **single-finger long-press (`550ms`)** context menu, and `1.75x` boosted touch hit tolerance in `hitObj` and `pickNode`.
+  - Responsive horizontal navigation pill bar, touch-friendly controls/sliders, viewport-clamped `FloatPopover` & `ContextMenu`, bottom-sheet modals (Settings, Iconify, SVG Code Inspector, Help), and suppressed sticky hover tooltips on mobile/touch viewports.
+- **Responsive Floating Toolbar Horizontal Scrollbar (`mobileStyles.ts`)**:
+  - Added a thin interactive horizontal scrollbar to `.fig-floating-bar` / `.fig-tabbar-fixed` whenever the viewport narrows (`<= 1180px` and mobile `<= 768px`).
+- **Android APK Support (Capacitor 7) (`capacitor.config.json`, `android/`, `scripts/build-android-apk.ps1`, `build-android-apk.bat`)**:
+  - Configured native Android wrapper (`com.geovanta.vectorstudio`), hardware-accelerated WebView, adaptive Geovanta launcher icons (`mipmap-*`), and local one-click APK build tooling producing `dist/android/Geovanta-v1.2.0-android.apk`.
+- **Vector Engine & Performance Enhancements**:
+  - Added **Solid-to-Gradient** conversion (`solidToGradient.tsx`, `SolidToGradientSection.tsx`), **Fill Empty Space** engine (`fillEmptySpaceEngine.tsx`), **Topological Bézier Tracer** (`topologicalBezierTracer.ts`), and Node AA / object drag performance optimizations.
+
+### Changed
+- Bumped application version to **`v1.2.0`** across `SettingsModal` (`SETTINGS_STR.id.version` & `SETTINGS_STR.en.version`), `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `android/app/build.gradle` (`versionCode 2`), MCP Server (`scripts/mcp-server/index.js`), `README.md`, and `README.id.md`.
+
+---
+
 ## [1.1.0] — 2026-11-22
 
 ### Added

@@ -10,13 +10,14 @@
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
-  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.1.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.1.0" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.1.0-8b5cf6?style=for-the-badge" alt="Changelog v1.1.0" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.2.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.2.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.2.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.2.0-8b5cf6?style=for-the-badge" alt="Changelog v1.2.0" /></a>
 </p>
 
 <p>
   <img src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/Tauri_v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri v2" />
+  <img src="https://img.shields.io/badge/Capacitor_Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android APK" />
   <img src="https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React 18" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
@@ -63,7 +64,7 @@ Banyak aplikasi desain vektor modern memaksa pengguna memilih di antara dua kete
 | Pilar Utama | Keunggulan yang Anda Dapatkan |
 | :--- | :--- |
 | 🔒 **100% Offline & Local-First** | Tanpa ketergantungan CDN eksternal maupun akun cloud wajib. Seluruh proyek, riwayat revisi, font kustom, kurva Bézier, dan aset gambar tersimpan lokal di IndexedDB dengan dukungan arsip cadangan `.geovanta` (ZIP). |
-| 🌐 **Aplikasi Desktop + WebApp Instan** | Jalankan sebagai **Aplikasi Desktop Windows 64-Bit** (`.exe` / `.msi` berbasis Rust + Tauri v2) atau buka langsung melalui **[Live WebApp](https://geovanta.netlify.app)** di peramban tanpa instalasi. |
+| 🌐 **Desktop, Android & WebApp Instan** | Jalankan sebagai **Aplikasi Desktop Windows 64-Bit** (`.exe` / `.msi` berbasis Rust + Tauri v2), pasang **Aplikasi Android (`.apk`)** dengan Mode Mobile Khusus (`<= 768px`, pinch-to-zoom dua jari, bottom sheet, & toolbar gulir horizontal), atau buka langsung melalui **[Live WebApp](https://geovanta.netlify.app)**. |
 | ⚡ **Kecepatan Skia & Rust/WASM** | Ditenagai mesin WebAssembly Skia CanvasKit 0.40.0, Dynamic Interactive LOD, indeks spasial, cache geometri, serta akselerasi Rust/WASM untuk zoom dan geser kanvas mulus **60+ FPS**. |
 | 🎨 **Studio Vektor, Tipografi & UI Lengkap** | Pengeditan node Bézier kubik, fillet per-sudut 3 mode, operasi Boolean Greiner-Hormann, tipografi vektor lengkap dengan embed Google Fonts & konversi teks ke path, gradien ganda Fill/Stroke, 16 blend mode, efek layer (`fx`), Auto-Layout ala Figma, dan editor kode dua arah SVG/JSX/Vue. |
 | 🤖 **AI Hibrida via MCP** | Dilengkapi **17 tool resmi Model Context Protocol (MCP)** untuk Antigravity (AGY) dan Google Gemini — bekerja live di kanvas dengan dukungan `Ctrl+Z` Undo/Redo penuh atau berjalan otomatis lewat CLI headless. |
@@ -261,8 +262,9 @@ flowchart LR
 ```
 
 ### Struktur Direktori Utama
-- `src/` — Kode sumber aplikasi React 18 + TypeScript/TSX (`engine/`, `renderer/`, `components/`, `workspace/`, `constants/`, `utils/`, `bridge/`, `vendor/`, `assets/fonts/`, `data/`)
+- `src/` — Kode sumber aplikasi React 18 + TypeScript/TSX (`engine/`, `renderer/`, `components/`, `workspace/`, `constants/`, `utils/`, `hooks/`, `styles/`, `bridge/`, `vendor/`, `assets/fonts/`, `data/`)
 - `src-tauri/` — Backend Rust & konfigurasi Tauri v2 untuk installer Windows 64-bit (**NSIS `.exe`** & **WiX `.msi`**)
+- `android/` & `capacitor.config.json` — Proyek wrapper native Capacitor Android untuk membangun file installer **`.apk`**
 - `rust/` — Modul akselerasi WebAssembly berbasis Rust
 - `scripts/mcp-server/` — Server resmi Model Context Protocol (`index.js`, `tools.js`, `engineAdapter.js`)
 - `web/` — Bundle web siap pakai 100% offline (`web/index.html` + aset WebAssembly CanvasKit lokal)
@@ -277,16 +279,22 @@ flowchart LR
 Buka Geovanta langsung di peramban modern (Chrome, Edge, Firefox) tanpa perlu mengunduh atau memasang apa pun:
 - **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
 
-### Opsi 2: 🪟 Pasang Aplikasi Desktop — Windows 64-Bit (Rilis `v1.1.0`)
-Unduh installer resmi Windows 64-bit langsung dari **[GitHub Releases (v1.1.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0)**:
-1. Unduh [`Geovanta-Vector-Editor_1.1.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.1.0/Geovanta-Vector-Editor_1.1.0_x64-setup.exe).
+### Opsi 2: 🪟 Pasang Aplikasi Desktop — Windows 64-Bit (Rilis `v1.2.0`)
+Unduh installer resmi Windows 64-bit langsung dari **[GitHub Releases (v1.2.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.2.0)**:
+1. Unduh [`Geovanta-Vector-Editor_1.2.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.2.0/Geovanta-Vector-Editor_1.2.0_x64-setup.exe) (atau berkas `.msi`).
 2. Jalankan berkas `.exe` dan ikuti panduan instalasi.
 3. Buka **Geovanta Vector Editor** dari Start Menu atau pintasan Desktop.
 
-### Opsi 3: 📦 Jalankan Bundle Offline Secara Lokal (Tanpa Build)
+### Opsi 3: 📱 Pasang Aplikasi Android (`.apk` — Rilis `v1.2.0`)
+Pasang Geovanta langsung di ponsel atau tablet Android (dilengkapi antarmuka studio khusus mobile `<= 768px`, gestur pinch-to-zoom & pan dua jari, bottom sheet Layers/Inspector, serta floating toolbar dengan horizontal scrollbar):
+1. Unduh [`Geovanta-v1.2.0-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.2.0/Geovanta-v1.2.0-android.apk) dari **[GitHub Releases (v1.2.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.2.0)**.
+2. Ketuk file `.apk` di perangkat Android Anda dan izinkan instalasi aplikasi bila diminta.
+3. *(Opsional)* Build APK secara lokal dari kode sumber via `npm run android:build:apk` atau `build-android-apk.bat` (hasil keluar di `dist/android/Geovanta-v1.2.0-android.apk`).
+
+### Opsi 4: 📦 Jalankan Bundle Offline Secara Lokal (Tanpa Build)
 Buka atau jalankan `web/index.html` melalui peramban modern (Chrome / Edge). Seluruh bundle JavaScript, font, dan runtime WebAssembly Skia CanvasKit sudah tersedia secara lokal tanpa koneksi internet.
 
-### Opsi 4: 🛠️ Pengembangan & Build Ulang dari Sumber
+### Opsi 5: 🛠️ Pengembangan & Build Ulang dari Sumber
 ```sh
 # 1. Pasang dependensi
 npm ci
@@ -297,6 +305,9 @@ npm run typecheck
 
 # 3. Bangun ulang bundle web 100% offline (memperbarui dist/ & web/)
 npm run build:web
+
+# 4. Build APK Android secara lokal (hasil di dist/android/Geovanta-v1.2.0-android.apk)
+npm run android:build:apk
 ```
 
 #### Build Installer Desktop Windows 64-Bit (`.exe` & `.msi`)
@@ -305,8 +316,8 @@ Membutuhkan **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual 
 build-windows-64bit.bat
 ```
 Hasil installer Windows 64-bit akan tersedia di:
-- **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.1.0_x64-setup.exe`
-- **WiX MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.1.0_x64_en-US.msi`
+- **NSIS Installer (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.2.0_x64-setup.exe`
+- **WiX MSI Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.2.0_x64_en-US.msi`
 
 ---
 

@@ -146,8 +146,8 @@ function compileGradStops(rawStops, useOklab = true) {
       const mid = a.mid != null ? Math.max(0.15, Math.min(0.85, a.mid)) : 0.5;
       const hasSkew = Math.abs(mid - 0.5) > 0.02;
       /* Sub-sampling jika mode OKLab aktif atau jika midpoint digeser dari 0.5 */
-      if (useOklab && dE > 0.04 || hasSkew) {
-        const steps = Math.min(7, Math.max(hasSkew ? 4 : 2, Math.ceil(dE / 0.045)));
+      if (useOklab && dE > 0.025 || hasSkew) {
+        const steps = Math.min(12, Math.max(hasSkew ? 5 : 3, Math.ceil(dE / 0.032)));
         for (let k = 1; k < steps; k++) {
           const tLin = k / steps;
           const off = a.offset + (b.offset - a.offset) * tLin;

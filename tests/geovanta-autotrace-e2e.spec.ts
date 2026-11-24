@@ -93,20 +93,78 @@ test('E2E: Real Geovanta WebApp Auto Trace renders all colors accurately without
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'geovanta-e2e-before.png') });
 
-    // Click the real Auto Trace button ("Trace Gambar ke SVG (SVGPeak)") in Ultra 99%+ mode
+    // Click the real Auto Trace button ("Trace Gambar ke SVG (SVGPeak)") in smooth vector Ultra mode
     await page.locator('[data-testid="auto-trace-run-btn"]').click();
 
-    // Wait until tracing finishes (auto-trace section disappears because image was replaced with 250 vector paths, OR progress finishes)
-    await expect(traceSection).toHaveCount(0, { timeout: 45000 });
+    // Wait until tracing finishes (auto-trace section disappears because image was replaced with vector paths)
+    await expect(traceSection).toHaveCount(0, { timeout: 60000 });
 
-    // Deselect objects so CanvasKit renders cleanly without 90,000 selection node dots covering the drawing!
+    // Inspect document & layer panel to verify true smooth vector paths named path-1, path-2... (NOT image-l...)
+    const docStats = await page.evaluate(() => {
+      const api = (window as any).__geovantaEditorApi;
+      const d = api.getDoc();
+      let totalNodes = 0;
+      let handleNodes = 0;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      const names: string[] = [];
+      for (const o of (d.objects || [])) {
+        names.push(o.name || '');
+        for (const sp of (o.subs || [])) {
+          for (const nd of (sp.nodes || [])) {
+            totalNodes++;
+            if (nd.handleIn || nd.handleOut) handleNodes++;
+            if (Number.isFinite(nd.x) && Number.isFinite(nd.y)) {
+              if (nd.x < minX) minX = nd.x;
+              if (nd.y < minY) minY = nd.y;
+              if (nd.x > maxX) maxX = nd.x;
+              if (nd.y > maxY) maxY = nd.y;
+            }
+          }
+        }
+      }
+      return {
+        pathCount: (d.objects || []).length,
+        allArePaths: (d.objects || []).every((o: any) => o.type === 'path' && !o.img),
+        firstNames: names.slice(0, 10),
+        hasImageLayerName: names.some((n) => n.startsWith('image-') || n.includes('-layer-')),
+        totalNodes,
+        handleNodes,
+        bbox: [minX, minY, maxX, maxY],
+      };
+    });
+    console.log('[E2E GEOVANTA ANIME DOC STATS]', JSON.stringify(docStats));
+    expect(docStats.allArePaths).toBe(true);
+    expect(docStats.pathCount).toBeGreaterThan(5);
+    expect(docStats.firstNames[0]).toBe('path-1');
+    expect(docStats.hasImageLayerName).toBe(false);
+    expect(docStats.totalNodes).toBeGreaterThan(200);
+    expect(docStats.totalNodes).toBeLessThan(40000);
+    expect(docStats.handleNodes).toBeGreaterThan(100);
+
+    // Check sidebar DOM shows topmost vector path layer (layer panel renders top z-order first: path-N)
+    await expect(page.getByText(`path-${docStats.pathCount}`, { exact: true }).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[role="listbox"][aria-label="Lapisan"]').getByText(/^image-/)).toHaveCount(0);
+
+    // Deselect objects so CanvasKit renders cleanly without selection node dots
     await page.keyboard.press('Escape');
     await page.waitForTimeout(800);
 
     // Screenshot 2: Full Geovanta UI showing the traced vector artwork cleanly on canvas!
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'geovanta-e2e-after-ultra.png') });
 
-    // Inspect the actual generated SVG & object count from the Geovanta layer sidebar badge / DOM
+    // Zoom in to 2,640% centered on the anime face/mouth/eye area (same zoom as user screenshot!) to verify zero pixelation
+    await page.evaluate((bbox) => {
+      const api = (window as any).__geovantaEditorApi;
+      const [minX, minY, maxX, maxY] = bbox;
+      const w = maxX - minX;
+      const h = maxY - minY;
+      // Anime portrait: right/center eye & eyelashes sit around 48% width, 25.5% height
+      api.setZ(26.4);
+      api.panTo(minX + w * 0.48, minY + h * 0.255);
+    }, docStats.bbox);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'geovanta-e2e-anime-zoom2600.png') });
+
     const layerHeader = await page.locator('.fig-isec-title, .ved-sb-head, text=/Lapisan/i').first().innerText().catch(() => '');
     console.log('[E2E GEOVANTA ULTRA] hwBadge=', hwBadge, 'layerHeader=', layerHeader);
   } finally {

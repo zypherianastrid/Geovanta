@@ -1,0 +1,12 @@
+{
+  "appId": "com.geovanta.vectorstudio",
+  "appName": "Geovanta",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#f8fafc",
+    "allowMixedContent": false
+  }
+}

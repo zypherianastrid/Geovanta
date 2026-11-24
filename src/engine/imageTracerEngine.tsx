@@ -60,6 +60,10 @@ export interface AutoTraceOptions {
   maxSampleDim?: number;
   /** Prefer WebGL2 GPU acceleration when available, automatically falling back to CPU (default true) */
   useGpu?: boolean;
+  /** Optional A/B baseline switch: forces legacy pixel-grid crack-following in ultra mode */
+  rawPixelMode?: boolean;
+  /** Optional calibration parameter overrides for Topological Cubic-Bézier Engine */
+  calibration?: any;
 }
 
 export const DEFAULT_AUTO_TRACE_OPTIONS: Required<AutoTraceOptions> = {
@@ -84,6 +88,8 @@ export const DEFAULT_AUTO_TRACE_OPTIONS: Required<AutoTraceOptions> = {
   keepOriginalImage: false,
   maxSampleDim: 880,
   useGpu: true,
+  rawPixelMode: false,
+  calibration: undefined,
 };
 
 export { getAutoTraceGpuInfo, type AutoTraceGpuInfo };
@@ -108,21 +114,26 @@ export function getSvgPeakVe(): any {
 export function buildSvgPeakVmtConfig(options: AutoTraceOptions = {}): any {
   const opts = { ...DEFAULT_AUTO_TRACE_OPTIONS, ...options };
   const isBw = opts.mode === 'bw' || opts.mode === 'two' || opts.colorMode === 'two';
+  const isUltra = opts.mode === 'ultra';
   const effColorMode = isBw
     ? 'two'
-    : opts.mode === 'unlimited' || opts.colorMode === 'unlimited'
+    : isUltra || opts.mode === 'unlimited' || opts.colorMode === 'unlimited'
     ? 'unlimited'
     : opts.colorMode || 'auto';
 
-  const rawSmooth = Number(opts.smoothness);
+  const rawSmooth = options.smoothness == null && isUltra ? 66 : Number(opts.smoothness);
   const smoothnessPct = Number.isFinite(rawSmooth)
     ? rawSmooth <= 2.0
       ? Math.max(0, Math.min(100, Math.round(rawSmooth * 66)))
       : Math.max(0, Math.min(100, Math.round(rawSmooth)))
     : 66;
 
-  const maxColOn = !isBw && (opts.maxColorEnabled || (options.colorCount != null && effColorMode === 'auto'));
-  const maxColors = Math.max(2, Math.min(64, Math.round(opts.colorCount || 16)));
+  const maxColOn = !isBw && (opts.maxColorEnabled || isUltra || (options.colorCount != null && effColorMode === 'auto'));
+  const maxColors = Math.max(2, Math.min(64, Math.round(opts.colorCount || (isUltra ? 32 : 16))));
+  const minPixels = Math.max(isUltra ? 2 : 1, Math.round(opts.despeckle ?? (isUltra ? 2 : 4)));
+  const nodeDensity = Math.max(10, Math.min(100, Math.round(options.nodeDensity ?? (isUltra ? 72 : 62))));
+  const layerDifference = options.layerDifference ?? (isUltra ? 2.6 : 4.2);
+  const maxDim = Math.max(64, Math.min(1280, Math.round(opts.maxSampleDim || (isUltra ? 1024 : 880))));
 
   return {
     adaptiveProfileMode: opts.adaptiveProfileMode || 'auto',
@@ -135,15 +146,15 @@ export function buildSvgPeakVmtConfig(options: AutoTraceOptions = {}): any {
     maxColors,
     targetColors: maxColOn ? maxColors : undefined,
     gradientMode: isBw ? 'off' : (opts.gradientMode || 'auto'),
-    minPixels: Math.max(1, Math.round(opts.despeckle ?? 4)),
+    minPixels,
     smoothness: smoothnessPct,
-    nodeDensity: Math.max(10, Math.min(100, Math.round(opts.nodeDensity ?? 62))),
+    nodeDensity,
     cornerAngle: Math.max(15, Math.min(165, Math.round(opts.cornerThreshold ?? 44))),
-    layerDifference: opts.layerDifference ?? 4.2,
-    autoProfileParams: options.smoothness == null && options.despeckle == null && options.cornerThreshold == null,
+    layerDifference,
+    autoProfileParams: options.smoothness == null && options.despeckle == null && options.cornerThreshold == null && !isUltra,
     stroke: opts.stroke !== false,
     stackMode: opts.stackMode || 'stack',
-    maxDim: Math.max(64, Math.min(2048, Math.round(opts.maxSampleDim || 880))),
+    maxDim,
     fastPreview: true,
   };
 }
@@ -206,18 +217,21 @@ export async function traceRgbaBufferToSvgAsync(
     });
   }
 
-  if (opts.mode === 'ultra') {
+  if (opts.rawPixelMode === true) {
     const ultraRes = traceUltraExactVectorSvg(
       rgba,
       width,
       height,
       VMT,
       {
-        colorCount: options.colorCount != null && options.colorCount > 32 ? options.colorCount : 250,
+        colorCount: options.colorCount != null ? options.colorCount : 250,
         despeckle: opts.despeckle,
         smoothness: opts.smoothness,
         ignoreWhite: opts.ignoreWhite,
         useGpu: allowGpu,
+        stroke: opts.stroke,
+        rawPixelMode: true,
+        calibration: opts.calibration,
       },
       onProgress
     );
@@ -270,11 +284,22 @@ export async function traceRgbaBufferToSvgAsync(
     frameId: false,
   });
 
+  const stats = {
+    ...(res.stats || {}),
+    hw: {
+      ...(res.stats?.hw || {}),
+      gpuUsed: allowGpu && Boolean(res.stats?.hw?.gpuUsed),
+      gpuBackend: allowGpu
+        ? (res.stats?.hw?.gpuBackend || gpuInfo.backend || 'WebGL2 Shader')
+        : 'CPU Fallback',
+    },
+  };
+
   return {
     svg,
     palette: res.palette || [],
     regions: res.regs || [],
-    stats: res.stats || {},
+    stats,
   };
 }
 
@@ -299,15 +324,18 @@ export function traceRgbaBufferToSvg(
 
   const VMT = getSvgPeakVmt();
   const opts = { ...DEFAULT_AUTO_TRACE_OPTIONS, ...options };
-  if (opts.mode === 'ultra') {
+  if (opts.rawPixelMode === true) {
     const gpuInfo = getAutoTraceGpuInfo();
     const allowGpu = opts.useGpu !== false && gpuInfo.gpuAvailable;
     return traceUltraExactVectorSvg(rgba, w0, h0, VMT, {
-      colorCount: options.colorCount != null && options.colorCount > 32 ? options.colorCount : 250,
+      colorCount: options.colorCount != null ? options.colorCount : 250,
       despeckle: opts.despeckle,
       smoothness: opts.smoothness,
       ignoreWhite: opts.ignoreWhite,
       useGpu: allowGpu,
+      stroke: opts.stroke,
+      rawPixelMode: true,
+      calibration: opts.calibration,
     }).svg;
   }
   const vmtCfg = buildSvgPeakVmtConfig(opts);
@@ -568,7 +596,7 @@ export async function traceImageObjectToVectorPaths(
     throw new Error('Invalid image object');
   }
   const opts = { ...DEFAULT_AUTO_TRACE_OPTIONS, ...options };
-  const sampleMaxDim = opts.mode === 'ultra' && options.maxSampleDim == null ? 2048 : opts.maxSampleDim;
+  const sampleMaxDim = opts.mode === 'ultra' && options.maxSampleDim == null ? 1024 : opts.maxSampleDim;
   const { rgba, width, height } = await extractImageObjectRgba(imageObj.img.href, sampleMaxDim);
   const traceRes = await traceRgbaBufferToSvgAsync(rgba, width, height, opts, onProgress);
   const svg = traceRes.svg;
@@ -594,8 +622,7 @@ export async function traceImageObjectToVectorPaths(
 
   const sx = targetW / Math.max(1, width);
   const sy = targetH / Math.max(1, height);
-  const baseName = (imageObj.name || 'Trace').replace(/\s+/g, '-');
-  const groupId = rawObjects.length > 1 ? `${baseName}-trace` : (imageObj.group || null);
+  const groupId = rawObjects.length > 1 ? 'vector-trace' : (imageObj.group || null);
 
   let totalNodes = 0;
   const outObjects = rawObjects.map((po: any, idx: number) => {
@@ -606,7 +633,7 @@ export async function traceImageObjectToVectorPaths(
     return {
       ...transformed,
       id: uid(),
-      name: rawObjects.length === 1 ? `${baseName}-traced` : `${baseName}-layer-${idx + 1}`,
+      name: `path-${idx + 1}`,
       group: groupId,
       containerType: undefined,
       isAutoFrame: false,

@@ -21,8 +21,10 @@ import { Help } from './components/modals/HelpShortcutsModal.tsx';
 import { Settings } from './components/modals/SettingsModal.tsx';
 import { getAppStr, translateToast } from './constants/appI18n.tsx';
 import { aiLiveConnector } from './bridge/aiLiveConnector.tsx';
+import { useMobileViewport } from './hooks/useMobileViewport.ts';
 
 function App() {
+  useMobileViewport();
   const [prefs, setPrefs] = useState(() => loadPrefs());
   const L = getAppStr(prefs.lang);
   useEffect(() => {

@@ -485,7 +485,7 @@ class GeovantaMcpServer {
               res.end(
                 JSON.stringify({
                   name: 'geovanta-mcp-server',
-                  version: '1.1.0',
+                  version: '1.2.0',
                   transport: 'streamable-http',
                   endpoint: '/mcp',
                   liveConnected: this.isLiveConnected(),
@@ -1186,7 +1186,7 @@ class GeovantaMcpServer {
             },
             serverInfo: {
               name: 'geovanta-mcp-server',
-              version: '1.1.0'
+              version: '1.2.0'
             }
           }
         };

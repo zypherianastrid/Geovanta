@@ -110,12 +110,31 @@ const RecolorSection = ({
   const previewRef = useRef(null);
   const lastResRef = useRef(null);
   const triggerRef = useRef(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const isScrubbingRef = useRef(false);
+  const mode2LiveRef = useRef(false);
+  const scrubRafRef = useRef(0);
+  const lastMode1KeyRef = useRef('');
+  const prevSyncRef = useRef<{ open: boolean; selIdsKey: string; committedDoc: any }>({
+    open: false,
+    selIdsKey: '',
+    committedDoc: null
+  });
+  const mode1ParamsRef = useRef({
+    deltaHue: 0,
+    satMul: 1,
+    lightMul: 1,
+    hueMin: 0,
+    hueMax: 360,
+    scope: 'document'
+  });
   const [mode, setMode] = useState('mode1');
   const [deltaHue, setDeltaHue] = useState(0);
   const [satMul, setSatMul] = useState(1);
   const [lightMul, setLightMul] = useState(1);
-  const [hueMin, setHueMin] = useState(190);
-  const [hueMax, setHueMax] = useState(260);
+  const [hueMin, setHueMin] = useState(0);
+  const [hueMax, setHueMax] = useState(360);
   const [scope, setScope] = useState('document');
   const [familyTargets, setFamilyTargets] = useState({});
   const [overrides, setOverrides] = useState({});
@@ -131,30 +150,109 @@ const RecolorSection = ({
     setFamilies(hueFamilyGroup(collectDocumentColors(b, scopeObjFor(sc))));
   };
 
-  /* Snapshot doc + seleksi saat seksi dibuka; kontrol kembali ke default.
-     useLayoutEffect supaya render pertama sudah membawa keluarga yang benar.
-     Tangkap juga pemicu yang membuka seksi (fokus dikembalikan ke sana
-     saat tutup). */
+  const mode1Key = p => `${p.deltaHue}|${p.satMul}|${p.lightMul}|${p.hueMin}|${p.hueMax}|${p.scope}`;
+  const computeMode1Preview = p => {
+    const base = baseRef.current;
+    if (!base) return null;
+    const key = mode1Key(p);
+    if (key === lastMode1KeyRef.current && lastResRef.current) return lastResRef.current;
+    const res = p.deltaHue === 0 && p.satMul === 1 && p.lightMul === 1
+      ? { doc: base, changed: 0, unlinked: 0 }
+      : shiftHueDoc(base, { deltaHue: p.deltaHue, satMul: p.satMul, lightMul: p.lightMul, hueRange: [p.hueMin, p.hueMax], scope: scopeObjFor(p.scope) });
+    lastMode1KeyRef.current = key;
+    lastResRef.current = res;
+    previewRef.current = res.doc;
+    return res;
+  };
+
+  const cancelScrubRaf = () => {
+    if (scrubRafRef.current) {
+      cancelAnimationFrame(scrubRafRef.current);
+      scrubRafRef.current = 0;
+    }
+  };
+
+  const updateMode1Slider = (field, val, meta?: any) => {
+    const nextParams = { ...mode1ParamsRef.current, [field]: val };
+    mode1ParamsRef.current = nextParams;
+    if (field === 'deltaHue') setDeltaHue(val);
+    else if (field === 'satMul') setSatMul(val);
+    else if (field === 'lightMul') setLightMul(val);
+
+    if (meta && meta.isLive) {
+      isScrubbingRef.current = true;
+      if (!scrubRafRef.current) {
+        scrubRafRef.current = requestAnimationFrame(() => {
+          scrubRafRef.current = 0;
+          if (!openRef.current) return;
+          const res = computeMode1Preview(mode1ParamsRef.current);
+          if (!res) return;
+          setChanged(prev => (prev === res.changed ? prev : res.changed));
+          onPreviewDoc(res.doc, { previewOnly: true, interacting: true, syncRender: true });
+        });
+      }
+      return;
+    }
+
+    cancelScrubRaf();
+    isScrubbingRef.current = false;
+    const res = computeMode1Preview(nextParams);
+    if (!res) return;
+    setChanged(res.changed);
+    onPreviewDoc(res.doc, { previewOnly: true, interacting: false });
+  };
+
+  useEffect(() => () => cancelScrubRaf(), []);
+
+  const selIdsKey = selIds instanceof Set ? [...selIds].sort().join(',') : '';
+
+  /* Snapshot doc + seleksi saat seksi dibuka, dan sinkronkan ulang bila
+     seleksi atau doc ter-commit berubah saat seksi masih terbuka. */
   useLayoutEffect(() => {
-    if (!open) return;
-    triggerRef.current = document.activeElement;
+    if (!open) {
+      prevSyncRef.current = { open: false, selIdsKey, committedDoc };
+      return;
+    }
+    const prev = prevSyncRef.current;
+    const isOpening = !prev.open;
     const base = committedDoc || { objects: [] };
-    baseRef.current = base;
-    selIdsRef.current = selIds instanceof Set ? new Set(selIds) : new Set();
-    setMode('mode1');
-    setDeltaHue(0);
-    setSatMul(1);
-    setLightMul(1);
-    setHueMin(190);
-    setHueMax(260);
-    setFamilyTargets({});
-    setOverrides({});
-    setOverrideFor(null);
-    setChanged(0);
-    const sc = selIdsRef.current.size > 0 ? 'selection' : 'document';
-    setScope(sc);
-    computeFamilies(sc, base);
-  }, [open]);
+    const nextSel = selIds instanceof Set ? new Set(selIds) : new Set();
+    const sc = nextSel.size > 0 ? 'selection' : 'document';
+
+    if (isOpening) {
+      cancelScrubRaf();
+      isScrubbingRef.current = false;
+      mode2LiveRef.current = false;
+      lastMode1KeyRef.current = '';
+      triggerRef.current = document.activeElement;
+      baseRef.current = base;
+      selIdsRef.current = nextSel;
+      mode1ParamsRef.current = { deltaHue: 0, satMul: 1, lightMul: 1, hueMin: 0, hueMax: 360, scope: sc };
+      setMode('mode1');
+      setDeltaHue(0);
+      setSatMul(1);
+      setLightMul(1);
+      setHueMin(0);
+      setHueMax(360);
+      setFamilyTargets({});
+      setOverrides({});
+      setOverrideFor(null);
+      setChanged(0);
+      setScope(sc);
+      computeFamilies(sc, base);
+    } else if (prev.selIdsKey !== selIdsKey || prev.committedDoc !== committedDoc) {
+      cancelScrubRaf();
+      isScrubbingRef.current = false;
+      lastMode1KeyRef.current = '';
+      baseRef.current = base;
+      selIdsRef.current = nextSel;
+      mode1ParamsRef.current = { ...mode1ParamsRef.current, scope: sc };
+      setOverrideFor(null);
+      setScope(sc);
+      computeFamilies(sc, base);
+    }
+    prevSyncRef.current = { open: true, selIdsKey, committedDoc };
+  }, [open, selIdsKey, committedDoc]);
 
   /* Pratinjau live dari doc dasar (BUKAN dari doc yang sedang dipratinjau).
      onPreviewDoc/onCommitPreview sengaja tidak masuk deps: keduanya membaca
@@ -163,21 +261,26 @@ const RecolorSection = ({
     if (!open) return;
     const base = baseRef.current;
     if (!base) return;
-    let res;
     if (mode === 'mode1') {
-      if (deltaHue === 0 && satMul === 1 && lightMul === 1) {
-        res = { doc: base, changed: 0, unlinked: 0 };
-      } else {
-        res = shiftHueDoc(base, { deltaHue, satMul, lightMul, hueRange: [hueMin, hueMax], scope: scopeObj() });
-      }
-    } else {
-      res = paletteMapDoc(base, { familyTargets, overrides, scope: scopeObj() });
+      const nextParams = { deltaHue, satMul, lightMul, hueMin, hueMax, scope };
+      mode1ParamsRef.current = nextParams;
+      if (isScrubbingRef.current) return;
+      const key = mode1Key(nextParams);
+      if (key === lastMode1KeyRef.current) return;
+      const res = computeMode1Preview(nextParams);
+      if (!res) return;
+      setChanged(res.changed);
+      onPreviewDoc(res.doc, { previewOnly: true, interacting: false });
+      return;
     }
+    const res = paletteMapDoc(base, { familyTargets, overrides, scope: scopeObj() });
+    lastMode1KeyRef.current = '';
     lastResRef.current = res;
     previewRef.current = res.doc;
     setChanged(res.changed);
-    onPreviewDoc(res.doc);
-  }, [open, mode, deltaHue, satMul, lightMul, hueMin, hueMax, scope, familyTargets, overrides]); // eslint-disable-line react-hooks/exhaustive-deps
+    const liveMode2 = mode2LiveRef.current;
+    onPreviewDoc(res.doc, { previewOnly: true, interacting: liveMode2, syncRender: liveMode2 });
+  }, [open, mode, deltaHue, satMul, lightMul, hueMin, hueMax, scope, familyTargets, overrides, selIdsKey, committedDoc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Buang pratinjau saat seksi tertutup dari jalur apa pun — termasuk
      toggle tombol pembuka di inspector (yang memanggil onClose langsung
@@ -187,11 +290,17 @@ const RecolorSection = ({
      handleCancel di bawah (doc dasar yang sama). */
   useEffect(() => {
     if (open) return;
-    if (baseRef.current) onPreviewDoc(baseRef.current);
+    cancelScrubRaf();
+    isScrubbingRef.current = false;
+    lastMode1KeyRef.current = '';
+    if (baseRef.current) onPreviewDoc(baseRef.current, { previewOnly: false, interacting: false });
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCancel = () => {
-    if (baseRef.current) onPreviewDoc(baseRef.current);
+    cancelScrubRaf();
+    isScrubbingRef.current = false;
+    lastMode1KeyRef.current = '';
+    if (baseRef.current) onPreviewDoc(baseRef.current, { previewOnly: false, interacting: false });
     onClose();
     const t = triggerRef.current;
     if (t && t.isConnected) t.focus();
@@ -219,24 +328,28 @@ const RecolorSection = ({
     const p = parseColorWithAlpha(v);
     return p.isNone ? null : p.hex;
   };
-  const setTarget = (family, v) => {
+  const setTarget = (family, v, meta?: any) => {
     const h = normalizePicked(v);
     if (!h) return;
+    mode2LiveRef.current = !!(meta && meta.isLive);
     setFamilyTargets(prev => ({ ...prev, [family]: h }));
   };
   const clearTarget = family => {
+    mode2LiveRef.current = false;
     setFamilyTargets(prev => {
       const next = { ...prev };
       delete next[family];
       return next;
     });
   };
-  const setOverride = (hex, v) => {
+  const setOverride = (hex, v, meta?: any) => {
     const h = normalizePicked(v);
     if (!h) return;
+    mode2LiveRef.current = !!(meta && meta.isLive);
     setOverrides(prev => ({ ...prev, [hex.toLowerCase()]: h }));
   };
   const clearOverride = hex => {
+    mode2LiveRef.current = false;
     setOverrides(prev => {
       const next = { ...prev };
       delete next[hex.toLowerCase()];
@@ -258,6 +371,10 @@ const RecolorSection = ({
   };
 
   const handleScope = v => {
+    cancelScrubRaf();
+    isScrubbingRef.current = false;
+    lastMode1KeyRef.current = '';
+    mode1ParamsRef.current = { ...mode1ParamsRef.current, scope: v };
     setScope(v);
     computeFamilies(v);
     /* Fix wave F9: editor override menutup saat cakupan diganti — nilainya
@@ -267,10 +384,13 @@ const RecolorSection = ({
   };
 
   const doApply = () => {
+    cancelScrubRaf();
+    isScrubbingRef.current = false;
+    if (mode === 'mode1') computeMode1Preview(mode1ParamsRef.current);
     const prev = previewRef.current;
     const res = lastResRef.current;
     if (!prev || !res || res.changed === 0) return;
-    onPreviewDoc(prev);
+    onPreviewDoc(prev, { previewOnly: false, interacting: false });
     onCommitPreview('recolor:' + (mode === 'mode1' ? 'mode1:' : 'mode2:') + ++stepRef.current);
     const unlinkedIds = unlinkedObjectIds(baseRef.current, prev);
     if (unlinkedIds.length) say(L.rcChangedUnlinked.replace('{n}', String(res.changed)).replace('{m}', String(unlinkedIds.length)));
@@ -280,6 +400,7 @@ const RecolorSection = ({
        memanggil onPreviewDoc(baseRef.current) — tanpa pemajuan ini ia
        mengembalikan doc PRA-Apply dan menimpa commit barusan. */
     baseRef.current = prev;
+    lastMode1KeyRef.current = '';
     onClose();
   };
 
@@ -289,7 +410,7 @@ const RecolorSection = ({
      dihitung dari cakupan aktif, jadi sinyal ini scope-aware. */
   const isEmpty = families.length === 0;
   const countLabel = changed > 0 ? L.rcMatches.replace('{n}', String(changed)) : L.rcNoChange;
-  return <div className="fig-isec fade" data-testid="rc-section"><div className="fig-isec-title"><span>{L.rcTitle}</span><button type="button" className="fig-ibtn" onClick={handleCancel} aria-label={L.frClose} data-testid="rc-close" data-tip="rcClose"><Ico n="x" size={14} /></button></div><div className="space-y-3">{isEmpty ? <div data-testid="rc-empty-state" className="text-[11px] mut">{RC_EMPTY_DOC}</div> : <><div data-testid="rc-mode-seg"><Seg cls="vert" o={[['mode1', L.rcTabMode1], ['mode2', L.rcTabMode2]]} v={mode} on={setMode} tip="rcMode" tips={{ mode1: 'rcTabMode1', mode2: 'rcTabMode2' }} /></div><div data-testid="rc-scope-seg"><Seg o={[['document', L.frScopeDoc], ['selection', L.frScopeSel]]} v={scope} on={handleScope} tip="rcScope" /></div>{mode === 'mode1' ? <div className="space-y-3"><div data-testid="rc-hue"><Range l={L.rcHue} v={deltaHue} min={-180} max={180} step={1} on={v => setDeltaHue(v)} tip="rcHue" f={v => (v > 0 ? '+' : '') + v + '°'} /></div><div data-testid="rc-sat"><Range l={L.rcSat} v={satMul} min={0} max={2} step={0.05} on={v => setSatMul(v)} tip="rcSat" f={v => '×' + v} /></div><div data-testid="rc-light"><Range l={L.rcLight} v={lightMul} min={0} max={2} step={0.05} on={v => setLightMul(v)} tip="rcLight" f={v => '×' + v} /></div><div><div className="fig-sub-lbl" data-tip="rcHueRange">{L.rcHueRange}</div><div className="flex items-center gap-2"><div className="fld flex items-center px-1.5 py-1" style={{ flex: 1, height: 30 }} data-testid="rc-range-min"><CustomTextBox cls="ctr" value={String(hueMin)} ariaLabel={L.rcHueRangeMin} filterRe={/[^0-9]/g} onCommit={v => { const n = parseInt(v, 10); if (Number.isFinite(n)) setHueMin(clampN(n, 0, 360)); }} /></div><span className="text-[11px] mut">–</span><div className="fld flex items-center px-1.5 py-1" style={{ flex: 1, height: 30 }} data-testid="rc-range-max"><CustomTextBox cls="ctr" value={String(hueMax)} ariaLabel={L.rcHueRangeMax} filterRe={/[^0-9]/g} onCommit={v => { const n = parseInt(v, 10); if (Number.isFinite(n)) setHueMax(clampN(n, 0, 360)); }} /></div></div><div className="text-[11px] mut mt-1">{L.rcHueRangeHint}</div></div></div> : <div className="space-y-3">{families.map(g => <div key={g.family} className="space-y-1.5"><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{L['rcFamily_' + g.family] || g.family}</span><span className="text-[11px] mut">{L.rcFamilyColors.replace('{n}', String(g.colors.length))}</span></div><div className="flex flex-wrap items-center gap-1.5">{g.colors.map(e => <span key={e.hex} className="flex items-center gap-1"><button type="button" className={'swatch' + (overrideFor === e.hex ? ' open' : '')} style={{ background: e.hex, width: 22, height: 22 }} data-testid={`rc-family-${g.family}-color-${e.hex.slice(1).toLowerCase()}`} data-tip="rcOverride" aria-label={e.hex} title={e.hex + ' × ' + e.count} onClick={() => setOverrideFor(overrideFor === e.hex ? null : e.hex)} /><span className="text-[11px] mut">→</span><span className="swatch" style={{ background: mappedHexFor(e.hex), width: 22, height: 22 }} title={mappedHexFor(e.hex)} /></span>)}</div>{g.family === 'gray' ? <div className="text-[11px] mut">{L.rcGrayNote}</div> : familyTargets[g.family] ? <div className="flex items-center gap-2" data-testid={`rc-family-${g.family}`}><span className="text-[11px] mut">{L.rcSetTarget}</span><ColorField L={L} tip="rcFamilyTarget" value={familyTargets[g.family]} on={v => setTarget(g.family, v)} /><ColorText L={L} value={familyTargets[g.family]} on={v => setTarget(g.family, v)} /><button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-testid={`rc-family-${g.family}-clear`} data-tip="rcClearTarget" aria-label={L.rcClearTarget} onClick={() => clearTarget(g.family)}>×</button></div> : <button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-testid={`rc-family-${g.family}-add`} data-tip="rcSetTarget" onClick={() => { const top = [...g.colors].sort((a, b) => b.count - a.count)[0]; if (top) setTarget(g.family, top.hex); }}>{L.rcSetTarget}</button>}{overrideFor && familyOfHex(overrideFor) === g.family ? <div className="flex items-center gap-2 pt-1" data-testid={`rc-override-${overrideFor.slice(1).toLowerCase()}`}><span className="text-[11px] mut">{L.rcOverride} {overrideFor}</span><ColorField L={L} tip="rcOverride" value={overrides[overrideFor.toLowerCase()] || overrideFor} on={v => setOverride(overrideFor, v)} /><ColorText L={L} value={overrides[overrideFor.toLowerCase()] || overrideFor} on={v => setOverride(overrideFor, v)} /><button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-tip="rcRemoveOverride" aria-label={L.rcRemoveOverride} onClick={() => clearOverride(overrideFor)}>×</button></div> : null}</div>)}</div>}</>}<div className="flex items-center justify-between gap-2"><span className="text-[11px] mut" data-testid="rc-count">{countLabel}</span></div><div className="flex gap-2 pt-1"><button type="button" className="btn pri flex-1 text-xs" data-testid="rc-apply" data-tip="rcApply" disabled={isEmpty || changed === 0} onClick={doApply}>{L.rcApply}</button><button type="button" className="btn sec text-xs" data-testid="rc-tutup" onClick={handleCancel}>{L.frClose}</button></div></div></div>;
+  return <div className="fig-isec fade" data-testid="rc-section"><div className="fig-isec-title"><span>{L.rcTitle}</span><button type="button" className="fig-ibtn" onClick={handleCancel} aria-label={L.frClose} data-testid="rc-close" data-tip="rcClose"><Ico n="x" size={14} /></button></div><div className="space-y-3">{isEmpty ? <div data-testid="rc-empty-state" className="text-[11px] mut">{RC_EMPTY_DOC}</div> : <><div data-testid="rc-mode-seg"><Seg cls="vert" o={[['mode1', L.rcTabMode1], ['mode2', L.rcTabMode2]]} v={mode} on={setMode} tip="rcMode" tips={{ mode1: 'rcTabMode1', mode2: 'rcTabMode2' }} /></div><div data-testid="rc-scope-seg"><Seg o={[['document', L.frScopeDoc], ['selection', L.frScopeSel]]} v={scope} on={handleScope} tip="rcScope" /></div>{mode === 'mode1' ? <div className="space-y-3"><div data-testid="rc-hue"><Range l={L.rcHue} v={deltaHue} min={-180} max={180} step={1} on={(v, meta) => updateMode1Slider('deltaHue', v, meta)} onCommit={v => updateMode1Slider('deltaHue', v, { isLive: false })} tip="rcHue" f={v => (v > 0 ? '+' : '') + v + '°'} /></div><div data-testid="rc-sat"><Range l={L.rcSat} v={satMul} min={0} max={2} step={0.05} on={(v, meta) => updateMode1Slider('satMul', v, meta)} onCommit={v => updateMode1Slider('satMul', v, { isLive: false })} tip="rcSat" f={v => '×' + v} /></div><div data-testid="rc-light"><Range l={L.rcLight} v={lightMul} min={0} max={2} step={0.05} on={(v, meta) => updateMode1Slider('lightMul', v, meta)} onCommit={v => updateMode1Slider('lightMul', v, { isLive: false })} tip="rcLight" f={v => '×' + v} /></div><div><div className="fig-sub-lbl" data-tip="rcHueRange">{L.rcHueRange}</div><div className="flex items-center gap-2"><div className="fld flex items-center px-1.5 py-1" style={{ flex: 1, height: 30 }} data-testid="rc-range-min"><CustomTextBox cls="ctr" value={String(hueMin)} ariaLabel={L.rcHueRangeMin} filterRe={/[^0-9]/g} onCommit={v => { const n = parseInt(v, 10); if (Number.isFinite(n)) setHueMin(clampN(n, 0, 360)); }} /></div><span className="text-[11px] mut">–</span><div className="fld flex items-center px-1.5 py-1" style={{ flex: 1, height: 30 }} data-testid="rc-range-max"><CustomTextBox cls="ctr" value={String(hueMax)} ariaLabel={L.rcHueRangeMax} filterRe={/[^0-9]/g} onCommit={v => { const n = parseInt(v, 10); if (Number.isFinite(n)) setHueMax(clampN(n, 0, 360)); }} /></div></div><div className="text-[11px] mut mt-1">{L.rcHueRangeHint}</div></div></div> : <div className="space-y-3">{families.map(g => <div key={g.family} className="space-y-1.5"><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{L['rcFamily_' + g.family] || g.family}</span><span className="text-[11px] mut">{L.rcFamilyColors.replace('{n}', String(g.colors.length))}</span></div><div className="flex flex-wrap items-center gap-1.5">{g.colors.map(e => <span key={e.hex} className="flex items-center gap-1"><button type="button" className={'swatch' + (overrideFor === e.hex ? ' open' : '')} style={{ background: e.hex, width: 22, height: 22 }} data-testid={`rc-family-${g.family}-color-${e.hex.slice(1).toLowerCase()}`} data-tip="rcOverride" aria-label={e.hex} title={e.hex + ' × ' + e.count} onClick={() => setOverrideFor(overrideFor === e.hex ? null : e.hex)} /><span className="text-[11px] mut">→</span><span className="swatch" style={{ background: mappedHexFor(e.hex), width: 22, height: 22 }} title={mappedHexFor(e.hex)} /></span>)}</div>{g.family === 'gray' ? <div className="text-[11px] mut">{L.rcGrayNote}</div> : familyTargets[g.family] ? <div className="flex items-center gap-2" data-testid={`rc-family-${g.family}`}><span className="text-[11px] mut">{L.rcSetTarget}</span><ColorField L={L} tip="rcFamilyTarget" value={familyTargets[g.family]} on={(v, meta) => setTarget(g.family, v, meta)} /><ColorText L={L} value={familyTargets[g.family]} on={v => setTarget(g.family, v)} /><button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-testid={`rc-family-${g.family}-clear`} data-tip="rcClearTarget" aria-label={L.rcClearTarget} onClick={() => clearTarget(g.family)}>×</button></div> : <button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-testid={`rc-family-${g.family}-add`} data-tip="rcSetTarget" onClick={() => { const top = [...g.colors].sort((a, b) => b.count - a.count)[0]; if (top) setTarget(g.family, top.hex); }}>{L.rcSetTarget}</button>}{overrideFor && familyOfHex(overrideFor) === g.family ? <div className="flex items-center gap-2 pt-1" data-testid={`rc-override-${overrideFor.slice(1).toLowerCase()}`}><span className="text-[11px] mut">{L.rcOverride} {overrideFor}</span><ColorField L={L} tip="rcOverride" value={overrides[overrideFor.toLowerCase()] || overrideFor} on={(v, meta) => setOverride(overrideFor, v, meta)} /><ColorText L={L} value={overrides[overrideFor.toLowerCase()] || overrideFor} on={v => setOverride(overrideFor, v)} /><button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-tip="rcRemoveOverride" aria-label={L.rcRemoveOverride} onClick={() => clearOverride(overrideFor)}>×</button></div> : null}</div>)}</div>}</>}<div className="flex items-center justify-between gap-2"><span className="text-[11px] mut" data-testid="rc-count">{countLabel}</span></div><div className="flex gap-2 pt-1"><button type="button" className="btn pri flex-1 text-xs" data-testid="rc-apply" data-tip="rcApply" disabled={isEmpty || changed === 0} onClick={doApply}>{L.rcApply}</button><button type="button" className="btn sec text-xs" data-testid="rc-tutup" onClick={handleCancel}>{L.frClose}</button></div></div></div>;
 };
 
 export { RecolorSection };

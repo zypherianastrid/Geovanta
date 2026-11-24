@@ -1,8 +1,12 @@
 /**
  * @file src/engine/gpuAutoTrace.ts
  * @description WebGL2 GPU-accelerated Auto Trace helper with automatic CPU fallback
- * and Ultra-Fidelity (99%+) Exact Crack-Following Vectorizer.
+ * and Ultra-Fidelity (99%+) Topological Cubic-Bézier Vectorizer.
  */
+import {
+  traceTopologicalBezierSvg,
+  type TraceCalibrationParams,
+} from './topologicalBezierTracer.ts';
 
 export interface AutoTraceGpuInfo {
   gpuAvailable: boolean;
@@ -13,6 +17,17 @@ export interface AutoTraceGpuInfo {
 }
 
 let _cachedGpuInfo: AutoTraceGpuInfo | null = null;
+let _cachedGlState: {
+  cv: HTMLCanvasElement;
+  gl: WebGL2RenderingContext;
+  prog: WebGLProgram;
+  imgTex: WebGLTexture;
+  palTex: WebGLTexture;
+  uImgLoc: WebGLUniformLocation | null;
+  uPalLoc: WebGLUniformLocation | null;
+  uKLoc: WebGLUniformLocation | null;
+  renderer: string;
+} | null = null;
 
 /**
  * Probes WebGL2 hardware acceleration availability and returns the active backend info.
@@ -57,8 +72,102 @@ export function getAutoTraceGpuInfo(): AutoTraceGpuInfo {
   }
 }
 
+function getOrInitGlState() {
+  if (_cachedGlState && !_cachedGlState.gl.isContextLost()) {
+    return _cachedGlState;
+  }
+  const glCv = document.createElement('canvas');
+  const gl = glCv.getContext('webgl2', { powerPreference: 'high-performance', preserveDrawingBuffer: true });
+  if (!gl) return null;
+
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const renderer = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || 'WebGL2 GPU');
+
+  const vsSrc = `#version 300 es
+    in vec2 aPos;
+    out vec2 vUv;
+    void main() { vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+  const fsSrc = `#version 300 es
+    precision highp float;
+    uniform sampler2D uImg;
+    uniform sampler2D uPal;
+    uniform int uK;
+    in vec2 vUv;
+    out vec4 fragColor;
+    void main() {
+      vec4 px = texture(uImg, vec2(vUv.x, 1.0 - vUv.y));
+      if (px.a < 0.125) { fragColor = vec4(1.0, 1.0, 0.0, 1.0); return; }
+      float bestD = 1e9;
+      int bestK = 0;
+      for (int k = 0; k < 256; k++) {
+        if (k >= uK) break;
+        vec3 c = texelFetch(uPal, ivec2(k, 0), 0).rgb;
+        vec3 d = px.rgb - c;
+        float rm = (px.r + c.r) * 0.5;
+        float dist = (2.0 + rm) * d.r * d.r + 4.0 * d.g * d.g + (3.0 - rm) * d.b * d.b;
+        if (dist < bestD) { bestD = dist; bestK = k; }
+      }
+      fragColor = vec4(float(bestK) / 255.0, 0.0, 0.0, 1.0);
+    }`;
+
+  const compile = (type: number, src: string) => {
+    const sh = gl.createShader(type);
+    if (!sh) throw new Error('Shader alloc failed');
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(sh) || 'Shader compile error');
+    }
+    return sh;
+  };
+
+  const prog = gl.createProgram();
+  if (!prog) throw new Error('Program alloc failed');
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    throw new Error(gl.getProgramInfoLog(prog) || 'Program link error');
+  }
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  const imgTex = gl.createTexture()!;
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, imgTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  const palTex = gl.createTexture()!;
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, palTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+  _cachedGlState = {
+    cv: glCv,
+    gl,
+    prog,
+    imgTex,
+    palTex,
+    uImgLoc: gl.getUniformLocation(prog, 'uImg'),
+    uPalLoc: gl.getUniformLocation(prog, 'uPal'),
+    uKLoc: gl.getUniformLocation(prog, 'uK'),
+    renderer,
+  };
+  return _cachedGlState;
+}
+
 /**
- * Assigns each RGBA pixel to its nearest perceptual Redmean palette index using a WebGL2 fragment shader,
+ * Assigns each RGBA pixel to its nearest perceptual Redmean palette index using a cached WebGL2 fragment shader,
  * automatically falling back to CPU if WebGL2 is unavailable or `allowGpu === false`.
  */
 export function gpuAssignNearestPalette(
@@ -71,79 +180,19 @@ export function gpuAssignNearestPalette(
   const n = w * h;
   if (allowGpu && typeof document !== 'undefined' && palette.length > 0 && palette.length <= 255) {
     try {
-      const glCv = document.createElement('canvas');
-      glCv.width = w;
-      glCv.height = h;
-      const gl = glCv.getContext('webgl2', { powerPreference: 'high-performance', preserveDrawingBuffer: true });
-      if (gl) {
-        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-        const renderer = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || 'WebGL2 GPU');
-
-        const vsSrc = `#version 300 es
-          in vec2 aPos;
-          out vec2 vUv;
-          void main() { vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
-        const fsSrc = `#version 300 es
-          precision highp float;
-          uniform sampler2D uImg;
-          uniform sampler2D uPal;
-          uniform int uK;
-          in vec2 vUv;
-          out vec4 fragColor;
-          void main() {
-            vec4 px = texture(uImg, vec2(vUv.x, 1.0 - vUv.y));
-            if (px.a < 0.125) { fragColor = vec4(1.0, 1.0, 0.0, 1.0); return; }
-            float bestD = 1e9;
-            int bestK = 0;
-            for (int k = 0; k < 256; k++) {
-              if (k >= uK) break;
-              vec3 c = texelFetch(uPal, ivec2(k, 0), 0).rgb;
-              vec3 d = px.rgb - c;
-              float rm = (px.r + c.r) * 0.5;
-              float dist = (2.0 + rm) * d.r * d.r + 4.0 * d.g * d.g + (3.0 - rm) * d.b * d.b;
-              if (dist < bestD) { bestD = dist; bestK = k; }
-            }
-            fragColor = vec4(float(bestK) / 255.0, 0.0, 0.0, 1.0);
-          }`;
-
-        const compile = (type: number, src: string) => {
-          const sh = gl.createShader(type);
-          if (!sh) throw new Error('Shader alloc failed');
-          gl.shaderSource(sh, src);
-          gl.compileShader(sh);
-          if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-            throw new Error(gl.getShaderInfoLog(sh) || 'Shader compile error');
-          }
-          return sh;
-        };
-
-        const prog = gl.createProgram();
-        if (!prog) throw new Error('Program alloc failed');
-        gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSrc));
-        gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSrc));
-        gl.linkProgram(prog);
-        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-          throw new Error(gl.getProgramInfoLog(prog) || 'Program link error');
-        }
+      const st = getOrInitGlState();
+      if (st) {
+        const { cv, gl, prog, imgTex, palTex, uImgLoc, uPalLoc, uKLoc, renderer } = st;
+        if (cv.width !== w) cv.width = w;
+        if (cv.height !== h) cv.height = h;
         gl.useProgram(prog);
 
-        const buf = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-        const loc = gl.getAttribLocation(prog, 'aPos');
-        gl.enableVertexAttribArray(loc);
-        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-
         const imgBytes = rgba instanceof Uint8Array ? rgba : new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength);
-        const imgTex = gl.createTexture();
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, imgTex);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, imgBytes);
-        gl.uniform1i(gl.getUniformLocation(prog, 'uImg'), 0);
+        gl.uniform1i(uImgLoc, 0);
 
         const palBytes = new Uint8Array(256 * 4);
         for (let k = 0; k < palette.length; k++) {
@@ -152,14 +201,11 @@ export function gpuAssignNearestPalette(
           palBytes[k * 4 + 2] = palette[k].b;
           palBytes[k * 4 + 3] = 255;
         }
-        const palTex = gl.createTexture();
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, palTex);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, palBytes);
-        gl.uniform1i(gl.getUniformLocation(prog, 'uPal'), 1);
-        gl.uniform1i(gl.getUniformLocation(prog, 'uK'), palette.length);
+        gl.uniform1i(uPalLoc, 1);
+        gl.uniform1i(uKLoc, palette.length);
 
         gl.viewport(0, 0, w, h);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -176,8 +222,6 @@ export function gpuAssignNearestPalette(
             labels[dstRow + x] = outBytes[si + 1] > 128 ? -1 : outBytes[si];
           }
         }
-        const loseExt = gl.getExtension('WEBGL_lose_context');
-        if (loseExt) loseExt.loseContext();
         return { labels, usedGpu: true, backend: 'WebGL2 GPU', renderer };
       }
     } catch {
@@ -346,7 +390,7 @@ export function maskEdgeConnectedWhiteBackdrop(
 
 /**
  * Traces an RGBA buffer in Ultra-Fidelity (99%+) mode using GPU WebGL2 palette labeling
- * (with automatic CPU fallback) and exact directed crack-following contours.
+ * (with automatic CPU fallback) and the Unified Topological Cubic-Bézier Engine.
  */
 export function traceUltraExactVectorSvg(
   rgba: Uint8Array | Uint8ClampedArray,
@@ -359,9 +403,23 @@ export function traceUltraExactVectorSvg(
     smoothness?: number;
     ignoreWhite?: boolean;
     useGpu?: boolean;
+    stroke?: boolean;
+    rawPixelMode?: boolean;
+    calibration?: Partial<TraceCalibrationParams>;
   },
   onProgress?: (stage: string, frac: number, detail: string) => void
 ): { svg: string; palette: any[]; stats: any } {
+  if (!opts.rawPixelMode) {
+    return traceTopologicalBezierSvg(
+      rgba,
+      w,
+      h,
+      opts,
+      gpuAssignNearestPalette,
+      maskEdgeConnectedWhiteBackdrop,
+      onProgress
+    );
+  }
   const t0 = performance.now();
   const workRgba = opts.ignoreWhite ? maskEdgeConnectedWhiteBackdrop(rgba, w, h, 244) : rgba;
 

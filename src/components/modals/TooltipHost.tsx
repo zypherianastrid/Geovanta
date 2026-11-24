@@ -67,6 +67,7 @@ const TipHost = () => {
       }, 260);
     };
     const show = (el, now: boolean = false, byFocus: boolean = false) => {
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) return;
       cur = el;
       fm = !!byFocus;
       clearTimeout(timer);
@@ -115,7 +116,7 @@ const TipHost = () => {
       return r.width > 0 && r.height > 0 && x >= r.left - 1 && x <= r.right + 1 && y >= r.top - 1 && y <= r.bottom + 1;
     };
     const over = e => {
-      if (e.pointerType && e.pointerType !== 'mouse') return;
+      if (window.innerWidth <= 768 || (e.pointerType && e.pointerType !== 'mouse')) return;
       mx = e.clientX;
       my = e.clientY;
       kb = false;
@@ -135,7 +136,7 @@ const TipHost = () => {
     /* pointermove: jika kursor tak lagi berada di elemen pemilik tooltip (pointerout tidak terkirim: tombol disabled, elemen berpindah/disembunyikan,
        pointer capture, dll.) -> tutup. Ini juga menutup tooltip hasil fokus begitu mouse digerakkan. */
     const move = e => {
-      if (e.pointerType && e.pointerType !== 'mouse') return;
+      if (window.innerWidth <= 768 || (e.pointerType && e.pointerType !== 'mouse')) return;
       mx = e.clientX;
       my = e.clientY;
       if (cur && !(cur.contains(e.target) && inside(cur, mx, my))) hide();

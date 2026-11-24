@@ -11,6 +11,8 @@ import { toCanvasKitBlendMode } from '../engine/blendModes.tsx';
 import { strokeGradOn, gradOn } from '../engine/gradientEngine.tsx';
 
 const isFrameBackground = o => o.isFrameBg || o.isAutoFrame;
+const EMPTY_SET = new Set();
+const EMPTY_MAP = new Map();
 const isAxisAlignedRectFrame = f => {
   if (!f || f.rot || (f.r && f.r > 0) || (f.rx && f.rx > 0)) return false;
   const sp = f.subs && f.subs.length === 1 ? f.subs[0] : null;
@@ -1177,6 +1179,7 @@ export class CanvasKitScene {
   drawScene(canvas, objects, view, options: Record<string, any> = {}) {
     const {kit} = this;
     const {x, y, width, height, zoom, smoothEdges = false, interacting = false} = view;
+    const dropMicroSeam = Boolean(interacting && !options.preserveAntiSeam);
     const cull = view.cullRect || view;
     const cx0 = cull.x, cy0 = cull.y, cx1 = cull.x + cull.width, cy1 = cull.y + cull.height;
     const {frameRects, frameBackgrounds, drag, editingTextId} = options;
@@ -1196,9 +1199,30 @@ export class CanvasKitScene {
 
     const drawPass = moving => {
       const iconSource = options.allObjects || objects;
-      const bundle = getIconStateBundle(iconSource, drag?.ids || null);
-      const partialGroups = bundle.partialGroups;
-      iconFrameState = moving ? bundle.movingMap : bundle.staticMap;
+      let partialGroups = EMPTY_SET;
+      if (moving && options.objectsOverride) {
+        let anyIconMember = false;
+        for (let i = 0; i < objects.length; i++) {
+          if (isIconFrameVectorMember(objects[i])) { anyIconMember = true; break; }
+        }
+        if (!anyIconMember) {
+          iconFrameState = EMPTY_MAP;
+        } else {
+          const dragIds = drag?.ids || null;
+          let cached = this._iconBundleCache;
+          if (!cached || cached.src !== iconSource || cached.dragIds !== dragIds) {
+            this._movingIconBundleScans = (this._movingIconBundleScans || 0) + 1;
+            cached = { src: iconSource, dragIds, data: getIconStateBundle(iconSource, dragIds) };
+            this._iconBundleCache = cached;
+          }
+          partialGroups = cached.data.partialGroups;
+          iconFrameState = cached.data.movingMap;
+        }
+      } else {
+        const bundle = getIconStateBundle(iconSource, drag?.ids || null);
+        partialGroups = bundle.partialGroups;
+        iconFrameState = moving ? bundle.movingMap : bundle.staticMap;
+      }
       for (const st of iconFrameState.values()) st.drawn = false;
       const inMovingPass = o =>
         Boolean(drag?.ids.has(o.id)) ||
@@ -1239,7 +1263,7 @@ export class CanvasKitScene {
           stats.culledObjects++;
           return;
         }
-        if (interacting && !isMovingPass && !hasEffects && !o.img && !isLegacyText(o)) {
+        if (dropMicroSeam && !isMovingPass && !hasEffects && !o.img && !isLegacyText(o)) {
           const effPad = strokeOutward > 0 ? strokeOutward * (o.nonScalingStroke ? 1 / zoom : 1) : 0;
           if ((bb[2] - bb[0] + effPad * 2) * zoom < 0.5 && (bb[3] - bb[1] + effPad * 2) * zoom < 0.5) {
             stats.culledObjects++;
@@ -1262,7 +1286,7 @@ export class CanvasKitScene {
               const hasGrad = VE.gradOn(o);
               const fill = hasGrad || hasPaint(o.fill);
               let stroke = strokeW > 0 && (VE.strokeGradOn(o) || hasPaint(o.stroke));
-              if (interacting && fill && stroke) {
+              if (dropMicroSeam && fill && stroke) {
                 const effStrokePx = o.nonScalingStroke ? strokeW : strokeW * zoom;
                 if (effStrokePx < 0.5 || (effStrokePx <= 1.5 && !hasGrad && !VE.strokeGradOn(o) && o.stroke === o.fill)) {
                   stroke = false;

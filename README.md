@@ -10,13 +10,14 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
-  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.1.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.1.0" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.1.0-8b5cf6?style=for-the-badge" alt="Changelog v1.1.0" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.2.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.2.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.2.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.2.0-8b5cf6?style=for-the-badge" alt="Changelog v1.2.0" /></a>
 </p>
 
 <p>
   <img src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/Tauri_v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri v2" />
+  <img src="https://img.shields.io/badge/Capacitor_Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android APK" />
   <img src="https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React 18" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
@@ -63,7 +64,7 @@ Most modern vector editors force a painful trade-off: cloud-only tools lock your
 | Pillar | What You Get |
 | :--- | :--- |
 | 🔒 **100% Offline & Local-First** | Zero external CDNs required, zero mandatory cloud accounts. Every project, revision snapshot, custom font, Bézier path, and image blob lives locally in IndexedDB with portable `.geovanta` ZIP backups. |
-| 🌐 **Desktop App + Instant WebApp** | Run the native **64-Bit Windows Desktop App** (`.exe` / `.msi` via Rust + Tauri v2) or launch the zero-install **[Live WebApp](https://geovanta.netlify.app)** in any modern browser. |
+| 🌐 **Desktop, Android & WebApp** | Run the native **64-Bit Windows Desktop App** (`.exe` / `.msi` via Rust + Tauri v2), install the **Android App (`.apk`)** with Dedicated Mobile Mode (`<= 768px`, two-finger pinch-to-zoom, bottom sheets, & scrollable toolbar), or launch the zero-install **[Live WebApp](https://geovanta.netlify.app)**. |
 | ⚡ **Skia & Rust/WASM Speed** | Powered by a Skia CanvasKit 0.40.0 WebAssembly engine, Dynamic Interactive LOD, spatial indexing, geometry caching, and Rust/WASM acceleration for silky **60+ FPS** panning and zooming. |
 | 🎨 **Complete Vector, Text & UI Studio** | Cubic Bézier node editing, 3-mode per-corner fillets, Greiner-Hormann Booleans, full vector typography with Google Fonts embedding & text-to-path outlining, dual Fill/Stroke gradients, 16 blend modes, non-destructive effects (`fx`), Figma-style Auto-Layout, and a two-way live SVG/JSX/Vue code editor. |
 | 🤖 **Hybrid AI via MCP** | Ships with **17 official Model Context Protocol (MCP) tools** for Antigravity (AGY) and Google Gemini — work live on the canvas with full transactional `Ctrl+Z` Undo/Redo or run headless in CLI pipelines. |
@@ -261,8 +262,9 @@ flowchart LR
 ```
 
 ### Repository Layout
-- `src/` — Core React 18 + TypeScript/TSX application (`engine/`, `renderer/`, `components/`, `workspace/`, `constants/`, `utils/`, `bridge/`, `vendor/`, `assets/fonts/`, `data/`)
+- `src/` — Core React 18 + TypeScript/TSX application (`engine/`, `renderer/`, `components/`, `workspace/`, `constants/`, `utils/`, `hooks/`, `styles/`, `bridge/`, `vendor/`, `assets/fonts/`, `data/`)
 - `src-tauri/` — Rust backend & Tauri v2 configuration for 64-bit Windows installers (**NSIS `.exe`** & **WiX `.msi`**)
+- `android/` & `capacitor.config.json` — Capacitor Android native wrapper project for building installable **`.apk`** releases
 - `rust/` — Rust WebAssembly geometry acceleration modules
 - `scripts/mcp-server/` — Official Model Context Protocol server (`index.js`, `tools.js`, `engineAdapter.js`)
 - `web/` — Ready-to-run 100% offline web bundle (`web/index.html` + local CanvasKit WASM assets)
@@ -277,16 +279,22 @@ flowchart LR
 Launch Geovanta directly in any modern browser (Chrome, Edge, Firefox) with no installation required:
 - **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
 
-### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.1.0` Release)
-Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.1.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.1.0)**:
-1. Download [`Geovanta-Vector-Editor_1.1.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.1.0/Geovanta-Vector-Editor_1.1.0_x64-setup.exe).
+### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.2.0` Release)
+Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.2.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.2.0)**:
+1. Download [`Geovanta-Vector-Editor_1.2.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.2.0/Geovanta-Vector-Editor_1.2.0_x64-setup.exe) (or the `.msi` installer).
 2. Run the `.exe` installer and follow the setup wizard.
 3. Launch **Geovanta Vector Editor** from your Start Menu or Desktop shortcut.
 
-### Option 3: 📦 Run Offline Bundle Locally (No Build Required)
+### Option 3: 📱 Install Android App (`.apk` — `v1.2.0` Release)
+Install Geovanta directly on Android phones and tablets (with dedicated mobile studio UI for `<= 768px`, two-finger pinch-to-zoom & pan, bottom sheets, and scrollable floating toolbar):
+1. Download [`Geovanta-v1.2.0-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.2.0/Geovanta-v1.2.0-android.apk) from **[GitHub Releases (v1.2.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.2.0)**.
+2. Tap the `.apk` file on your Android device and allow installation if prompted.
+3. *(Optional)* Build the APK locally from source using `npm run android:build:apk` or `build-android-apk.bat` (outputs to `dist/android/Geovanta-v1.2.0-android.apk`).
+
+### Option 4: 📦 Run Offline Bundle Locally (No Build Required)
 Serve or open `web/index.html` in Chrome, Edge, or any modern Chromium browser. All JavaScript bundles, fonts, and Skia CanvasKit WebAssembly runtimes are bundled locally — no internet connection required.
 
-### Option 4: 🛠️ Develop & Build from Source
+### Option 5: 🛠️ Develop & Build from Source
 ```sh
 # 1. Install dependencies
 npm ci
@@ -297,6 +305,9 @@ npm run typecheck
 
 # 3. Rebuild the 100% offline web bundle (updates dist/ and web/)
 npm run build:web
+
+# 4. Build Android APK locally (outputs dist/android/Geovanta-v1.2.0-android.apk)
+npm run android:build:apk
 ```
 
 #### Build Windows 64-Bit Desktop Installers (`.exe` & `.msi`)
@@ -305,8 +316,8 @@ Requires **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual Stu
 build-windows-64bit.bat
 ```
 Generated 64-bit installers are placed in:
-- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.1.0_x64-setup.exe`
-- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.1.0_x64_en-US.msi`
+- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.2.0_x64-setup.exe`
+- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.2.0_x64_en-US.msi`
 
 ---
 

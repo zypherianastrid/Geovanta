@@ -300,18 +300,90 @@ function toPageGuides(t, guides) {
   });
 }
 
-/* ------------------------------------------------------------------ */
+const SPACING_STRIP_SIZE = 128;
+
+function buildLineIndex(arr) {
+  const out = new Array(arr.length);
+  for (let i = 0; i < arr.length; i++) out[i] = { ln: arr[i], idx: i };
+  out.sort((a, b) => (a.ln.v - b.ln.v) || (a.idx - b.idx));
+  return out;
+}
+
+function buildBoxStrips(boxes, horizontal) {
+  const buckets = new Map();
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
+    const lo = horizontal ? b.y0 : b.x0;
+    const hi = horizontal ? b.y1 : b.x1;
+    const s0 = Math.floor(lo / SPACING_STRIP_SIZE);
+    const s1 = Math.floor(hi / SPACING_STRIP_SIZE);
+    for (let s = s0; s <= s1; s++) {
+      let arr = buckets.get(s);
+      if (!arr) { arr = []; buckets.set(s, arr); }
+      arr.push(i);
+    }
+  }
+  return buckets;
+}
+
+function ensureIndexedTargets(t) {
+  const xsLen = t.xs.length, ysLen = t.ys.length, bLen = t.boxes.length, pLen = t.points.length;
+  if (t._idxSig && t._idxSig[0] === xsLen && t._idxSig[1] === ysLen && t._idxSig[2] === bLen && t._idxSig[3] === pLen) {
+    return t._idx;
+  }
+  const sXs = xsLen > 32 ? buildLineIndex(t.xs) : null;
+  const sYs = ysLen > 32 ? buildLineIndex(t.ys) : null;
+  let sPtsX = null;
+  if (pLen > 32) {
+    sPtsX = new Array(pLen);
+    for (let i = 0; i < pLen; i++) sPtsX[i] = { pt: t.points[i], idx: i };
+    sPtsX.sort((a, b) => (a.pt.x - b.pt.x) || (a.idx - b.idx));
+  }
+  const rowBuckets = bLen > 64 ? buildBoxStrips(t.boxes, true) : null;
+  const colBuckets = bLen > 64 ? buildBoxStrips(t.boxes, false) : null;
+  t._idxSig = [xsLen, ysLen, bLen, pLen];
+  t._idx = { sXs, sYs, sPtsX, rowBuckets, colBuckets, seenStamp: bLen > 64 ? new Int32Array(bLen) : null, stamp: 0 };
+  return t._idx;
+}
+
+function lowerBoundIdx(arr, getV, target) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (getV(arr[mid]) < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 /* Garis-garis yang berimpit dengan target (guides_spans). `xs`/`ys` adalah
    garis bergerak SETELAH koreksi. */
 function guidesSpans(t, xs, ys) {
-  const spanOf = (cands, s) => {
-    let lo = s.a, hi = s.b, kind = null, found = false;
-    for (const h of cands) {
-      if (Math.abs(h.v - s.v) < GUIDE_EPS) {
-        found = true;
-        lo = Math.min(lo, h.a);
-        hi = Math.max(hi, h.b);
-        if (kind === null && h.kind) kind = h.kind;
+  const idx = ensureIndexedTargets(t);
+  const spanOf = (rawCands, sortedCands, s) => {
+    let lo = s.a, hi = s.b, kind = null, kindIdx = Infinity, found = false;
+    if (sortedCands) {
+      const start = lowerBoundIdx(sortedCands, e => e.ln.v, s.v - GUIDE_EPS);
+      const hiLimit = s.v + GUIDE_EPS;
+      for (let i = start; i < sortedCands.length; i++) {
+        const entry = sortedCands[i];
+        if (entry.ln.v > hiLimit) break;
+        const h = entry.ln;
+        if (Math.abs(h.v - s.v) < GUIDE_EPS) {
+          found = true;
+          lo = Math.min(lo, h.a);
+          hi = Math.max(hi, h.b);
+          if (h.kind && entry.idx < kindIdx) { kind = h.kind; kindIdx = entry.idx; }
+        }
+      }
+    } else {
+      for (const h of rawCands) {
+        if (Math.abs(h.v - s.v) < GUIDE_EPS) {
+          found = true;
+          lo = Math.min(lo, h.a);
+          hi = Math.max(hi, h.b);
+          if (kind === null && h.kind) kind = h.kind;
+        }
       }
     }
     if (!found) return null;
@@ -323,11 +395,11 @@ function guidesSpans(t, xs, ys) {
   };
   const out = [];
   for (const x of xs) {
-    const sp = spanOf(t.xs, x);
+    const sp = spanOf(t.xs, idx.sXs, x);
     if (sp) out.push(makeGuide({ x: x.v, y: sp.lo }, { x: x.v, y: sp.hi }, null, false, sp.kind));
   }
   for (const y of ys) {
-    const sp = spanOf(t.ys, y);
+    const sp = spanOf(t.ys, idx.sYs, y);
     if (sp) out.push(makeGuide({ x: sp.lo, y: y.v }, { x: sp.hi, y: y.v }, null, false, sp.kind));
   }
   return out;
@@ -341,10 +413,35 @@ function guidesFor(t, r) {
 
 /* Koreksi tiap sumbu ke garis target terdekat (snap_spans). Kembalikan
    { dx, dy, guides } dengan dx/dy null bila tak ada yang dalam jangkauan. */
-function snapSpans(t, xs, ys, threshold) {
-  const best = (cands, vals) => {
+function snapSpans(t, xs, ys, threshold, skipGuides = false) {
+  const idx = ensureIndexedTargets(t);
+  const best = (rawCands, sortedCands, vals) => {
     let b = null;
-    for (const c of cands) {
+    if (sortedCands && vals.length) {
+      let bestAbs = Infinity, bestOrder = Infinity;
+      for (let vi = 0; vi < vals.length; vi++) {
+        const v = vals[vi];
+        const start = lowerBoundIdx(sortedCands, e => e.ln.v, v.v - threshold);
+        const hiLimit = v.v + threshold;
+        for (let i = start; i < sortedCands.length; i++) {
+          const entry = sortedCands[i];
+          if (entry.ln.v > hiLimit) break;
+          const d = entry.ln.v - v.v;
+          const ad = Math.abs(d);
+          if (ad <= threshold) {
+            if (ad < bestAbs - 1e-12 || (Math.abs(ad - bestAbs) <= 1e-12 && (entry.idx < bestOrder || (entry.idx === bestOrder && b !== null && false)))) {
+              if (ad < bestAbs || entry.idx < bestOrder) {
+                b = d;
+                bestAbs = ad;
+                bestOrder = entry.idx;
+              }
+            }
+          }
+        }
+      }
+      return b;
+    }
+    for (const c of rawCands) {
       for (const v of vals) {
         const d = c.v - v.v;
         if (Math.abs(d) <= threshold && (b === null || Math.abs(d) < Math.abs(b))) b = d;
@@ -352,8 +449,9 @@ function snapSpans(t, xs, ys, threshold) {
     }
     return b;
   };
-  const dx = best(t.xs, xs);
-  const dy = best(t.ys, ys);
+  const dx = best(t.xs, idx.sXs, xs);
+  const dy = best(t.ys, idx.sYs, ys);
+  if (skipGuides) return { dx, dy, guides: [] };
   const ox = dx === null ? 0 : dx;
   const oy = dy === null ? 0 : dy;
   const xs2 = xs.map(s => ({ v: s.v + ox, a: s.a + oy, b: s.b + oy, kind: s.kind }));
@@ -403,11 +501,26 @@ function snapPoints(t, pts, threshold) {
   const res = snapSpans(t, xs, ys, threshold);
   const d = { x: res.dx === null ? 0 : res.dx, y: res.dy === null ? 0 : res.dy };
   const guides = res.guides.slice();
+  const idx = ensureIndexedTargets(t);
   for (const p of use) {
     const q = { x: p.x + d.x, y: p.y + d.y };
     let landedKind = null;
-    for (const tp of t.points) {
-      if (Math.hypot(tp.x - q.x, tp.y - q.y) < GUIDE_EPS) { landedKind = tp.kind || 'node'; break; }
+    if (idx.sPtsX) {
+      const start = lowerBoundIdx(idx.sPtsX, e => e.pt.x, q.x - GUIDE_EPS);
+      const hiX = q.x + GUIDE_EPS;
+      let bestOrder = Infinity;
+      for (let i = start; i < idx.sPtsX.length; i++) {
+        const entry = idx.sPtsX[i];
+        if (entry.pt.x > hiX) break;
+        if (Math.hypot(entry.pt.x - q.x, entry.pt.y - q.y) < GUIDE_EPS && entry.idx < bestOrder) {
+          bestOrder = entry.idx;
+          landedKind = entry.pt.kind || 'node';
+        }
+      }
+    } else {
+      for (const tp of t.points) {
+        if (Math.hypot(tp.x - q.x, tp.y - q.y) < GUIDE_EPS) { landedKind = tp.kind || 'node'; break; }
+      }
     }
     if (landedKind) {
       const marker: any = makeGuide(q, q, null, false, landedKind);
@@ -430,6 +543,25 @@ function snapPoints(t, pts, threshold) {
 /* Koreksi sepanjang satu sumbu ke garis target terdekat (snap_axis). */
 function snapAxis(t, vertical, offset, threshold) {
   if (!isFinite(offset) || !isFinite(threshold) || threshold < 0) return null;
+  const idx = ensureIndexedTargets(t);
+  const sorted = vertical ? idx.sXs : idx.sYs;
+  if (sorted) {
+    let best = null, bestAbs = Infinity, bestOrder = Infinity;
+    const start = lowerBoundIdx(sorted, e => e.ln.v, offset - threshold);
+    const hiLimit = offset + threshold;
+    for (let i = start; i < sorted.length; i++) {
+      const entry = sorted[i];
+      if (entry.ln.v > hiLimit) break;
+      const d = entry.ln.v - offset;
+      const ad = Math.abs(d);
+      if (isFinite(d) && ad <= threshold && (ad < bestAbs || (ad === bestAbs && entry.idx < bestOrder))) {
+        best = d;
+        bestAbs = ad;
+        bestOrder = entry.idx;
+      }
+    }
+    return best;
+  }
   const lines = vertical ? t.xs : t.ys;
   let best = null;
   for (const ln of lines) {
@@ -459,10 +591,29 @@ function spacings(t, r, horizontal) {
     : { lo: b.y0, hi: b.y1, clo: b.x0, chi: b.x1, center: (b.y0 + b.y1) / 2 };
   const rp = proj(r);
   const row = [];
-  for (const b of t.boxes) {
-    const pb = proj(b);
-    /* Overlap pada sumbu ACROSS (b.y0 < r.y1 && b.y1 > r.y0 untuk baris). */
-    if (pb.clo < rp.chi && pb.chi > rp.clo) row.push(pb);
+  const idx = ensureIndexedTargets(t);
+  const buckets = horizontal ? idx.rowBuckets : idx.colBuckets;
+  if (buckets && idx.seenStamp) {
+    const stamp = ++idx.stamp;
+    const s0 = Math.floor(rp.clo / SPACING_STRIP_SIZE);
+    const s1 = Math.floor(rp.chi / SPACING_STRIP_SIZE);
+    for (let s = s0; s <= s1; s++) {
+      const list = buckets.get(s);
+      if (!list) continue;
+      for (let k = 0; k < list.length; k++) {
+        const bi = list[k];
+        if (idx.seenStamp[bi] === stamp) continue;
+        idx.seenStamp[bi] = stamp;
+        const pb = proj(t.boxes[bi]);
+        if (pb.clo < rp.chi && pb.chi > rp.clo) row.push(pb);
+      }
+    }
+  } else {
+    for (const b of t.boxes) {
+      const pb = proj(b);
+      /* Overlap pada sumbu ACROSS (b.y0 < r.y1 && b.y1 > r.y0 untuk baris). */
+      if (pb.clo < rp.chi && pb.chi > rp.clo) row.push(pb);
+    }
   }
   const before = [], after = [];
   for (const pb of row) {
@@ -545,7 +696,7 @@ function snapMove(t, d, threshold) {
     x1: t.moving.x1 + sd.x, y1: t.moving.y1 + sd.y
   };
   const sp = rectSpans(r);
-  const res = snapSpans(t, sp.xs, sp.ys, threshold);
+  const res = snapSpans(t, sp.xs, sp.ys, threshold, true);
   let dx = res.dx, dy = res.dy;
   const eX = equalSpacing(t, r, threshold, true);
   if (eX !== null && (dx === null || Math.abs(eX) < Math.abs(dx))) dx = eX;

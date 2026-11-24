@@ -3519,5 +3519,15 @@ TIPS.icJumpPage = {t: 'Lompat Halaman', d: 'Lompat 5 halaman sekaligus pada daft
 TIPS_EN.icJumpPage = {t: 'Jump Page', d: 'Jump 5 pages forward or backward in the icon grid.'};
 TIPS.veSeparateIcon = {t: 'Pisahkan Objek Ikon', d: 'Memecah ikon atau compound path yang terdiri dari beberapa bagian terpisah menjadi objek-objek mandiri yang bisa dipilih dan diwarnai sendiri-sendiri, sambil menjaga lubang (hole) tetap menyatu dengan induknya.'};
 TIPS_EN.veSeparateIcon = {t: 'Separate Icon Objects', d: 'Splits a multi-part icon or compound path into independent objects that can be selected and styled individually, while keeping inner holes attached to their parent shape.'};
+TIPS.veFillEmpty = {t: 'Isi Ruang Kosong', d: 'Mengisi ruang kosong tertutup yang terhubung langsung ke objek path terpilih (seperti ruang bekas objek tetangga atau anak yang dihapus) ke dalam objek tersebut. Objek yang terpisah oleh penghalang tidak dapat mengisi ruang tersebut.'};
+TIPS_EN.veFillEmpty = {t: 'Fill Empty Space', d: 'Expands the selected closed path object to absorb directly bordering enclosed empty pockets (such as gaps left by deleted neighbor or child objects). Objects separated by another shape cannot fill that pocket.'};
+TIPS.veSolidToGrad = {t: 'Solid ke Gradien', d: 'Ubah warna isi solid objek terpilih menjadi gradien OKLab halus (Linear, Radial, atau Angular) yang relevan dari satu atau beberapa warna solid.'};
+TIPS_EN.veSolidToGrad = {t: 'Solid to Gradient', d: 'Convert solid fill color(s) of selected objects into smooth OKLab gradients (Linear, Radial, or Angular) tailored from the selected colors.'};
+TIPS.veS2gType = {t: 'Tipe Gradien', d: 'Pilih jenis gradien halus yang dihasilkan: Linear, Radial, atau Angular.'};
+TIPS_EN.veS2gType = {t: 'Gradient Type', d: 'Choose the generated smooth gradient type: Linear, Radial, or Angular.'};
+TIPS.veS2gAngle = {t: 'Arah & Sudut Gradien', d: 'Atur arah sudut untuk gradien Linear atau sudut awal untuk gradien Angular.'};
+TIPS_EN.veS2gAngle = {t: 'Gradient Direction & Angle', d: 'Adjust the direction angle for Linear gradients or starting angle for Angular gradients.'};
+TIPS.veS2gPreset = {t: 'Terapkan Gradien Halus', d: 'Klik untuk menerapkan variasi gradien OKLab halus ini ke objek terpilih (tanpa menumpuk objek solid).'};
+TIPS_EN.veS2gPreset = {t: 'Apply Smooth Gradient', d: 'Click to apply this smooth OKLab gradient directly to the selected object fill (no stacked solid layers).'};
 export { TIPS, TIPS_EN };
 export default TIPS;

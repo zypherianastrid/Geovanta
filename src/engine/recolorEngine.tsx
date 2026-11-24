@@ -91,12 +91,20 @@ function shiftHueDoc(doc, opts: Record<string, any> = {}) {
   const satMul = Number.isFinite(opts.satMul) ? opts.satMul : 1;
   const lightMul = Number.isFinite(opts.lightMul) ? opts.lightMul : 1;
   const hueRange = Array.isArray(opts.hueRange) && opts.hueRange.length === 2 ? opts.hueRange : [0, 360];
+  const cache = new Map<string, string | null>();
   const fn = slot => {
-    if (isGrayHex(slot.hex)) return null;
-    const [h, s, l] = hex2hsl(slot.hex);
-    if (!inHueRange(h, hueRange)) return null;
-    const h2 = (((h + deltaHue) % 360) + 360) % 360;
-    return hsl2hex(h2, clampN(s * satMul, 0, 1), clampN(l * lightMul, 0, 1));
+    const key = slot.hex;
+    if (cache.has(key)) return cache.get(key);
+    let out: string | null = null;
+    if (!isGrayHex(key)) {
+      const [h, s, l] = hex2hsl(key);
+      if (inHueRange(h, hueRange)) {
+        const h2 = (((h + deltaHue) % 360) + 360) % 360;
+        out = hsl2hex(h2, clampN(s * satMul, 0, 1), clampN(l * lightMul, 0, 1));
+      }
+    }
+    cache.set(key, out);
+    return out;
   };
   return mapDocumentColors(doc, fn, opts.scope);
 }
@@ -118,15 +126,23 @@ function paletteMapDoc(doc, opts: Record<string, any> = {}) {
   for (const [fam, hex] of Object.entries(familyTargets)) {
     targetHue[fam] = hex2hsl(cssToHex(hex))[0];
   }
+  const cache = new Map<string, string | null>();
   const fn = slot => {
-    const over = overrides[slot.hex];
-    if (over) return over;
-    const fam = familyOfHex(slot.hex);
-    if (fam in targetHue) {
-      const [, s, l] = hex2hsl(slot.hex);
-      return hsl2hex(targetHue[fam], s, l);
+    const key = slot.hex;
+    if (cache.has(key)) return cache.get(key);
+    let out: string | null = null;
+    const over = overrides[key];
+    if (over) {
+      out = over;
+    } else {
+      const fam = familyOfHex(key);
+      if (fam in targetHue) {
+        const [, s, l] = hex2hsl(key);
+        out = hsl2hex(targetHue[fam], s, l);
+      }
     }
-    return null;
+    cache.set(key, out);
+    return out;
   };
   return mapDocumentColors(doc, fn, opts.scope);
 }

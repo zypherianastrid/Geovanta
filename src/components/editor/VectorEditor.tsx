@@ -53,6 +53,8 @@ import { useEditorExport } from './hooks/useEditorExport.tsx';
 import { useCanvasWheelZoom } from './hooks/useCanvasWheelZoom.tsx';
 import { IconifyModal } from '../modals/IconifyModal.tsx';
 import { SvgCodeInspectorModal } from '../modals/SvgCodeInspectorModal.tsx';
+import { MobileEditorTopBar } from './MobileEditorTopBar.tsx';
+import { useMobileViewport, isMobileViewportNow } from '../../hooks/useMobileViewport.ts';
 
 /* C9: warna panduan snap per kind — sama dengan warna di menu checklist
    (SNAP_OPTS), supaya jenis snap terbaca dari warnanya. */
@@ -462,8 +464,14 @@ const VectorEditor = ({
     viewPend = useRef(0),
     viewSettleTimer = useRef(0);
   const zoomPctRef = useRef(null),
+    mobZoomPctRef = useRef(null),
     zoomSliderDomRef = useRef(null);
   const displayZoomRef = useRef(initZ);
+  const lastPointerTypeRef = useRef<string>('mouse');
+  const activeTouchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStateRef = useRef<{ dist: number; midX: number; midY: number; startZoom: number; startPan: { x: number; y: number } } | null>(null);
+  const longPressTimerRef = useRef<number>(0);
+  const longPressOriginRef = useRef<{ pointerId: number; x: number; y: number; target: any } | null>(null);
   const sceneCanvasRef = useRef(null),
     cpuCanvasRef = useRef(null),
     sceneRendererRef = useRef(null),
@@ -471,8 +479,12 @@ const VectorEditor = ({
     isInteractingPaintRef = useRef(false),
     docRevRef = useRef(1);
   const syncZoomSidebarDom = zVal => {
+    const fmt = zFmt(zVal);
     if (zoomPctRef.current) {
-      zoomPctRef.current.textContent = zFmt(zVal);
+      zoomPctRef.current.textContent = fmt;
+    }
+    if (mobZoomPctRef.current) {
+      mobZoomPctRef.current.textContent = fmt;
     }
 
     const slEl = zoomSliderDomRef.current;
@@ -619,6 +631,7 @@ const VectorEditor = ({
       if (viewSettleTimer.current) clearTimeout(viewSettleTimer.current);
       const settleFn = () => {
         viewSettleTimer.current = 0;
+        if (pinchStateRef.current) return;
         if (dragRef.current && dragRef.current.type === 'pan') return;
         const slNow = zoomSliderDomRef.current;
         if (slNow && slNow.classList.contains('drag')) {
@@ -852,10 +865,66 @@ const VectorEditor = ({
     blobRailGrp: useRef(null),
     waveRailGrp: useRef(null)
   };
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
-  const rightOpenRef = useRef(true);
+  const { isMobile } = useMobileViewport();
+  const isMobileRef = useRef(isMobile);
+  isMobileRef.current = isMobile;
+  const [leftOpen, setLeftOpen] = useState(() => !isMobileViewportNow());
+  const [rightOpen, setRightOpen] = useState(() => !isMobileViewportNow());
+  const rightOpenRef = useRef(rightOpen);
   rightOpenRef.current = rightOpen;
+  const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const prevIsMobileRef = useRef(isMobile);
+  useEffect(() => {
+    if (prevIsMobileRef.current === isMobile) return;
+    prevIsMobileRef.current = isMobile;
+    if (isMobile) {
+      setLeftOpen(false);
+      setRightOpen(false);
+      setMobileRailOpen(false);
+    } else {
+      setLeftOpen(true);
+      setRightOpen(true);
+      setMobileRailOpen(false);
+    }
+  }, [isMobile]);
+  const toggleMobileLeft = () => {
+    setLeftOpen(o => {
+      const next = !o;
+      if (next) {
+        setRightOpen(false);
+        setMobileRailOpen(false);
+      }
+      return next;
+    });
+  };
+  const toggleMobileRight = () => {
+    setRightOpen(o => {
+      const next = !o;
+      if (next) {
+        setLeftOpen(false);
+        setMobileRailOpen(false);
+      }
+      return next;
+    });
+  };
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = 0;
+      }
+    };
+  }, []);
+  const toggleMobileRail = () => {
+    setMobileRailOpen(o => {
+      const next = !o;
+      if (next) {
+        setLeftOpen(false);
+        setRightOpen(false);
+      }
+      return next;
+    });
+  };
   const [indivCornerOpen, setIndivCornerOpen] = useState(false);
   const [pickedCornerKeys, setPickedCornerKeys] = useState(() => new Set());
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -1358,8 +1427,14 @@ const VectorEditor = ({
       setDocS(d);
       return;
     }
+    if (opts.paintPreviewOnly) {
+      if (sceneRendererRef.current) {
+        if (opts.syncRender) sceneRendererRef.current.renderFrame();
+        else sceneRendererRef.current.requestRender();
+      }
+      return;
+    }
     if (sceneRendererRef.current) sceneRendererRef.current.requestRender();
-    if (opts.paintPreviewOnly) return;
     if (!liveRafRef.current) {
       liveRafRef.current = requestAnimationFrame(() => {
         liveRafRef.current = 0;
@@ -1825,11 +1900,21 @@ const VectorEditor = ({
   /* Recolor (Task 7): pratinjau/komit sama persis dengan Find & Replace
      (Task 5) — live() untuk pratinjau, commitPaint(null, key) untuk
      commit doc yang sedang dipratinjau apa adanya. */
-  const rcPreviewDoc = d => live(d, {
-    isLive: true,
-    onlyPaint: true
-  });
-  const rcCommitPreview = key => commitPaint(null, key);
+  const rcPreviewDoc = (d, opts: Record<string, any> = {}) => {
+    if (opts.interacting !== undefined) {
+      sceneRendererRef.current?.setPaintInteracting?.(!!opts.interacting);
+    }
+    live(d, {
+      isLive: true,
+      onlyPaint: true,
+      paintPreviewOnly: !!opts.previewOnly,
+      syncRender: !!opts.syncRender
+    });
+  };
+  const rcCommitPreview = key => {
+    sceneRendererRef.current?.setPaintInteracting?.(false);
+    return commitPaint(null, key);
+  };
   /* ganti nama Frame/Group (isGroup) atau objek; nama group disanitasi sama seperti id SVG & dicek bentrok */
   const commitRename = (targetId, isGroup, directVal) => {
     setRenamingId(null);
@@ -3706,7 +3791,8 @@ const VectorEditor = ({
   };
   /* GV-A16: Hit-test kanonik yang menghormati opacity, groupOpacity, clipPathD & Frame clipping */
   const hitObj = pt => {
-    const tol = 6 / zoomRef.current,
+    const touchBoost = lastPointerTypeRef.current === 'touch' ? 1.75 : 1;
+    const tol = (6 * touchBoost) / zoomRef.current,
       os = docRef.current.objects;
     const frameRectMap = new Map((frameBoxes || []).map(f => [f.id, f.bb]));
     const hitOpts = {
@@ -3762,9 +3848,10 @@ const VectorEditor = ({
   };
   const pickNode = pt => {
     const z = Math.max(0.1, zoomRef.current || 1),
+      touchBoost = lastPointerTypeRef.current === 'touch' ? 1.75 : 1,
       scaleFactor = Math.max(0.4, Math.min(3.0, Number(nodeScale) || 1)),
-      hTol = (8 / z) * scaleFactor,
-      nTol = (9 / z) * scaleFactor;
+      hTol = (8 / z) * scaleFactor * touchBoost,
+      nTol = (9 / z) * scaleFactor * touchBoost;
     if (showSelHandles) {
       for (let k = shown.length - 1; k >= 0; k--) {
         const o = shown[k];
@@ -4767,7 +4854,7 @@ const VectorEditor = ({
       els
     };
   };
-  const altDupMove = (e, dg, dx, dy) => {
+  const altDupMove = (e, dg, dx, dy, deferRender = false) => {
     if (e.altKey) {
       if (dg.fastTx) {
         dg.fastTx = null;
@@ -4827,7 +4914,7 @@ const VectorEditor = ({
       };
       if (sceneRendererRef.current) {
         sceneRendererRef.current.setDragOffset(dg.ids, dx, dy);
-        sceneRendererRef.current.requestRender();
+        if (!deferRender) sceneRendererRef.current.requestRender();
       }
       const tr = 'translate(' + VE.rd(dx) + ' ' + VE.rd(dy) + ')';
       if (dg.domEls) {
@@ -5115,7 +5202,60 @@ const VectorEditor = ({
   };
   const onPointerDown = e => {
     DEBUG_LOG.log('pointer', 'pointer-down:' + tool, 'onPointerDown', 'src/components/editor/VectorEditor.tsx', 'button=' + e.button + ' x=' + Math.round(e.clientX) + ' y=' + Math.round(e.clientY));
+    lastPointerTypeRef.current = e.pointerType || 'mouse';
     if (boxRef.current) boxRectRef.current = boxRef.current.getBoundingClientRect();
+    if (e.pointerType === 'touch') {
+      activeTouchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = 0;
+      }
+      if (activeTouchPointersRef.current.size >= 2) {
+        if (objDragRafRef.current) {
+          cancelAnimationFrame(objDragRafRef.current);
+          objDragRafRef.current = 0;
+        }
+        objDragPendingRef.current = null;
+        dragRef.current = null;
+        setMarq(null);
+        setPanning(false);
+        setAddHov(null);
+        setHhHov(null);
+        setDropFrameId(null);
+        setMeasureBadge(null);
+        const pts = Array.from(activeTouchPointersRef.current.values());
+        const p1 = pts[0], p2 = pts[1];
+        const dist = Math.max(10, Math.hypot(p2.x - p1.x, p2.y - p1.y));
+        pinchStateRef.current = {
+          dist,
+          midX: (p1.x + p2.x) * 0.5,
+          midY: (p1.y + p2.y) * 0.5,
+          startZoom: zoomRef.current,
+          startPan: { x: panRef.current.x, y: panRef.current.y },
+        };
+        try {
+          boxRef.current?.setPointerCapture(e.pointerId);
+        } catch (x) {}
+        return;
+      }
+      const lpX = e.clientX, lpY = e.clientY, lpTarget = e.target, lpPid = e.pointerId;
+      longPressOriginRef.current = { pointerId: lpPid, x: lpX, y: lpY, target: lpTarget };
+      longPressTimerRef.current = window.setTimeout(() => {
+        longPressTimerRef.current = 0;
+        if (pinchStateRef.current || activeTouchPointersRef.current.size !== 1) return;
+        const dgCur = dragRef.current;
+        if (dgCur && dgCur.moved) return;
+        dragRef.current = null;
+        setMarq(null);
+        setPanning(false);
+        onCtx({
+          preventDefault() {},
+          clientX: lpX,
+          clientY: lpY,
+          target: lpTarget,
+        });
+      }, 550);
+    }
     if (e.button === 1 || e.button === 0 && (tool === 'hand' || spaceRef.current)) {
       e.preventDefault();
       e.stopPropagation();
@@ -5568,7 +5708,7 @@ const VectorEditor = ({
       };
       return;
     }
-    if (!add && vcBoxDown(pt, base, e)) return;
+    if (vcBoxDown(pt, base, e)) return;
     if (imgSel) {
       const ns = imgSel.subs[0].nodes,
         tol = 9 / zoomRef.current;
@@ -5747,6 +5887,38 @@ const VectorEditor = ({
     y: n.y
   });
   const onPointerMove = e => {
+    if (e.pointerType) lastPointerTypeRef.current = e.pointerType;
+    if (e.pointerType === 'touch' && activeTouchPointersRef.current.has(e.pointerId)) {
+      activeTouchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (longPressTimerRef.current && longPressOriginRef.current && longPressOriginRef.current.pointerId === e.pointerId) {
+        if (Math.hypot(e.clientX - longPressOriginRef.current.x, e.clientY - longPressOriginRef.current.y) > 10) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = 0;
+        }
+      }
+      if (pinchStateRef.current && activeTouchPointersRef.current.size >= 2) {
+        const pts = Array.from(activeTouchPointersRef.current.values());
+        const p1 = pts[0], p2 = pts[1];
+        const d1 = Math.max(10, Math.hypot(p2.x - p1.x, p2.y - p1.y));
+        const mx1 = (p1.x + p2.x) * 0.5;
+        const my1 = (p1.y + p2.y) * 0.5;
+        const ps = pinchStateRef.current;
+        const nz = clampN(ps.startZoom * (d1 / Math.max(10, ps.dist)), VZMIN, VZMAX);
+        const b = boxRef.current;
+        if (b) {
+          const r = boxRectRef.current && boxRectRef.current.width > 0 ? boxRectRef.current : (boxRectRef.current = b.getBoundingClientRect());
+          const wx = (ps.midX - r.left - ps.startPan.x) / ps.startZoom;
+          const wy = (ps.midY - r.top - ps.startPan.y) / ps.startZoom;
+          zoomRef.current = nz;
+          panRef.current = {
+            x: (mx1 - r.left) - wx * nz,
+            y: (my1 - r.top) - wy * nz,
+          };
+          softView();
+        }
+        return;
+      }
+    }
     /* GV-A18 & Bab 6: Gunakan sampel terbaru dari getCoalescedEvents() untuk responsivitas drag 120Hz+ tanpa antrean event basi */
     const dg = dragRef.current;
     let ev = e;
@@ -5805,7 +5977,7 @@ const VectorEditor = ({
           if (!pEv || !curDg || curDg.type !== 'obj') return;
           const pPt = boxRef.current ? toDoc(pEv.clientX, pEv.clientY) : { x: 0, y: 0 };
           if (coordRef.current) coordRef.current.textContent = 'X ' + Math.round(pPt.x * 10) / 10 + '  Y ' + Math.round(pPt.y * 10) / 10;
-          runObjOrNodeDrag(pEv, pPt, curDg);
+          runObjOrNodeDrag(pEv, pPt, curDg, true);
           if (curDg.fastTx && sceneRendererRef.current) sceneRendererRef.current.renderFrame();
         });
       }
@@ -6375,7 +6547,7 @@ const VectorEditor = ({
     }
     runObjOrNodeDrag(e, pt, dg);
   };
-  const runObjOrNodeDrag = (e, pt, dg) => {
+  const runObjOrNodeDrag = (e, pt, dg, deferRender = false) => {
     if (!dg.moved) {
       const distPx = dg.sx != null ? Math.hypot(e.clientX - dg.sx, e.clientY - dg.sy) : Math.hypot(pt.x - dg.start.x, pt.y - dg.start.y) * zoomRef.current;
       if (distPx < 5) return;
@@ -6564,7 +6736,7 @@ const VectorEditor = ({
       sceneRendererRef.current?.setSceneInteracting?.(true);
     }
     dg.moved = true;
-    if (dg.type === 'obj') altDupMove(e, dg, dx, dy);else live({
+    if (dg.type === 'obj') altDupMove(e, dg, dx, dy, deferRender);else live({
       ...dg.base,
       objects: dg.base.objects.map(o => VE.moveNodes(o, dg.ids, dx, dy))
     });
@@ -6609,6 +6781,23 @@ const VectorEditor = ({
   };
   const onPointerUp = e => {
     DEBUG_LOG.log('pointer', 'pointer-up:' + tool, 'onPointerUp', 'src/components/editor/VectorEditor.tsx', 'x=' + Math.round(e.clientX) + ' y=' + Math.round(e.clientY));
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = 0;
+    }
+    if (e.pointerType === 'touch') {
+      activeTouchPointersRef.current.delete(e.pointerId);
+      if (pinchStateRef.current) {
+        try {
+          boxRef.current?.releasePointerCapture(e.pointerId);
+        } catch (x) {}
+        if (activeTouchPointersRef.current.size < 2) {
+          pinchStateRef.current = null;
+          flushView();
+        }
+        return;
+      }
+    }
     const dg = dragRef.current;
     if (objDragRafRef.current) {
       cancelAnimationFrame(objDragRafRef.current);
@@ -6621,6 +6810,7 @@ const VectorEditor = ({
     }
     dragRef.current = null;
     sceneRendererRef.current?.setSceneInteracting?.(false);
+    sceneRendererRef.current?.setPaintInteracting?.(false);
     document.body.classList.remove('grabbing');
     if (boxRef.current) {
       boxRef.current.removeAttribute('data-dragging');
@@ -7844,6 +8034,30 @@ const VectorEditor = ({
     const st = res.stats;
     say(`Ikon dipisahkan menjadi ${st.outObjects} objek mandiri`);
   };
+  /* ---- Fill Empty Space (Isi Ruang Kosong): isi kantong ruang kosong tertutup yang terhubung langsung ke objek terpilih ---- */
+  const applyFillEmptySpace = () => {
+    const res = VE.fillEmptySpaceDoc(docRef.current, selRef.current.objs);
+    const isEn = prefs?.lang === 'en';
+    if (!res.changed) {
+      if (res.reason === 'noempty') {
+        return say(isEn ? 'No enclosed empty space found around selection' : 'Tidak ditemukan ruang kosong tertutup di sekitar objek terpilih');
+      }
+      if (res.reason === 'notouch') {
+        return say(isEn ? 'Selected object is not directly connected to any empty space (separated by another object)' : 'Objek terpilih tidak terhubung langsung ke ruang kosong (terpisah oleh objek lain)');
+      }
+      return say(isEn ? 'Select at least one closed path object first' : 'Pilih minimal satu objek path tertutup terlebih dahulu');
+    }
+    commit(res.doc, 'fill-empty-space');
+    if (res.resultIds && res.resultIds.length) {
+      setSel({ objs: new Set(res.resultIds), nodes: new Set() });
+    }
+    const st = res.stats || { updatedObjects: 1, filledPockets: 1 };
+    say(
+      isEn
+        ? `Filled ${st.filledPockets} empty space(s) into ${st.updatedObjects} object(s)`
+        : `${st.filledPockets} ruang kosong berhasil diisi ke ${st.updatedObjects} objek`
+    );
+  };
   /* ---- Outline Stroke: ubah stroke jadi bentuk berisi (fill = warna stroke) ---- */
   const applyOutlineStroke = () => {
     const res = VE.outlineStrokeDoc(docRef.current, selRef.current.objs);
@@ -8374,6 +8588,7 @@ const VectorEditor = ({
   const selectedIconGroups = new Set(selObjs.filter(o => o.group && (o.isIconFrame || o.icon)).map(o => o.group));
   const canSeparateIcon = eligiblePaths.some(o => o.subs && o.subs.length > 1) ||
     doc.objects.some(o => !o.locked && !o.hidden && !o.isFrameBg && !o.isAutoFrame && o.group && selectedIconGroups.has(o.group) && o.subs && o.subs.length > 1);
+  const canFillEmpty = eligiblePaths.some(o => o.subs.some(sp => sp && sp.closed));
   const canBool = eligiblePaths.length >= 2;
   const ctxItems = [{
     k: 'copy',
@@ -8518,6 +8733,13 @@ const VectorEditor = ({
     dis: !canSeparateIcon,
     act: applySeparateIconObjects
   }, {
+    k: 'fill-empty',
+    label: L.edFillEmpty || (prefs?.lang === 'en' ? 'Fill Empty Space' : 'Isi Ruang Kosong'),
+    ic: 'M4 4h16v16H4z M8 8h8v8H8z M9 12h6 M12 9v6',
+    tip: 'veFillEmpty',
+    dis: !canFillEmpty,
+    act: applyFillEmptySpace
+  }, {
     sep: 1
   }, {
     k: 'bool-divide',
@@ -8542,9 +8764,10 @@ const VectorEditor = ({
     dis: false,
     act: () => autoTraceSelectedImages({
       mode: 'ultra',
-      colorCount: 250,
-      despeckle: 1,
-      smoothness: 0.2,
+      colorCount: 32,
+      despeckle: 2,
+      smoothness: 0.66,
+      gradientMode: 'auto',
       ignoreWhite: false,
       useGpu: true,
     })
@@ -9178,12 +9401,67 @@ const VectorEditor = ({
               }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></span></div>;
         })}</Float></React.Fragment>;
   });
-  return <div ref={rootRef} className={'ved-root' + (full ? ' ved-full' : '')}><div className="fig-workspace"><div className="flex h-full min-h-0 relative select-none order-2 lg:order-none" style={{
+  const leftSidebarNode = leftOpen ? <EditorLeftSidebar L={L} lang={prefs && prefs.lang || 'id'} onBackToWorkspace={onBackToWorkspace} docRef={docRef} zoomRef={zoomRef} panRef={panRef} saveStatus={saveStatus} onRetrySave={onRetrySave} onRenameProject={onRenameProject} projectName={projectName} doc={doc} nTotal={nTotal} sel={sel} selNodes={selNodes} createFrameSel={createFrameSel} groupSel={groupSel} clipFrames={clipFrames} setClipFrames={setClipFrames} groupSameColor={groupSameColor} setGroupSameColor={setGroupSameColor} layerScrollRef={layerScrollRef} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} tool={tool} pen={pen} penSty={penSty} setPenSty={setPenSty} penRef={penRef} lineInfo={lineInfo} commitObjs={commitObjs} finishPen={finishPen} selObjs={selObjs} autoSel={autoSel} autoAll={autoAll} ahOpt={ahOpt} setAhOpt={setAhOpt} primary={primary} alOpt={alOpt} setAlOpt={setAlOpt} applyNodeAngleAlign={applyNodeAngleAlign} selHandles={selHandles} applyStraight={applyStraight} applyAutoRefine={applyAutoRefine} applyPruneNodes={applyPruneNodes} pruneOpt={pruneOpt} setPruneOpt={setPruneOpt} sOpt={sOpt} setSOpt={setSOpt} vcSimp={vcSimp} vcSimpRetain={vcSimpRetain} openVcSimplify={openVcSimplify} triggerAutoSimplifyLevel={triggerAutoSimplifyLevel} openVcMoreOptions={openVcMoreOptions} updateVcSimplify={updateVcSimplify} cancelVcSimplify={cancelVcSimplify} confirmVcSimplify={confirmVcSimplify} virtualLayerRows={virtualLayerRows} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} layerAnchor={layerAnchor} layerFlatIds={layerFlatIds} setSel={setSel} setLayerIns={setLayerIns} renameVal={renameVal} setRenameVal={setRenameVal} renameSkip={renameSkip} setRenamingId={setRenamingId} renamingId={renamingId} layerIns={layerIns} openLayerCtx={openLayerCtx} overFrameId={overFrameId} reorderLayerTo={reorderLayerTo} layerClickSkipExpandRef={layerClickSkipExpandRef} commitRename={commitRename} say={say} dropFrameId={dropFrameId} toggleCollapseGrp={toggleCollapseGrp} ungroupIds={ungroupIds} rzProps={rzProps} /> : null;
+  const rightInspectorNode = rightOpen ? <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} onSeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} onFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} onExportBackup={onExportBackup} onOpenCodeInspector={openCodeInspector} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} textControls={primary && primary.type === 'text' ? (() => {
+            void fontCatalogVer;
+            const reg = sceneRendererRef.current?.scene?.fontRegistry || null;
+            const availFonts = reg && typeof reg.listFamilies === 'function' ? reg.listFamilies().map(f => typeof f === 'string' ? f : f && f.family).filter(Boolean) : ['IBM Plex Sans'];
+            const pSpec = legacyTextSpec(primary);
+            const isFontAvail = reg ? !!reg.getFace(pSpec.fontFamily, pSpec.fontWeight, pSpec.fontStyle) : pSpec.fontFamily === 'IBM Plex Sans';
+            return <TextInspector
+              object={primary}
+              lang={prefs?.lang || 'id'}
+              availableFonts={availFonts}
+              googleFonts={GOOGLE_FONTS.families}
+              embedStatus={googleFontStatus}
+              onEmbedFont={embedGoogleFontForSelection}
+              isFontAvailable={isFontAvail}
+              update={patch => updateText(primary.id, patch)}
+              updateLive={patch => updateTextLive(primary.id, patch)}
+              edit={() => setEditingText({id: primary.id, isNew: false})}
+              onImportFont={() => pickFiles('.ttf,.otf,font/ttf,font/otf', fs => importFontFiles(fs))}
+              onConvertToPath={convertTextSelectionToPath}
+            />;
+          })() : null} tool={tool} blobParams={blobParams} onBlobParams={onBlobParams} weaveParams={weaveParams} onWeaveParams={onWeaveParams} arcParams={arcParams} onArcParams={onArcParams} /> : null;
+  return <div ref={rootRef} className={'ved-root' + (full ? ' ved-full' : '')}><div className="fig-workspace">{isMobile ? (
+      <>
+        <MobileEditorTopBar
+          L={L}
+          lang={prefs && prefs.lang || 'id'}
+          projectName={projectName}
+          saveStatus={saveStatus}
+          onBackToWorkspace={onBackToWorkspace ? () => onBackToWorkspace(docRef.current, { zoom: zoomRef.current, pan: { ...panRef.current } }) : undefined}
+          onRenameProject={onRenameProject}
+          canUndo={canUndo}
+          undo={undo}
+          canRedo={canRedo}
+          redo={redo}
+          zoom={zoom}
+          displayZoomRef={displayZoomRef}
+          mobZoomPctRef={mobZoomPctRef}
+          fitView={fitView}
+          leftOpen={leftOpen}
+          onToggleLeft={toggleMobileLeft}
+          rightOpen={rightOpen}
+          onToggleRight={toggleMobileRight}
+          railOpen={mobileRailOpen}
+          onToggleRail={toggleMobileRail}
+          selCount={sel.objs.size}
+        />
+        {mobileRailOpen && (
+          <div className="mob-rail-sheet" data-testid="mobile-rail-sheet" onPointerDown={e => e.stopPropagation()}>
+            <EditorActionRail L={L} renderRailDropdowns={renderRailDropdowns} />
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="flex h-full min-h-0 relative select-none order-2 lg:order-none" style={{
         ['--lw' as any]: pw.l + 'px'
-      }}><EditorActionRail L={L} renderRailDropdowns={renderRailDropdowns} />{leftOpen && <EditorLeftSidebar L={L} lang={prefs && prefs.lang || 'id'} onBackToWorkspace={onBackToWorkspace} docRef={docRef} zoomRef={zoomRef} panRef={panRef} saveStatus={saveStatus} onRetrySave={onRetrySave} onRenameProject={onRenameProject} projectName={projectName} doc={doc} nTotal={nTotal} sel={sel} selNodes={selNodes} createFrameSel={createFrameSel} groupSel={groupSel} clipFrames={clipFrames} setClipFrames={setClipFrames} groupSameColor={groupSameColor} setGroupSameColor={setGroupSameColor} layerScrollRef={layerScrollRef} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} tool={tool} pen={pen} penSty={penSty} setPenSty={setPenSty} penRef={penRef} lineInfo={lineInfo} commitObjs={commitObjs} finishPen={finishPen} selObjs={selObjs} autoSel={autoSel} autoAll={autoAll} ahOpt={ahOpt} setAhOpt={setAhOpt} primary={primary} alOpt={alOpt} setAlOpt={setAlOpt} applyNodeAngleAlign={applyNodeAngleAlign} selHandles={selHandles} applyStraight={applyStraight} applyAutoRefine={applyAutoRefine} applyPruneNodes={applyPruneNodes} pruneOpt={pruneOpt} setPruneOpt={setPruneOpt} sOpt={sOpt} setSOpt={setSOpt} vcSimp={vcSimp} vcSimpRetain={vcSimpRetain} openVcSimplify={openVcSimplify} triggerAutoSimplifyLevel={triggerAutoSimplifyLevel} openVcMoreOptions={openVcMoreOptions} updateVcSimplify={updateVcSimplify} cancelVcSimplify={cancelVcSimplify} confirmVcSimplify={confirmVcSimplify} virtualLayerRows={virtualLayerRows} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} layerAnchor={layerAnchor} layerFlatIds={layerFlatIds} setSel={setSel} setLayerIns={setLayerIns} renameVal={renameVal} setRenameVal={setRenameVal} renameSkip={renameSkip} setRenamingId={setRenamingId} renamingId={renamingId} layerIns={layerIns} openLayerCtx={openLayerCtx} overFrameId={overFrameId} reorderLayerTo={reorderLayerTo} layerClickSkipExpandRef={layerClickSkipExpandRef} commitRename={commitRename} say={say} dropFrameId={dropFrameId} toggleCollapseGrp={toggleCollapseGrp} ungroupIds={ungroupIds} rzProps={rzProps} />}<button type="button" className={'fig-sidebar-edge-toggle' + (leftOpen ? ' on' : '')} data-tip={leftOpen ? 'veSidebarHide' : 'veSidebarShow'} aria-label={leftOpen ? L.edSidebarHide : L.edSidebarShow} aria-expanded={leftOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
+      }}><EditorActionRail L={L} renderRailDropdowns={renderRailDropdowns} />{leftSidebarNode}<button type="button" className={'fig-sidebar-edge-toggle' + (leftOpen ? ' on' : '')} data-tip={leftOpen ? 'veSidebarHide' : 'veSidebarShow'} aria-label={leftOpen ? L.edSidebarHide : L.edSidebarShow} aria-expanded={leftOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
           e.stopPropagation();
           setLeftOpen(o => !o);
-        }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M9.5 4v16" /><path d={leftOpen ? 'M15 9.5L12.5 12l2.5 2.5' : 'M13 9.5L15.5 12 13 14.5'} /></svg></button></div><div className={'min-w-0 relative order-1 lg:order-none' + (full ? ' ved-fmid' : '')}><div ref={boxRef} className="ved-canvas" data-renderer="canvaskit" aria-busy={docLoading ? true : undefined} data-fast-render={(panning || !!dragRef.current || nTotal > 800) ? '1' : '0'} style={{
+        }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M9.5 4v16" /><path d={leftOpen ? 'M15 9.5L12.5 12l2.5 2.5' : 'M13 9.5L15.5 12 13 14.5'} /></svg></button></div>
+    )}<div className={'min-w-0 relative order-1 lg:order-none' + (full ? ' ved-fmid' : '')}><div ref={boxRef} className="ved-canvas" data-renderer="canvaskit" aria-busy={docLoading ? true : undefined} data-fast-render={(panning || !!dragRef.current || nTotal > 800) ? '1' : '0'} style={{
           // A focused textarea can scroll an overflow:hidden canvas past its own edges.
           overflow: 'clip',
           flex: full ? 1 : undefined,
@@ -9676,7 +9954,7 @@ const VectorEditor = ({
                   setRenamingId(null);
                 }} /></div>;
             }
-          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} applySeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} onOpenCodeInspector={openCodeInspector} isCodeInspectorOpen={isCodeInspectorOpen} />{(() => {
+          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} applySeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} applyFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} onOpenCodeInspector={openCodeInspector} isCodeInspectorOpen={isCodeInspectorOpen} />{(() => {
             if (typeof window !== 'undefined') {
               Object.defineProperty(window, '__geovantaAutoSimplifyOn', {
                 get: () => autoSimplifyOnRef.current,
@@ -9724,6 +10002,8 @@ const VectorEditor = ({
                 applyMakeCompoundPath,
                 applyReleaseCompoundPath,
                 applySeparateIconObjects,
+                fillEmptySpace: applyFillEmptySpace,
+                applyFillEmptySpace,
                 applyOutlineStroke,
                 openOffsetStrip,
                 updateOffsetStrip,
@@ -9991,30 +10271,79 @@ const VectorEditor = ({
               };
             }
             return null;
-          })()}</div></div><div className="flex h-full min-h-0 relative select-none order-3 lg:order-none"><button type="button" className={'fig-sidebar-edge-toggle fig-sidebar-edge-toggle-right' + (rightOpen ? ' on' : '')} data-tip={rightOpen ? 'veRightSidebarHide' : 'veRightSidebarShow'} aria-label={rightOpen ? L.edRightSidebarHide : L.edRightSidebarShow} aria-expanded={rightOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
+          })()}</div></div>{isMobile ? (
+      <>
+        {(leftOpen || rightOpen) && (
+          <div
+            className="mob-sheet-backdrop"
+            data-testid="mobile-sheet-backdrop"
+            onPointerDown={() => {
+              setLeftOpen(false);
+              setRightOpen(false);
+            }}
+            onClick={() => {
+              setLeftOpen(false);
+              setRightOpen(false);
+            }}
+          />
+        )}
+        {leftOpen && (
+          <div
+            className="mob-sheet-wrap"
+            data-testid="mobile-layers-sheet"
+            role="dialog"
+            aria-label={L.edLayers || 'Layers'}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <div className="mob-sheet-header">
+              <div className="mob-sheet-pill" aria-hidden="true" />
+              <span className="text-xs font-semibold">{L.edLayers || 'Layers'} ({doc.objects.length})</span>
+              <button
+                type="button"
+                className="mob-top-btn"
+                data-testid="mob-sheet-close-left"
+                aria-label={L.cClose || 'Tutup'}
+                onClick={() => setLeftOpen(false)}
+              >
+                <Ico n="x" size={14} />
+              </button>
+            </div>
+            {leftSidebarNode}
+          </div>
+        )}
+        {rightOpen && (
+          <div
+            className="mob-sheet-wrap"
+            data-testid="mobile-inspector-sheet"
+            role="dialog"
+            aria-label={prefs && prefs.lang === 'en' ? 'Inspector' : 'Inspektor'}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <div className="mob-sheet-header">
+              <div className="mob-sheet-pill" aria-hidden="true" />
+              <span className="text-xs font-semibold">
+                {prefs && prefs.lang === 'en' ? 'Properties & Inspector' : 'Properti & Inspektor'}
+              </span>
+              <button
+                type="button"
+                className="mob-top-btn"
+                data-testid="mob-sheet-close-right"
+                aria-label={L.cClose || 'Tutup'}
+                onClick={() => setRightOpen(false)}
+              >
+                <Ico n="x" size={14} />
+              </button>
+            </div>
+            {rightInspectorNode}
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="flex h-full min-h-0 relative select-none order-3 lg:order-none"><button type="button" className={'fig-sidebar-edge-toggle fig-sidebar-edge-toggle-right' + (rightOpen ? ' on' : '')} data-tip={rightOpen ? 'veRightSidebarHide' : 'veRightSidebarShow'} aria-label={rightOpen ? L.edRightSidebarHide : L.edRightSidebarShow} aria-expanded={rightOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
             e.stopPropagation();
             setRightOpen(o => !o);
-          }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M14.5 4v16" /><path d={rightOpen ? 'M9 9.5L11.5 12 9 14.5' : 'M11 9.5L8.5 12 11 14.5'} /></svg></button>{rightOpen && <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} onSeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} onExportBackup={onExportBackup} onOpenCodeInspector={openCodeInspector} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} textControls={primary && primary.type === 'text' ? (() => {
-            void fontCatalogVer;
-            const reg = sceneRendererRef.current?.scene?.fontRegistry || null;
-            const availFonts = reg && typeof reg.listFamilies === 'function' ? reg.listFamilies().map(f => typeof f === 'string' ? f : f && f.family).filter(Boolean) : ['IBM Plex Sans'];
-            const pSpec = legacyTextSpec(primary);
-            const isFontAvail = reg ? !!reg.getFace(pSpec.fontFamily, pSpec.fontWeight, pSpec.fontStyle) : pSpec.fontFamily === 'IBM Plex Sans';
-            return <TextInspector
-              object={primary}
-              lang={prefs?.lang || 'id'}
-              availableFonts={availFonts}
-              googleFonts={GOOGLE_FONTS.families}
-              embedStatus={googleFontStatus}
-              onEmbedFont={embedGoogleFontForSelection}
-              isFontAvailable={isFontAvail}
-              update={patch => updateText(primary.id, patch)}
-              updateLive={patch => updateTextLive(primary.id, patch)}
-              edit={() => setEditingText({id: primary.id, isNew: false})}
-              onImportFont={() => pickFiles('.ttf,.otf,font/ttf,font/otf', fs => importFontFiles(fs))}
-              onConvertToPath={convertTextSelectionToPath}
-            />;
-          })() : null} tool={tool} blobParams={blobParams} onBlobParams={onBlobParams} weaveParams={weaveParams} onWeaveParams={onWeaveParams} arcParams={arcParams} onArcParams={onArcParams} />}</div></div><IconifyModal open={tool === 'iconify'} onInsert={onIconifyInsert} onClose={onIconifyClose} L={L} recentIcons={prefs && prefs.recentIcons || []} /><SvgCodeInspectorModal isOpen={isCodeInspectorOpen} onClose={() => setIsCodeInspectorOpen(false)} doc={doc} onUpdateDoc={(newDoc) => commit(newDoc)} lang={prefs && prefs.lang || 'id'} />{importModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
+          }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M14.5 4v16" /><path d={rightOpen ? 'M9 9.5L11.5 12 9 14.5' : 'M11 9.5L8.5 12 11 14.5'} /></svg></button>{rightInspectorNode}</div>
+    )}</div><IconifyModal open={tool === 'iconify'} onInsert={onIconifyInsert} onClose={onIconifyClose} L={L} recentIcons={prefs && prefs.recentIcons || []} /><SvgCodeInspectorModal isOpen={isCodeInspectorOpen} onClose={() => setIsCodeInspectorOpen(false)} doc={doc} onUpdateDoc={(newDoc) => commit(newDoc)} lang={prefs && prefs.lang || 'id'} />{importModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
       if (e.target === e.currentTarget) setImportModalOpen(false);
     }}><div className="hp" role="dialog" aria-label="Impor Berkas" style={{
         maxWidth: 480

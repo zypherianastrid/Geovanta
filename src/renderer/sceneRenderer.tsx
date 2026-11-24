@@ -97,6 +97,9 @@ class SceneRenderer {
     this.raf = 0;
     this.textPreview = null;
     this.sceneInteracting = false;
+    this.paintInteracting = false;
+    this._lastFrameUsedRgss = false;
+    this._lastFramePreserveAntiSeam = true;
     this.dragStaticSurface = null;
     this.dragStaticImage = null;
     this.dragStaticKey = null;
@@ -302,6 +305,13 @@ class SceneRenderer {
     if (!next || !RENDER_CONFIG.antialias) this.dirty = true;
   }
 
+  setPaintInteracting(active) {
+    const next = Boolean(active);
+    if (next === Boolean(this.paintInteracting)) return;
+    this.paintInteracting = next;
+    if (!next || !RENDER_CONFIG.antialias) this.dirty = true;
+  }
+
   requestRender(force = false) {
     if (this.disposed || this.suspended) return;
     this.dirty ||= force;
@@ -446,13 +456,16 @@ class SceneRenderer {
     const {pw, ph, effectiveDpr, maxSide, maxPixels} = computeSafeFramebufferSize(width, height, dpr, ACTIVE_DEVICE_PROFILE);
     const {scene} = this;
     this.ensureSurface(pw, ph);
+    const preserveAntiSeam = Boolean(!this.paintInteracting && !this.cameraInteracting);
     const options = {
       frameRects: this.clipFrames ? this.frameRects : null,
       frameBackgrounds: this.frameBgByGroup,
       drag: this.dragOffset,
       editingTextId: scene.fontRegistry ? null : this.editingTextId || null,
-      allObjects: this.doc.objects
+      allObjects: this.doc.objects,
+      preserveAntiSeam
     };
+    this._lastFramePreserveAntiSeam = preserveAntiSeam;
     const background = this.bg.mode === 'solid' ? this.bg.color || '#ffffff' : null;
     const smoothEdges = true;
     const isObjectDragging = Boolean(this.dragOffset && this.dragOffset.ids && this.dragOffset.ids.size > 0);
@@ -568,7 +581,8 @@ class SceneRenderer {
     } else {
       if (this.dragStaticImage || this.dragStaticSurface) this.releaseDragStaticCache();
       const {kit} = scene;
-      const useRgss = !RENDER_CONFIG.antialias;
+      const useRgss = !RENDER_CONFIG.antialias && !(this.paintInteracting && (!isGpu || objCount > 150));
+      this._lastFrameUsedRgss = useRgss;
       const zoomChanged = this.camera.zoom !== this._lastCameraZoom;
       this._lastCameraZoom = this.camera.zoom;
       const panKey = `${pw}|${ph}|${this.revisionId}|${this.camera.zoom}|${background || ''}|${this.clipFrames ? 1 : 0}|${this.editingTextId || ''}|${smoothEdges ? 1 : 0}|${this.textPreview ? 1 : 0}`;
@@ -576,7 +590,7 @@ class SceneRenderer {
       let handledByPanCache = false;
 
       if (!isGpu) {
-        const cpuPanEligible = heavyPan && !this.showGrid && !this.textPreview && !this.sceneInteracting &&
+        const cpuPanEligible = heavyPan && !this.showGrid && !this.textPreview && !this.sceneInteracting && !this.paintInteracting &&
           !(interacting && zoomChanged) &&
           typeof canvas.readPixels === 'function' && typeof canvas.writePixels === 'function';
 
@@ -686,7 +700,8 @@ class SceneRenderer {
           stats = this.panLastStats || { visibleObjects: 0, culledObjects: 0, drawCalls: 1, totalVertices: 0, hasGradient: this.panCacheHasGradient };
         } else {
           if (useRgss) {
-            stats = this.renderRgssFrame(canvas, background, options, pw, ph, maxSide, maxPixels, interacting, isGpu, objCount);
+            const forceFullNodeRgss = Boolean(this.sceneInteracting && !this.paintInteracting && !this.cameraInteracting && (isGpu || objCount <= 400));
+            stats = this.renderRgssFrame(canvas, background, options, pw, ph, maxSide, maxPixels, interacting, isGpu, objCount, null, forceFullNodeRgss);
           } else {
             if (RENDER_CONFIG.antialias) this.releaseSampleSurface();
             stats = this.drawVectorFrame(canvas, background, options,
@@ -708,7 +723,7 @@ class SceneRenderer {
           }
         }
       } else {
-        const panEligible = heavyPan && !(this.showGrid && background) && !this.textPreview && !this.sceneInteracting &&
+        const panEligible = heavyPan && !(this.showGrid && background) && !this.textPreview && !this.sceneInteracting && !this.paintInteracting &&
           this.canUsePanCache(pw, ph) && !(interacting && zoomChanged);
         if (!heavyPan && (this.panCacheSurface || this.panCacheScratchSurface)) {
           this.releasePanCache();

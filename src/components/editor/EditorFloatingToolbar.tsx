@@ -76,6 +76,8 @@ const EditorFloatingToolbar = ({
   openOffsetStrip,
   applySeparateIconObjects,
   canSeparateIcon = false,
+  applyFillEmptySpace,
+  canFillEmpty = false,
   nodeScale = 1,
   setNodeScale,
   delSel,
@@ -106,7 +108,8 @@ const EditorFloatingToolbar = ({
     ['divide', 'veBoolDivide', L.edBoolDivide, 'M3 3h8v8H3z M13 3h8v8h-8z M3 13h8v8H3z M13 13h8v8h-8z', 'Ctrl+Alt+D', !canBool, () => { setLastBoolOp('divide'); applyBoolean('divide'); }],
     ['outline', 'veOutlineStroke', L.edOutlineStroke, 'M4 4h16v16H4z M8 8h8v8H8z', 'Ctrl+Alt+O', !canOutline, applyOutlineStroke],
     ['offset', 'veOffsetPath', L.edOffsetPath, 'M7 7h10v10H7z M3 3h18v18H3z', '', !canOffset, openOffsetStrip],
-    ['separateIcon', 'veSeparateIcon', L.edSeparateIcon || (lang === 'en' ? 'Separate Icon Objects' : 'Pisahkan Objek Ikon'), 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z', '', !canSeparateIcon, () => { if (applySeparateIconObjects) applySeparateIconObjects(); }]
+    ['separateIcon', 'veSeparateIcon', L.edSeparateIcon || (lang === 'en' ? 'Separate Icon Objects' : 'Pisahkan Objek Ikon'), 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z', '', !canSeparateIcon, () => { if (applySeparateIconObjects) applySeparateIconObjects(); }],
+    ['fillEmpty', 'veFillEmpty', L.edFillEmpty || (lang === 'en' ? 'Fill Empty Space' : 'Isi Ruang Kosong'), 'M4 4h16v16H4z M8 8h8v8H8z M9 12h6 M12 9v6', '', !canFillEmpty, () => { if (applyFillEmptySpace) applyFillEmptySpace(); }]
   ];
   const activeBool = BOOL_ITEMS.find(x => x[0] === lastBoolOp) || BOOL_ITEMS[0];
   /* Aksi Node & Path (seksi bawah dropdown nodeGrp): [kunci, tip tooltip, ikon, nonaktif, aksi].

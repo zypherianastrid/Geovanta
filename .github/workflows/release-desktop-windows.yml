@@ -1,0 +1,76 @@
+name: Release Desktop Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and attach Windows installers to (e.g. v1.2.0)'
+        required: true
+        default: 'v1.2.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust stable (MSVC x64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build offline bundle and Windows 64-bit Tauri installers
+        shell: pwsh
+        run: |
+          node scripts/build-offline-bundle.js
+          npx tauri build --target x86_64-pc-windows-msvc
+
+      - name: Upload Windows installers to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.tag }}" } else { "${{ github.ref_name }}" }
+          $ver = $tag.TrimStart('v')
+          $nsisSrc = Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*.exe" | Select-Object -First 1
+          $msiSrc = Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi" | Select-Object -First 1
+          $outDir = "dist\release-win"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          $assets = @()
+          if ($nsisSrc) {
+            $nsisDst = Join-Path $outDir "Geovanta-Vector-Editor_${ver}_x64-setup.exe"
+            Copy-Item $nsisSrc.FullName $nsisDst -Force
+            $assets += $nsisDst
+          }
+          if ($msiSrc) {
+            $msiDst = Join-Path $outDir "Geovanta-Vector-Editor_${ver}_x64_en-US.msi"
+            Copy-Item $msiSrc.FullName $msiDst -Force
+            $assets += $msiDst
+          }
+          if ($assets.Count -eq 0) {
+            throw "No Windows desktop installers found after tauri build."
+          }
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @assets --clobber
+          } else {
+            gh release create $tag @assets --title "Geovanta Vector Editor $tag" --notes "Official Windows 64-bit installers for $tag"
+          }

@@ -126,6 +126,8 @@ function mapDocumentColors(doc, fn, scope) {
   const objects = ((doc && doc.objects) || []).map(o => {
     if (!inScope(o, sel)) return o;
     let next = null;
+    let fillGradEdits: Map<number, string> | null = null;
+    let strokeGradEdits: Map<number, string> | null = null;
     for (const slot of slotsFor(o)) {
       const res = fn({ ...slot });
       if (res == null) continue;
@@ -152,12 +154,23 @@ function mapDocumentColors(doc, fn, scope) {
           unlinked++;
         }
       } else if (slot.kind === 'grad') {
-        const isStroke = slot.grad === 'stroke';
-        const g = isStroke ? next.strokeGrad : next.grad;
-        const raw = normalizedRawStops(g).map((st, i) => (i === slot.stopIdx ? { ...st, color: nextHex } : st));
-        next = updateGradStops(next, raw, null, isStroke ? 'stroke' : 'fill');
+        if (slot.grad === 'stroke') {
+          if (!strokeGradEdits) strokeGradEdits = new Map();
+          strokeGradEdits.set(slot.stopIdx, nextHex);
+        } else {
+          if (!fillGradEdits) fillGradEdits = new Map();
+          fillGradEdits.set(slot.stopIdx, nextHex);
+        }
       }
       changed++;
+    }
+    if (fillGradEdits) {
+      const raw = normalizedRawStops(next.grad).map((st, i) => (fillGradEdits.has(i) ? { ...st, color: fillGradEdits.get(i) } : st));
+      next = updateGradStops(next, raw, null, 'fill');
+    }
+    if (strokeGradEdits) {
+      const raw = normalizedRawStops(next.strokeGrad).map((st, i) => (strokeGradEdits.has(i) ? { ...st, color: strokeGradEdits.get(i) } : st));
+      next = updateGradStops(next, raw, null, 'stroke');
     }
     if (next) {
       anyChange = true;

@@ -4,6 +4,7 @@
  */
 import './vendor/reactOfflineBundle.tsx';
 import './vendor/tailwindOfflineBundle.tsx';
+import './styles/mobileStyles.ts';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { App } from './App.tsx';

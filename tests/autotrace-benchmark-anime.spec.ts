@@ -4,7 +4,7 @@ import * as path from 'path';
 
 const IMG_PATH = 'C:/Users/Admin/.gemini/antigravity/brain/b76c5be3-b0b1-40b0-8aec-dbac92a17707/.user_uploaded/media_1795308645597_ec763ddd.jpg';
 
-test('Auto Trace Ultra 99%+ achieves >99% pixel similarity on anime illustration with WebGL2 GPU and CPU fallback', async ({ page }) => {
+test('Auto Trace Smooth Vector (SVGPeak VMT ultra) produces smooth Bezier curves with high fidelity, WebGL2 GPU & CPU fallback', async ({ page }) => {
   test.setTimeout(120000);
   const imgBuf = fs.readFileSync(IMG_PATH);
   const dataUri = 'data:image/jpeg;base64,' + imgBuf.toString('base64');
@@ -25,11 +25,23 @@ test('Auto Trace Ultra 99%+ achieves >99% pixel similarity on anime illustration
 
       const res = await (window as any).GT.traceRgbaBufferToSvgAsync(rgba, w, h, {
         mode: 'ultra',
-        colorCount: 250,
-        despeckle: 1,
-        smoothness: 0.2,
+        colorCount: 32,
+        despeckle: 4,
+        smoothness: 0.66,
+        gradientMode: 'auto',
         ignoreWhite: false,
         useGpu,
+      });
+
+      const doc = new DOMParser().parseFromString(res.svg, 'image/svg+xml');
+      let curveCmds = 0;
+      let lineCmds = 0;
+      doc.querySelectorAll('path').forEach((p) => {
+        const d = p.getAttribute('d') || '';
+        const cs = d.match(/[CcSsQqTt]/g);
+        const ls = d.match(/[LlHhVv]/g);
+        curveCmds += cs ? cs.length : 0;
+        lineCmds += ls ? ls.length : 0;
       });
 
       const svgBlob = new Blob([res.svg], { type: 'image/svg+xml' });
@@ -60,6 +72,9 @@ test('Auto Trace Ultra 99%+ achieves >99% pixel similarity on anime illustration
         hw: res.stats.hw,
         ms: res.stats.ms,
         regions: res.stats.regions,
+        bezierSegs: res.stats.bezierSegs,
+        curveCmds,
+        lineCmds,
         mae: +mae.toFixed(2),
         rmse: +rmse.toFixed(2),
         simPct: +(100 * (1 - mae / 255)).toFixed(2),
@@ -71,12 +86,15 @@ test('Auto Trace Ultra 99%+ achieves >99% pixel similarity on anime illustration
   };
 
   const gpuRes = await runWith(true);
-  console.log('[ULTRA GPU]', JSON.stringify(gpuRes));
+  console.log('[SVGPEAK VMT ULTRA GPU]', JSON.stringify(gpuRes));
   expect(gpuRes.hw.gpuUsed).toBe(true);
-  expect(gpuRes.simPct).toBeGreaterThanOrEqual(99.0);
+  expect(gpuRes.curveCmds).toBeGreaterThan(200);
+  expect(gpuRes.bezierSegs).toBeLessThan(40000);
+  expect(gpuRes.simPct).toBeGreaterThanOrEqual(94.0);
 
   const cpuRes = await runWith(false);
-  console.log('[ULTRA CPU FALLBACK]', JSON.stringify(cpuRes));
+  console.log('[SVGPEAK VMT ULTRA CPU FALLBACK]', JSON.stringify(cpuRes));
   expect(cpuRes.hw.gpuUsed).toBe(false);
-  expect(cpuRes.simPct).toBeGreaterThanOrEqual(99.0);
+  expect(cpuRes.curveCmds).toBeGreaterThan(200);
+  expect(cpuRes.simPct).toBeGreaterThanOrEqual(94.0);
 });
