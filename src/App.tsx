@@ -22,6 +22,16 @@ import { Settings } from './components/modals/SettingsModal.tsx';
 import { getAppStr, translateToast } from './constants/appI18n.tsx';
 import { aiLiveConnector } from './bridge/aiLiveConnector.tsx';
 import { useMobileViewport } from './hooks/useMobileViewport.ts';
+import { initAndroidBackButton, initAndroidKeyboardSync, registerAndroidBackHandler, syncStatusBar, exitAndroidApp } from './bridge/androidNativeBridge.ts';
+
+function resolveEffectiveTheme(themePref: string): 'light' | 'dark' {
+  if (themePref === 'dark') return 'dark';
+  if (themePref === 'light') return 'light';
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light';
+}
 
 function App() {
   useMobileViewport();
@@ -31,7 +41,8 @@ function App() {
     applyTheme(prefs.theme);
     applyMotion(prefs.motion);
     applyAccent(prefs.accent);
-  }, [prefs.accent]);
+    syncStatusBar(resolveEffectiveTheme(prefs.theme));
+  }, [prefs.theme, prefs.motion, prefs.accent]);
   useEffect(() => {
     if (prefs.accentMode !== 'system') return;
     let cancelled = false;
@@ -103,6 +114,80 @@ function App() {
   });
   const activeProjectIdRef = useRef(null);
   activeProjectIdRef.current = navState.activeProjectId;
+
+  const appBackStateRef = useRef({
+    help: false,
+    settings: false,
+    editorRenameOpen: false,
+    recoveryDialog: null as any,
+    quotaErrorInfo: null as any,
+    unsavedNavDialog: null as any,
+    screen: 'workspace',
+    lang: 'id',
+  });
+  appBackStateRef.current = {
+    help,
+    settings,
+    editorRenameOpen,
+    recoveryDialog,
+    quotaErrorInfo,
+    unsavedNavDialog,
+    screen: navState.screen,
+    lang: prefs.lang || 'id',
+  };
+  const lastBackExitAttemptRef = useRef(0);
+
+  useEffect(() => {
+    const unsubBackListener = initAndroidBackButton();
+    const unsubKb = initAndroidKeyboardSync();
+    const unsubModalBack = registerAndroidBackHandler(80, () => {
+      const st = appBackStateRef.current;
+      if (st.editorRenameOpen) {
+        setEditorRenameOpen(false);
+        return true;
+      }
+      if (st.unsavedNavDialog) {
+        setUnsavedNavDialog(null);
+        return true;
+      }
+      if (st.quotaErrorInfo) {
+        setQuotaErrorInfo(null);
+        return true;
+      }
+      if (st.recoveryDialog) {
+        setRecoveryDialog(null);
+        return true;
+      }
+      if (st.settings) {
+        setSettings(false);
+        return true;
+      }
+      if (st.help) {
+        setHelp(false);
+        return true;
+      }
+      return false;
+    });
+    const unsubWorkspaceBack = registerAndroidBackHandler(10, () => {
+      const st = appBackStateRef.current;
+      if (st.screen !== 'workspace') return false;
+      const now = Date.now();
+      if (now - lastBackExitAttemptRef.current <= 2000) {
+        lastBackExitAttemptRef.current = 0;
+        exitAndroidApp();
+        return true;
+      }
+      lastBackExitAttemptRef.current = now;
+      flash(st.lang === 'en' ? 'Press back again to exit' : 'Tekan sekali lagi untuk keluar');
+      return true;
+    });
+    return () => {
+      unsubBackListener();
+      unsubKb();
+      unsubModalBack();
+      unsubWorkspaceBack();
+    };
+  }, []);
 
   // Initialize database & check crash recovery candidates on app startup
   useEffect(() => {
@@ -234,7 +319,11 @@ function App() {
         });
       }
     });
-  }, [navState.screen, navState.activeProjectId, activeProject]);
+    if (typeof window !== 'undefined') {
+      (window as any).__geovantaOpenSettings = (open = true) => setSettings(Boolean(open));
+      (window as any).__geovantaGetPrefs = () => prefs;
+    }
+  }, [navState.screen, navState.activeProjectId, activeProject, prefs]);
 
   useEffect(() => {
     const unsub = aiLiveConnector.onStatusChange(st => {

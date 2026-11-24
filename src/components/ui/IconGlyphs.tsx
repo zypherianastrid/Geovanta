@@ -46,6 +46,7 @@ export interface IconBtnProps {
   dis?: boolean;
   act?: (e?: any) => void;
   lang?: string;
+  label?: string;
   [key: string]: any;
 }
 
@@ -56,7 +57,8 @@ const IconBtn: React.FC<IconBtnProps> = ({
   s = 14,
   dis,
   act,
-  lang
-}) => <button type="button" className={'tool-btn' + (on ? ' on' : '')} disabled={dis} data-tip={tip} aria-label={(lang === 'en' ? TIPS_EN : TIPS)[tip] ? (lang === 'en' ? TIPS_EN : TIPS)[tip].t : undefined} onClick={act}><Vi d={d} s={s} /></button>;
+  lang,
+  label
+}) => <button type="button" className={'tool-btn' + (on ? ' on' : '')} disabled={dis} data-tip={tip} aria-label={(lang === 'en' ? TIPS_EN : TIPS)[tip] ? (lang === 'en' ? TIPS_EN : TIPS)[tip].t : undefined} onClick={act}><Vi d={d} s={s} />{label && <span className="mob-tool-lbl">{label}</span>}</button>;
 
 export { Ico, Chev, Keys, ShapeGlyph, Vi, IconBtn };

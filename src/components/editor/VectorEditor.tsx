@@ -54,6 +54,8 @@ import { useCanvasWheelZoom } from './hooks/useCanvasWheelZoom.tsx';
 import { IconifyModal } from '../modals/IconifyModal.tsx';
 import { SvgCodeInspectorModal } from '../modals/SvgCodeInspectorModal.tsx';
 import { MobileEditorTopBar } from './MobileEditorTopBar.tsx';
+import { MobileSelectionActionBar } from './MobileSelectionActionBar.tsx';
+import { MobileBottomSheet } from './MobileBottomSheet.tsx';
 import { useMobileViewport, isMobileViewportNow } from '../../hooks/useMobileViewport.ts';
 
 /* C9: warna panduan snap per kind — sama dengan warna di menu checklist
@@ -72,6 +74,7 @@ import { pickFiles } from '../../utils/presenceAndFilePicker.tsx';
 import { TextEditOverlay } from './TextEditOverlay.tsx';
 import { TextInspector } from './TextInspector.tsx';
 import { aiLiveConnector } from '../../bridge/aiLiveConnector.tsx';
+import { registerAndroidBackHandler, triggerHaptic } from '../../bridge/androidNativeBridge.ts';
 
 const VectorEditor = ({
   initialSvg,
@@ -470,6 +473,7 @@ const VectorEditor = ({
   const lastPointerTypeRef = useRef<string>('mouse');
   const activeTouchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchStateRef = useRef<{ dist: number; midX: number; midY: number; startZoom: number; startPan: { x: number; y: number } } | null>(null);
+  const multiTapRef = useRef<{ maxFingers: number; startTime: number; origins: Map<number, { x: number; y: number }>; moved: boolean } | null>(null);
   const longPressTimerRef = useRef<number>(0);
   const longPressOriginRef = useRef<{ pointerId: number; x: number; y: number; target: any } | null>(null);
   const sceneCanvasRef = useRef(null),
@@ -518,7 +522,7 @@ const VectorEditor = ({
       if (!isPanOnly) {
         const bbG = g.querySelector('.vc-bbox-overlay');
         if (bbG) {
-          const hs = 6 / z,
+          const hs = (isMobileRef.current ? 12 : 6) / z,
             h2 = hs * 0.5;
           const rects = bbG.querySelectorAll('rect[data-hx]');
           for (let i = 0; i < rects.length; i++) {
@@ -873,6 +877,14 @@ const VectorEditor = ({
   const rightOpenRef = useRef(rightOpen);
   rightOpenRef.current = rightOpen;
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const [mobileInspectorTab, setMobileInspectorTab] = useState<'style' | 'transform' | 'tools' | 'export'>('style');
+  const [mobHintDismissed, setMobHintDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('geovanta-mob-hint-v1') === '1';
+    } catch {
+      return false;
+    }
+  });
   const prevIsMobileRef = useRef(isMobile);
   useEffect(() => {
     if (prevIsMobileRef.current === isMobile) return;
@@ -1036,6 +1048,9 @@ const VectorEditor = ({
     stroke: '#111827',
     sw: 2
   });
+  const [multiSelectActive, setMultiSelectActive] = useState(false);
+  const multiSelectActiveRef = useRef(false);
+  multiSelectActiveRef.current = multiSelectActive;
   useEffect(() => {
     if (tool !== 'addnode') setAddHov(null);
     if (tool !== 'addhandle') setHhHov(null);
@@ -1284,6 +1299,86 @@ const VectorEditor = ({
   const api = useRef<Record<string, any>>({});
   const [ctx, setCtx] = useState(null),
     clipRef = useRef(null);
+  const editorBackStateRef = useRef({
+    ctx: null as any,
+    leftOpen: false,
+    rightOpen: false,
+    mobileRailOpen: false,
+    importModalOpen: false,
+    isCodeInspectorOpen: false,
+    indivCornerOpen: false,
+    tool: 'select',
+    onBackToWorkspace: null as any,
+  });
+  editorBackStateRef.current = {
+    ctx,
+    leftOpen,
+    rightOpen,
+    mobileRailOpen,
+    importModalOpen,
+    isCodeInspectorOpen,
+    indivCornerOpen,
+    tool,
+    onBackToWorkspace,
+  };
+  useEffect(() => {
+    const unsubOverlayBack = registerAndroidBackHandler(100, () => {
+      const st = editorBackStateRef.current;
+      if (st.ctx) {
+        setCtx(null);
+        return true;
+      }
+      if (typeof document !== 'undefined' && document.querySelector('.flt')) {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        return true;
+      }
+      return false;
+    });
+    const unsubModalBack = registerAndroidBackHandler(75, () => {
+      const st = editorBackStateRef.current;
+      if (st.importModalOpen) {
+        setImportModalOpen(false);
+        return true;
+      }
+      if (st.isCodeInspectorOpen) {
+        setIsCodeInspectorOpen(false);
+        return true;
+      }
+      if (st.indivCornerOpen) {
+        setIndivCornerOpen(false);
+        return true;
+      }
+      if (st.tool === 'iconify') {
+        setTool('select');
+        return true;
+      }
+      return false;
+    });
+    const unsubSheetBack = registerAndroidBackHandler(60, () => {
+      const st = editorBackStateRef.current;
+      if (isMobileRef.current && (st.leftOpen || st.rightOpen || st.mobileRailOpen)) {
+        setLeftOpen(false);
+        setRightOpen(false);
+        setMobileRailOpen(false);
+        return true;
+      }
+      return false;
+    });
+    const unsubExitEditorBack = registerAndroidBackHandler(40, () => {
+      const st = editorBackStateRef.current;
+      if (st.onBackToWorkspace) {
+        st.onBackToWorkspace(docRef.current, { zoom: zoomRef.current, pan: { ...panRef.current } });
+        return true;
+      }
+      return false;
+    });
+    return () => {
+      unsubOverlayBack();
+      unsubModalBack();
+      unsubSheetBack();
+      unsubExitEditorBack();
+    };
+  }, []);
   const [dock, setDockS] = useState(() => {
     try {
       const r = JSON.parse(localStorage.getItem('svgpeak-dock2') || 'null');
@@ -2042,6 +2137,7 @@ const VectorEditor = ({
       const nextD = h.s[h.p];
       live(nextD);
       notifyDocCommit(nextD);
+      if (isMobileRef.current) triggerHaptic('light');
       DEBUG_LOG.log('document', 'undo', 'undo', 'src/components/editor/VectorEditor.tsx', 'hist p=' + h.p + '/' + (h.s.length - 1));
     }
   };
@@ -2053,6 +2149,7 @@ const VectorEditor = ({
       const nextD = h.s[h.p];
       live(nextD);
       notifyDocCommit(nextD);
+      if (isMobileRef.current) triggerHaptic('light');
       DEBUG_LOG.log('document', 'redo', 'redo', 'src/components/editor/VectorEditor.tsx', 'hist p=' + h.p + '/' + (h.s.length - 1));
     }
   };
@@ -3791,7 +3888,7 @@ const VectorEditor = ({
   };
   /* GV-A16: Hit-test kanonik yang menghormati opacity, groupOpacity, clipPathD & Frame clipping */
   const hitObj = pt => {
-    const touchBoost = lastPointerTypeRef.current === 'touch' ? 1.75 : 1;
+    const touchBoost = lastPointerTypeRef.current === 'touch' ? 2.25 : 1;
     const tol = (6 * touchBoost) / zoomRef.current,
       os = docRef.current.objects;
     const frameRectMap = new Map((frameBoxes || []).map(f => [f.id, f.bb]));
@@ -3848,7 +3945,7 @@ const VectorEditor = ({
   };
   const pickNode = pt => {
     const z = Math.max(0.1, zoomRef.current || 1),
-      touchBoost = lastPointerTypeRef.current === 'touch' ? 1.75 : 1,
+      touchBoost = lastPointerTypeRef.current === 'touch' ? 2.25 : 1,
       scaleFactor = Math.max(0.4, Math.min(3.0, Number(nodeScale) || 1)),
       hTol = (8 / z) * scaleFactor * touchBoost,
       nTol = (9 / z) * scaleFactor * touchBoost;
@@ -4372,6 +4469,38 @@ const VectorEditor = ({
       objs: new Set([s.oid]),
       nodes: new Set([nodes[nodes.length - 1].id])
     });
+  };
+  const cancelPen = () => {
+    const s = penRef.current;
+    if (!s) return;
+    setPen(null);
+    setSnapInd(null);
+    const d = docRef.current;
+    commit({
+      ...d,
+      objects: d.objects.filter(o => o.id !== s.oid)
+    });
+    setSel({
+      objs: new Set(),
+      nodes: new Set()
+    });
+    say('Pen dibatalkan');
+  };
+  const closePenAndFinish = () => {
+    const s = penRef.current;
+    if (!s) return;
+    const d = docRef.current;
+    const f = penFind(d, s);
+    if (!f || f.sp.nodes.length < 2) {
+      finishPen();
+      return;
+    }
+    const closedDoc = penMap(d, s.oid, s.spid, sp => ({
+      ...sp,
+      closed: true
+    }));
+    commit(closedDoc);
+    finishPen();
   };
   /* FSM Pen: IDLE -> (down) DRAGGING_HANDLE -> (up) RUBBER_BAND -> CLOSING / FINISHING */
   const penDown = (e, pt, base) => {
@@ -5206,6 +5335,20 @@ const VectorEditor = ({
     if (boxRef.current) boxRectRef.current = boxRef.current.getBoundingClientRect();
     if (e.pointerType === 'touch') {
       activeTouchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (activeTouchPointersRef.current.size === 1) {
+        multiTapRef.current = {
+          maxFingers: 1,
+          startTime: performance.now(),
+          origins: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]),
+          moved: false,
+        };
+      } else if (multiTapRef.current) {
+        multiTapRef.current.origins.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        multiTapRef.current.maxFingers = Math.max(
+          multiTapRef.current.maxFingers,
+          activeTouchPointersRef.current.size
+        );
+      }
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = 0;
@@ -5248,6 +5391,7 @@ const VectorEditor = ({
         dragRef.current = null;
         setMarq(null);
         setPanning(false);
+        triggerHaptic('medium');
         onCtx({
           preventDefault() {},
           clientX: lpX,
@@ -5288,7 +5432,7 @@ const VectorEditor = ({
       boxRef.current.setPointerCapture(e.pointerId);
     } catch (x) {}
     const pt = toDoc(e.clientX, e.clientY),
-      add = e.shiftKey || e.ctrlKey || e.metaKey,
+      add = e.shiftKey || e.ctrlKey || e.metaKey || multiSelectActiveRef.current,
       base = docRef.current;
     if (tool === 'text') {
       e.preventDefault();
@@ -5890,6 +6034,12 @@ const VectorEditor = ({
     if (e.pointerType) lastPointerTypeRef.current = e.pointerType;
     if (e.pointerType === 'touch' && activeTouchPointersRef.current.has(e.pointerId)) {
       activeTouchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (multiTapRef.current && !multiTapRef.current.moved) {
+        const orig = multiTapRef.current.origins.get(e.pointerId);
+        if (orig && Math.hypot(e.clientX - orig.x, e.clientY - orig.y) > 14) {
+          multiTapRef.current.moved = true;
+        }
+      }
       if (longPressTimerRef.current && longPressOriginRef.current && longPressOriginRef.current.pointerId === e.pointerId) {
         if (Math.hypot(e.clientX - longPressOriginRef.current.x, e.clientY - longPressOriginRef.current.y) > 10) {
           clearTimeout(longPressTimerRef.current);
@@ -6787,6 +6937,22 @@ const VectorEditor = ({
     }
     if (e.pointerType === 'touch') {
       activeTouchPointersRef.current.delete(e.pointerId);
+      if (e.type === 'pointercancel') {
+        multiTapRef.current = null;
+      } else if (activeTouchPointersRef.current.size === 0 && multiTapRef.current) {
+        const mt = multiTapRef.current;
+        multiTapRef.current = null;
+        const elapsed = performance.now() - mt.startTime;
+        if (!mt.moved && elapsed <= 320) {
+          if (mt.maxFingers === 2 && canUndo) {
+            undo();
+            say(prefs && prefs.lang === 'en' ? 'Undo (2-finger tap)' : 'Urungkan (tap 2 jari)');
+          } else if (mt.maxFingers >= 3 && canRedo) {
+            redo();
+            say(prefs && prefs.lang === 'en' ? 'Redo (3-finger tap)' : 'Ulangi (tap 3 jari)');
+          }
+        }
+      }
       if (pinchStateRef.current) {
         try {
           boxRef.current?.releasePointerCapture(e.pointerId);
@@ -9422,7 +9588,7 @@ const VectorEditor = ({
               onImportFont={() => pickFiles('.ttf,.otf,font/ttf,font/otf', fs => importFontFiles(fs))}
               onConvertToPath={convertTextSelectionToPath}
             />;
-          })() : null} tool={tool} blobParams={blobParams} onBlobParams={onBlobParams} weaveParams={weaveParams} onWeaveParams={onWeaveParams} arcParams={arcParams} onArcParams={onArcParams} /> : null;
+          })() : null} tool={tool} blobParams={blobParams} onBlobParams={onBlobParams} weaveParams={weaveParams} onWeaveParams={onWeaveParams} arcParams={arcParams} onArcParams={onArcParams} isMobile={isMobile} mobileTab={mobileInspectorTab} onMobileTabChange={setMobileInspectorTab} /> : null;
   return <div ref={rootRef} className={'ved-root' + (full ? ' ved-full' : '')}><div className="fig-workspace">{isMobile ? (
       <>
         <MobileEditorTopBar
@@ -9446,12 +9612,143 @@ const VectorEditor = ({
           onToggleRight={toggleMobileRight}
           railOpen={mobileRailOpen}
           onToggleRail={toggleMobileRail}
+          onQuickExport={() => {
+            setMobileInspectorTab('export');
+            setLeftOpen(false);
+            setMobileRailOpen(false);
+            setRightOpen(true);
+          }}
           selCount={sel.objs.size}
         />
         {mobileRailOpen && (
           <div className="mob-rail-sheet" data-testid="mobile-rail-sheet" onPointerDown={e => e.stopPropagation()}>
             <EditorActionRail L={L} renderRailDropdowns={renderRailDropdowns} />
           </div>
+        )}
+        {!mobHintDismissed && !leftOpen && !rightOpen && !ctx && (
+          <div className="mob-gesture-hint" data-testid="mobile-gesture-hint" role="status" onPointerDown={e => e.stopPropagation()}>
+            <span>
+              {prefs && prefs.lang === 'en'
+                ? 'Pinch to Zoom • 2-finger tap = Undo • Hold object for menu'
+                : 'Cubit untuk Zoom • Tap 2 jari = Undo • Tahan objek untuk menu'}
+            </span>
+            <button
+              type="button"
+              className="mob-hint-close"
+              data-testid="mobile-gesture-hint-close"
+              aria-label={L.cClose || 'Tutup'}
+              onClick={() => {
+                try {
+                  localStorage.setItem('geovanta-mob-hint-v1', '1');
+                } catch {}
+                setMobHintDismissed(true);
+              }}
+            >
+              <Ico n="x" size={13} />
+            </button>
+          </div>
+        )}
+        {!leftOpen && !rightOpen && selObjs.length > 0 && (
+          <MobileSelectionActionBar
+            count={selObjs.length}
+            lang={prefs && prefs.lang || 'id'}
+            onOpenStyle={() => {
+              setMobileInspectorTab('style');
+              setLeftOpen(false);
+              setMobileRailOpen(false);
+              setRightOpen(true);
+            }}
+            onDuplicate={dup}
+            onOpenLayers={() => {
+              setRightOpen(false);
+              setMobileRailOpen(false);
+              setLeftOpen(true);
+            }}
+            onDelete={delSel}
+            onMore={e => {
+              const r = e?.currentTarget?.getBoundingClientRect?.();
+              onCtx({
+                preventDefault() {},
+                clientX: r ? r.left : window.innerWidth * 0.5,
+                clientY: r ? r.top : window.innerHeight * 0.6,
+                target: boxRef.current,
+              });
+            }}
+          />
+        )}
+        {!leftOpen && !rightOpen && tool === 'pen' && pen && (
+          <div className="mob-pen-actions fade" data-testid="mob-pen-actions">
+            <button
+              type="button"
+              className="mob-pen-btn cancel"
+              data-testid="mob-pen-cancel"
+              onClick={cancelPen}
+            >
+              ✕ Batal
+            </button>
+            <button
+              type="button"
+              className="mob-pen-btn"
+              data-testid="mob-pen-undo"
+              onClick={penUndoLast}
+            >
+              ⤺ Titik
+            </button>
+            <button
+              type="button"
+              className="mob-pen-btn"
+              data-testid="mob-pen-close"
+              onClick={closePenAndFinish}
+            >
+              ☌ Tutup
+            </button>
+            <button
+              type="button"
+              className="mob-pen-btn finish"
+              data-testid="mob-pen-finish"
+              onClick={finishPen}
+            >
+              ✓ Selesai
+            </button>
+          </div>
+        )}
+        {!leftOpen && !rightOpen && (tool === 'node' || tool === 'corner') && selNodes && selNodes.size > 0 && (
+          <div className="mob-node-actions fade" data-testid="mob-node-actions">
+            <button
+              type="button"
+              className="mob-node-btn"
+              data-testid="mob-node-corner"
+              onClick={applyStraight}
+            >
+              Sudut
+            </button>
+            <button
+              type="button"
+              className="mob-node-btn"
+              data-testid="mob-node-smooth"
+              onClick={applySmoothNodes}
+            >
+              Lengkung
+            </button>
+            <button
+              type="button"
+              className="mob-node-btn danger"
+              data-testid="mob-node-delete"
+              onClick={delSel}
+            >
+              Hapus Node
+            </button>
+          </div>
+        )}
+        {!leftOpen && !rightOpen && (tool === 'select' || tool === 'node') && (
+          <button
+            type="button"
+            className={'mob-multisel-toggle' + (multiSelectActive ? ' on' : '')}
+            data-testid="mob-multisel-toggle"
+            onClick={() => setMultiSelectActive(v => !v)}
+          >
+            {multiSelectActive ? '✓ Multi ON' : '☷ Multi'}
+          </button>
         )}
       </>
     ) : (
@@ -9700,8 +9997,8 @@ const VectorEditor = ({
                 const zNow = Math.max(1e-4, zoomRef.current || zoom || 1);
                 const corners = activeBox.corners();
                 const polyPts = corners.map(p => p.x + ',' + p.y).join(' ');
-                const hs = 6 / zNow,
-                  hHalf = 3 / zNow;
+                const hs = (isMobile ? 12 : 6) / zNow,
+                  hHalf = hs * 0.5;
                 return <g className="vc-bbox-overlay" pointerEvents="none"><polygon points={polyPts} fill="none" stroke="var(--acc)" strokeWidth="1" vectorEffect="non-scaling-stroke" />{VE.VC_HANDLES.map(h => {
                     const p = activeBox.toDocPt(h.pos(activeBox.rect));
                     return <rect key={'vch-' + h.idx} data-hx={p.x} data-hy={p.y} x={p.x - hHalf} y={p.y - hHalf} width={hs} height={hs} fill="#ffffff" stroke="var(--acc)" strokeWidth="1" vectorEffect="non-scaling-stroke" />;
@@ -9725,7 +10022,8 @@ const VectorEditor = ({
                 /* Ukuran node & bezier handle diperkecil dan dikunci dengan Math.max(2.5, zNow)
                    agar TIDAK PERNAH membesar baik saat di-zoom in maupun saat di-zoom out! */
                 const zNodeScale = Math.max(2.5, zNow);
-                const scale = Math.max(0.4, Math.min(4.0, Number(nodeScale) || 1));
+                const touchNodeBoost = isMobile ? 1.55 : 1;
+                const scale = Math.max(0.4, Math.min(4.0, (Number(nodeScale) || 1) * touchNodeBoost));
                 const r1 = v => Math.round(v * 1e6) / 1e6;
                 const diamondPath = (x, y, r) => `M${x} ${r1(y - r)}L${r1(x + r)} ${y}L${x} ${r1(y + r)}L${r1(x - r)} ${y}Z`;
                 const circlePath = (x, y, r) => `M${r1(x - r)} ${y}a${r} ${r} 0 1 0 ${r1(r * 2)} 0a${r} ${r} 0 1 0 ${r1(-r * 2)} 0Z`;
@@ -9989,12 +10287,54 @@ const VectorEditor = ({
                   return null;
                 },
                 createTestShape: (kind, x, y, w, h) => {
+                  if (kind === 'text') {
+                    const id = VE.uid();
+                    const obj = normalizeTextObject({
+                      id,
+                      name: 'Text-Test',
+                      type: 'text',
+                      subs: [],
+                      opacity: 1,
+                      fill: '#111827',
+                      text: {
+                        content: 'Sample Text',
+                        x: x || 50,
+                        y: (y || 50) + 16,
+                        fontSize: 16,
+                        fontFamily: 'IBM Plex Sans',
+                        fontWeight: 'normal',
+                        fontStyle: 'normal',
+                        textAnchor: 'start',
+                        verticalAlign: 'top',
+                        resizing: 'autoWidth',
+                        textDecoration: 'none',
+                        textCase: 'original',
+                        paragraphSpacing: 0,
+                        fill: '#111827',
+                        lineHeight: 1.2,
+                        letterSpacing: 0,
+                        width: w || 100,
+                        height: null,
+                        fontAssetId: null
+                      }
+                    });
+                    commit({ ...docRef.current, objects: [...docRef.current.objects, obj] });
+                    setSel({ objs: new Set([obj.id]), nodes: new Set() });
+                    return obj;
+                  }
                   const o = makeShape(kind || shapeKind, x, y, w, h);
                   if (o) {
                     commit({ ...docRef.current, objects: [...docRef.current.objects, o] });
                     setSel({ objs: new Set([o.id]), nodes: new Set() });
                   }
                   return o;
+                },
+                createTestImage: (x, y, w, h) => {
+                  const href = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+                  const imgObj = VE.makeImageObj(href, w || 100, h || 100, x || 50, y || 50, 'Image-Test');
+                  commit({ ...docRef.current, objects: [...docRef.current.objects, imgObj] });
+                  setSel({ objs: new Set([imgObj.id]), nodes: new Set() });
+                  return imgObj;
                 },
                 autoSimplifyAllCanvasObjects,
                 openVcSimplify,
@@ -10021,6 +10361,8 @@ const VectorEditor = ({
                 setRightSidebarOpen: v => setRightOpen(!!v),
                 toggleRightSidebar: () => setRightOpen(o => !o),
                 finishPen,
+                cancelPen,
+                closePenAndFinish,
                 penUndoLast,
                 getPenState: () => {
                   const s = penRef.current;
@@ -10184,6 +10526,8 @@ const VectorEditor = ({
                 commitDoc: commit,
                 commit: (d, key) => commit(d, key),
                 setSelection: ids => setSel({ objs: new Set(ids), nodes: new Set() }),
+                startTextEdit: id => setEditingText({ id, isNew: false }),
+                getEditingText: () => editingText,
                 getSelection: () => Array.from(selRef.current?.objs || []),
                 downloadSvg,
                 exportSvg,
@@ -10288,54 +10632,26 @@ const VectorEditor = ({
           />
         )}
         {leftOpen && (
-          <div
-            className="mob-sheet-wrap"
-            data-testid="mobile-layers-sheet"
-            role="dialog"
-            aria-label={L.edLayers || 'Layers'}
-            onPointerDown={e => e.stopPropagation()}
+          <MobileBottomSheet
+            testId="mobile-layers-sheet"
+            title={`${L.edLayers || 'Layers'} (${doc.objects.length})`}
+            closeTestId="mob-sheet-close-left"
+            closeLabel={L.cClose || 'Tutup'}
+            onClose={() => setLeftOpen(false)}
           >
-            <div className="mob-sheet-header">
-              <div className="mob-sheet-pill" aria-hidden="true" />
-              <span className="text-xs font-semibold">{L.edLayers || 'Layers'} ({doc.objects.length})</span>
-              <button
-                type="button"
-                className="mob-top-btn"
-                data-testid="mob-sheet-close-left"
-                aria-label={L.cClose || 'Tutup'}
-                onClick={() => setLeftOpen(false)}
-              >
-                <Ico n="x" size={14} />
-              </button>
-            </div>
             {leftSidebarNode}
-          </div>
+          </MobileBottomSheet>
         )}
         {rightOpen && (
-          <div
-            className="mob-sheet-wrap"
-            data-testid="mobile-inspector-sheet"
-            role="dialog"
-            aria-label={prefs && prefs.lang === 'en' ? 'Inspector' : 'Inspektor'}
-            onPointerDown={e => e.stopPropagation()}
+          <MobileBottomSheet
+            testId="mobile-inspector-sheet"
+            title={prefs && prefs.lang === 'en' ? 'Properties & Inspector' : 'Properti & Inspektor'}
+            closeTestId="mob-sheet-close-right"
+            closeLabel={L.cClose || 'Tutup'}
+            onClose={() => setRightOpen(false)}
           >
-            <div className="mob-sheet-header">
-              <div className="mob-sheet-pill" aria-hidden="true" />
-              <span className="text-xs font-semibold">
-                {prefs && prefs.lang === 'en' ? 'Properties & Inspector' : 'Properti & Inspektor'}
-              </span>
-              <button
-                type="button"
-                className="mob-top-btn"
-                data-testid="mob-sheet-close-right"
-                aria-label={L.cClose || 'Tutup'}
-                onClick={() => setRightOpen(false)}
-              >
-                <Ico n="x" size={14} />
-              </button>
-            </div>
             {rightInspectorNode}
-          </div>
+          </MobileBottomSheet>
         )}
       </>
     ) : (
@@ -10392,7 +10708,7 @@ const VectorEditor = ({
                 setPasteSvgDraft('');
                 setImportModalOpen(false);
               } else say('Kode SVG tidak valid');
-            }}>{L.impLoadCode}</button></div></div></div></div>, document.body)}<CtxMenu menu={ctx} items={ctxItems} onClose={() => setCtx(null)} />{!debugOpen && (
+            }}>{L.impLoadCode}</button></div></div></div></div>, document.body)}<CtxMenu menu={ctx} items={ctxItems} onClose={() => setCtx(null)} />{!debugOpen && (!isMobile || debugEnabled) && (
             <button
               type="button"
               className="debug-launcher ved-debug-pill btn sec"

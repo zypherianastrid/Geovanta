@@ -94,6 +94,36 @@ const EditorFloatingToolbar = ({
 }: any) => {
   /* Boolean / Pathfinder: syarat seleksi (sama seperti menu konteks). */
   const [lastBoolOp, setLastBoolOp] = React.useState('union');
+  const isMob = typeof document !== 'undefined' && document.documentElement.getAttribute('data-mobile') === '1';
+  const isEn = lang === 'en';
+  const MOB_LABELS: Record<string, string> = {
+    select: isEn ? 'Select' : 'Pilih',
+    nodeGrp: 'Node',
+    drawGrp: isEn ? 'Draw' : 'Gambar',
+    text: isEn ? 'Text' : 'Teks',
+    hand: isEn ? 'Pan' : 'Geser',
+    shape: isEn ? 'Shape' : 'Bentuk',
+    iconify: isEn ? 'Icons' : 'Ikon',
+  };
+  const mobLbl = (text: string) => (isMob ? <span className="mob-tool-lbl">{text}</span> : null);
+  const lpTimerRef = React.useRef<number>(0);
+  const lpFiredRef = React.useRef<boolean>(false);
+  const startLongPress = (e: any, onFire: () => void) => {
+    if (e.pointerType !== 'touch') return;
+    lpFiredRef.current = false;
+    if (lpTimerRef.current) clearTimeout(lpTimerRef.current);
+    lpTimerRef.current = window.setTimeout(() => {
+      lpTimerRef.current = 0;
+      lpFiredRef.current = true;
+      onFire();
+    }, 350);
+  };
+  const cancelLongPress = () => {
+    if (lpTimerRef.current) {
+      clearTimeout(lpTimerRef.current);
+      lpTimerRef.current = 0;
+    }
+  };
   const unlockedSelObjs = (selObjs || []).filter(o => !o.locked && !o.hidden);
   const eligiblePaths = unlockedSelObjs.filter(o => !o.img && !o.text && o.subs && o.subs.length > 0);
   const canBool = eligiblePaths.length >= 2;
@@ -146,7 +176,7 @@ const EditorFloatingToolbar = ({
       return <button key={k} type="button" className={'tool-btn' + (tool === k ? ' on' : '')} data-tip={tip} aria-label={TT[tip] ? TT[tip].t : (isShape ? (lang === 'en' ? 'Shape' : 'Bentuk') : k)} aria-pressed={tool === k} onClick={() => {
         setOpenGrp(null);
         setTool(k);
-      }}>{isShape ? <ShapeGlyph k={shapeKind} s={22} /> : <Vi d={d} s={24} />}</button>;
+      }}>{isShape ? <ShapeGlyph k={shapeKind} s={isMob ? 20 : 22} /> : <Vi d={d} s={isMob ? 20 : 24} />}{mobLbl(MOB_LABELS[k] || k)}</button>;
     }
     const {
       id,
@@ -159,7 +189,11 @@ const EditorFloatingToolbar = ({
     const [curK, curTip, curD] = currentItem;
     const isOpen = openGrp === id;
     const btnRef = grpBtnRefs[id];
-    return <React.Fragment key={id}><div ref={btnRef} className="inline-flex items-center"><button type="button" className={'tool-btn' + (isGroupActive ? ' on' : '')} data-tip={curTip} aria-label={TT[curTip] ? TT[curTip].t : curK} aria-pressed={isGroupActive} onClick={() => {
+    return <React.Fragment key={id}><div ref={btnRef} className="inline-flex items-center"><button type="button" className={'tool-btn has-sub' + (isGroupActive ? ' on' : '')} data-tip={curTip} aria-label={TT[curTip] ? TT[curTip].t : curK} aria-pressed={isGroupActive} onPointerDown={e => startLongPress(e, () => setOpenGrp(id))} onPointerUp={cancelLongPress} onPointerCancel={cancelLongPress} onPointerMove={cancelLongPress} onClick={() => {
+          if (lpFiredRef.current) {
+            lpFiredRef.current = false;
+            return;
+          }
           if (activeInGroup) {
             if (curK === 'simplify' && !vcSimpRef.current) openVcSimplify();else setOpenGrp(isOpen ? null : id);
           } else {
@@ -167,7 +201,7 @@ const EditorFloatingToolbar = ({
             setOpenGrp(null);
             if (curK === 'simplify') openVcSimplify();
           }
-        }}><Vi d={curD} s={24} /></button><button type="button" className="tool-btn chev-btn" aria-label={L.ftPickToolGroup} data-tip="veToolGroup" aria-expanded={isOpen} onClick={e => {
+        }}><Vi d={curD} s={isMob ? 20 : 24} />{mobLbl(MOB_LABELS[id] || id)}</button><button type="button" className="tool-btn chev-btn" aria-label={L.ftPickToolGroup} data-tip="veToolGroup" aria-expanded={isOpen} onClick={e => {
           e.stopPropagation();
           setOpenGrp(isOpen ? null : id);
         }}><Chev open={isOpen} /></button></div><Float anchor={btnRef} open={isOpen} onClose={() => setOpenGrp(null)} w={id === 'nodeGrp' ? 260 : 256} preferUp={true}><div className="text-[11px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">{id === 'nodeGrp' ? L.ftNodeGroup : L.ftDrawGroup}</div>{items.map(([k, tip, d]) => {
@@ -202,11 +236,15 @@ const EditorFloatingToolbar = ({
             if (toggleAutoSimplify) toggleAutoSimplify();
             else if (setAutoSimplifyOn) setAutoSimplifyOn(v => !v);
           }}><span className="snp-custom-icon"><Ico n="sparkle" size={15} /></span><span className="snp-lb">{lang === 'en' ? 'Auto-Simplify' : 'Auto-Simplify'}</span><span className="snp-sw" aria-hidden="true" /></button></div></div>}{id === 'nodeGrp' && <div className="pt-2 mt-2 border-t border-[var(--line)] select-none" onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2.5 mb-1.5"><span className="text-[10px] mut font-semibold uppercase tracking-wider flex items-center gap-1.5"><NodeSizeGlyph s={15} /><span>{L.ftNodeSize || 'Ukuran Node & Handle'}</span></span><span className="text-[11px] font-mono font-medium px-1.5 py-0.5 rounded bg-[var(--sub)]">{Math.round((nodeScale || 1) * 100)}%</span></div><div className="px-2.5 py-1"><Slider min={0.5} max={3.0} step={0.05} value={nodeScale || 1} on={v => setNodeScale && setNodeScale(v)} /></div><div className="flex items-center justify-between px-2.5 mt-2 pt-2 border-t border-[var(--line)]"><div className="flex gap-1">{[0.5, 1.0, 1.5, 2.0].map(s => <button key={s} type="button" className={'ved-pill text-[10px] px-1.5 py-0.5' + (Math.abs((nodeScale || 1) - s) < 0.04 ? ' on' : '')} onClick={() => setNodeScale && setNodeScale(s)}>{Math.round(s * 100)}%</button>)}</div><button type="button" className="text-[11px] mut hover:text-[var(--ink)] px-1 py-0.5 cursor-pointer" onClick={() => setNodeScale && setNodeScale(1.0)}>{L.ftResetNodeSize ? 'Reset' : 'Reset'}</button></div></div>}</Float></React.Fragment>;
-  })}<span className="fig-bar-sep" /><div ref={boolBtn} className="inline-flex items-center"><button type="button" className="tool-btn" disabled={activeBool[5]} data-tip={activeBool[1]} aria-label={activeBool[2] || 'Boolean'} aria-haspopup="listbox" aria-expanded={boolOpen} onClick={() => {
+  })}<span className="fig-bar-sep" /><div ref={boolBtn} className="inline-flex items-center"><button type="button" className={'tool-btn has-sub' + (boolOpen ? ' on' : '')} disabled={!isMob && activeBool[5]} data-tip={activeBool[1]} aria-label={activeBool[2] || 'Boolean'} aria-haspopup="listbox" aria-expanded={boolOpen} onClick={() => {
+      if (isMob) {
+        setBoolOpen(o => !o);
+        return;
+      }
       if (activeBool[5]) return;
       setBoolOpen(false);
       activeBool[6]();
-    }}><Vi d={activeBool[3]} s={22} /></button><button type="button" className="tool-btn chev-btn" data-tip="vePickBool" aria-label={L.ftPickBool} aria-expanded={boolOpen} onClick={e => {
+    }}><Vi d={activeBool[3]} s={isMob ? 19 : 22} />{mobLbl('Bool')}</button><button type="button" className="tool-btn chev-btn" data-tip="vePickBool" aria-label={L.ftPickBool} aria-expanded={boolOpen} onClick={e => {
       e.stopPropagation();
       setBoolOpen(o => !o);
     }}><Chev open={boolOpen} /></button></div><Float anchor={boolBtn} open={boolOpen} onClose={() => setBoolOpen(false)} w={268} preferUp={true}><div className="text-[11px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">Boolean / Pathfinder</div>{BOOL_ITEMS.map(([k, tip, label, d, kbd, dis, act]) => <div key={k} role="option" aria-disabled={dis} className={'opt' + (k === lastBoolOp ? ' font-semibold' : '')} data-tip={tip} style={dis ? {
@@ -218,7 +256,10 @@ const EditorFloatingToolbar = ({
       }}><span className="sel-l"><Vi d={d} s={17} /><span>{label}</span></span>{kbd && <span className="text-[10px] font-mono mut px-1.5 py-0.5 rounded bg-[var(--sub)]">{kbd}</span>}</div>)}</Float><span className="fig-bar-sep" /><button type="button" className={'tool-btn' + (tool === 'frame' ? ' on' : '')} data-tool="frame" data-tip="veFrameTool" aria-label="Frame" aria-pressed={tool === 'frame'} onClick={() => {
     setOpenGrp(null);
     setTool('frame');
-  }}><FrameToolGlyph /></button><span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center">{/* T9: ikon magnet digambar baru (U-magnet + ujung kutub), mengikuti gaya set ikon internal: viewBox 24, stroke, round cap/join; dirender IconBtn -> Vi. */}<IconBtn lang={lang} s={22} on={snapOn} tip="veSnap" act={() => setSnapOn(s => !s)} d="M6 6v6a6 6 0 0 0 12 0V6 M4 9.5h4 M16 9.5h4" /><button type="button" className="tool-btn chev-btn" data-tip="veSnapMenu" aria-label={L.ftSnapOpts} aria-expanded={snapMenuOpen} onClick={() => setSnapMenuOpen(o => !o)}><Chev open={snapMenuOpen} /></button></div><Float anchor={snapMenuBtn} open={snapMenuOpen} onClose={() => setSnapMenuOpen(false)} w={272} cls="cp" preferUp={true}><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold">{L.ftSnapChecklist}</span><div className="flex gap-1"><button type="button" className="ved-pill" data-tip="veSnapPresetAll" onClick={() => setSnapCfg({
+  }}><FrameToolGlyph />{mobLbl('Frame')}</button><span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center">{/* T9: ikon magnet digambar baru (U-magnet + ujung kutub), mengikuti gaya set ikon internal: viewBox 24, stroke, round cap/join; dirender IconBtn -> Vi. */}<button type="button" className={'tool-btn has-sub' + (snapOn ? ' on' : '')} data-tip="veSnap" aria-label={TT.veSnap ? TT.veSnap.t : 'Snap'} aria-expanded={isMob ? snapMenuOpen : undefined} onClick={() => {
+      if (isMob) setSnapMenuOpen(o => !o);
+      else setSnapOn(s => !s);
+    }}><Vi d="M6 6v6a6 6 0 0 0 12 0V6 M4 9.5h4 M16 9.5h4" s={isMob ? 19 : 22} />{mobLbl('Snap')}</button><button type="button" className="tool-btn chev-btn" data-tip="veSnapMenu" aria-label={L.ftSnapOpts} aria-expanded={snapMenuOpen} onClick={() => setSnapMenuOpen(o => !o)}><Chev open={snapMenuOpen} /></button></div><Float anchor={snapMenuBtn} open={snapMenuOpen} onClose={() => setSnapMenuOpen(false)} w={272} cls="cp" preferUp={true}>{isMob && <div className="pb-2 mb-2 border-b border-[var(--line)]"><button type="button" role="switch" aria-checked={snapOn} className={'snp-row' + (snapOn ? ' on' : '')} style={{ ['--c' as any]: 'var(--acc)' }} onClick={() => setSnapOn(s => !s)}><SnapIcon k="bbox" /><span className="snp-lb font-semibold">{lang === 'en' ? 'Master Snap' : 'Snap Aktif'}</span><span className="snp-sw" aria-hidden="true" /></button></div>}<div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold">{L.ftSnapChecklist}</span><div className="flex gap-1"><button type="button" className="ved-pill" data-tip="veSnapPresetAll" onClick={() => setSnapCfg({
           bbox: true,
           spacing: true,
           artboard: true,
@@ -260,17 +301,17 @@ const EditorFloatingToolbar = ({
           ...c,
           [k]: !c[k]
         }))}><SnapIcon k={k} /><span className="snp-lb">{label}{!activeInTool ? L.ftOtherTool : ''}</span><span className="snp-sw" aria-hidden="true" /></button>;
-      })}</div></Float><IconBtn lang={lang} s={22} on={gridOn} tip="veGrid" act={() => setGridOn(g => !g)} d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" /><span className="fig-bar-sep" /><div ref={mirrorBtn} className="inline-flex items-center"><button type="button" className={'tool-btn' + (mirrorCur ? ' on' : '')} disabled={!selNodes.size} data-tip="veMirror" aria-label="Mirroring Handle" aria-haspopup="listbox" aria-expanded={mirrorOpen} onClick={() => setMirrorOpen(o => !o)}><Vi d={(MIRROR_OPTS.find(q => q[0] === (mirrorCur || 'symmetric')) || MIRROR_OPTS[3])[3]} s={22} /></button><button type="button" className="tool-btn chev-btn" disabled={!selNodes.size} data-tip="veMirror" aria-label={L.ftPickMirror} aria-expanded={mirrorOpen} onClick={e => {
+      })}</div></Float><IconBtn lang={lang} label={isMob ? 'Grid' : undefined} s={isMob ? 19 : 22} on={gridOn} tip="veGrid" act={() => setGridOn(g => !g)} d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" /><span className="fig-bar-sep" /><div ref={mirrorBtn} className="inline-flex items-center"><button type="button" className={'tool-btn has-sub' + (mirrorCur ? ' on' : '')} disabled={!selNodes.size} data-tip="veMirror" aria-label="Mirroring Handle" aria-haspopup="listbox" aria-expanded={mirrorOpen} onClick={() => setMirrorOpen(o => !o)}><Vi d={(MIRROR_OPTS.find(q => q[0] === (mirrorCur || 'symmetric')) || MIRROR_OPTS[3])[3]} s={isMob ? 19 : 22} />{mobLbl('Mirror')}</button><button type="button" className="tool-btn chev-btn" disabled={!selNodes.size} data-tip="veMirror" aria-label={L.ftPickMirror} aria-expanded={mirrorOpen} onClick={e => {
       e.stopPropagation();
       setMirrorOpen(o => !o);
-    }}><Chev open={mirrorOpen} /></button></div><IconBtn lang={lang} s={22} on={curveDragOn} tip="veCurveDrag" act={() => {
+    }}><Chev open={mirrorOpen} /></button></div><IconBtn lang={lang} label={isMob ? (isEn ? 'Curve' : 'Kurva') : undefined} s={isMob ? 19 : 22} on={curveDragOn} tip="veCurveDrag" act={() => {
     const next = !curveDragOn;
     setCurveDragOn(next);
     if (next && selNodes.size) commitObjs(o => sel.objs.has(o.id) ? VE.mirrorNodes(o, selNodes, 'freeCurve', selHandles) : o);
     say(next ? 'Geser Handle Melengkung: AKTIF' : 'Geser Handle Melengkung: MATI');
   }} d="M4 17C7 7 17 7 20 17 M10 9.5a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M5 9.5h5 M14 9.5h5" /><Float anchor={mirrorBtn} open={mirrorOpen && selNodes.size > 0} onClose={() => setMirrorOpen(false)} w={268} preferUp={true}><div className="text-[11px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">Mirroring Handle</div>{MIRROR_OPTS.map(([k, tip, label, d]) => <div key={k} role="option" aria-selected={mirrorCur === k} className={'opt' + (mirrorCur === k ? ' on' : '')} data-tip={tip} onClick={() => applyMirror(k)}><span className="sel-l"><Vi d={d} s={17} /><span>{label}</span></span><svg className="ck" style={{
         opacity: mirrorCur === k ? 1 : 0
-      }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></div>)}{!mirrorCur && <div className="text-[11px] mut px-2.5 py-1">{L.ftMixed}</div>}</Float><span className="fig-bar-sep" /><IconBtn lang={lang} s={22} tip="settings" act={onSettings} d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />{onOpenCodeInspector && <button type="button" className={'tool-btn' + (isCodeInspectorOpen ? ' on' : '')} data-tip="veSvgCodeInspector" data-testid="toolbar-code" aria-label={lang === 'en' ? 'SVG Code' : 'Kode SVG'} aria-pressed={isCodeInspectorOpen} onClick={onOpenCodeInspector}><Vi d={ICONS.code} s={22} /></button>}</div>;
+      }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></div>)}{!mirrorCur && <div className="text-[11px] mut px-2.5 py-1">{L.ftMixed}</div>}</Float><span className="fig-bar-sep" /><IconBtn lang={lang} label={isMob ? (isEn ? 'Settings' : 'Setelan') : undefined} s={isMob ? 19 : 22} tip="settings" act={onSettings} d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />{onOpenCodeInspector && <button type="button" className={'tool-btn' + (isCodeInspectorOpen ? ' on' : '')} data-tip="veSvgCodeInspector" data-testid="toolbar-code" aria-label={lang === 'en' ? 'SVG Code' : 'Kode SVG'} aria-pressed={isCodeInspectorOpen} onClick={onOpenCodeInspector}><Vi d={ICONS.code} s={isMob ? 19 : 22} />{mobLbl(isEn ? 'Code' : 'Kode')}</button>}</div>;
 };
 
 export { EditorFloatingToolbar };

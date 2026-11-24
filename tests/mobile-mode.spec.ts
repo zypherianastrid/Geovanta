@@ -113,7 +113,7 @@ test.describe('Geovanta Dedicated Mobile Mode (<= 768px)', () => {
     expect(stgMetrics.left).toBeGreaterThanOrEqual(0);
     expect(stgMetrics.right).toBeLessThanOrEqual(375.5);
     expect(stgMetrics.scrollW).toBeLessThanOrEqual(stgMetrics.clientW + 2);
-    await expect(stg.locator('.abt-ver', { hasText: 'v1.2.0' })).toHaveCount(1);
+    await expect(stg.locator('.abt-ver', { hasText: 'v1.3.0' })).toHaveCount(1);
     await stg.locator('button[data-tip="closeDlg"]').click();
 
     // Check tablet portrait boundary (exact 768px)
@@ -213,8 +213,11 @@ test.describe('Geovanta Dedicated Mobile Mode (<= 768px)', () => {
     await page.getByTestId('mob-rail-btn').click();
     await expect(railSheet).toHaveCount(0);
 
-    // 4. Floating toolbar chevron popover opens clamped inside 375px viewport
-    await page.locator('.fig-floating-bar .chev-btn').first().click();
+    // 4. Floating toolbar group button tap-again popover opens clamped inside 375px viewport (chevrons hidden on mobile)
+    await expect(page.locator('.fig-floating-bar .chev-btn:visible')).toHaveCount(0);
+    const groupBtn = page.locator('.fig-floating-bar .tool-btn.has-sub').first();
+    await groupBtn.click();
+    await groupBtn.click();
     const flt = page.locator('.flt').first();
     await flt.waitFor({ state: 'visible' });
     const fltBox = await flt.boundingBox();

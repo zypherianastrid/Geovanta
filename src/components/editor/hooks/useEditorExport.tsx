@@ -11,6 +11,7 @@ import { resolveExportArea } from '../../../engine/svgDocumentSerializer.tsx';
 import { isLegacyText } from '../../../engine/legacyText.tsx';
 import { DEBUG_LOG } from '../../../utils/debugLogger.tsx';
 import { AssetManager } from '../../../workspace/assetManager.tsx';
+import { isNativeAndroid, exportBlobNative } from '../../../bridge/androidNativeBridge.ts';
 
 export interface EditorExportOptions {
   docRef: React.MutableRefObject<any>;
@@ -56,6 +57,16 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
   const expOk = () => exportArea !== 'sel' || selRef.current.objs.size > 0 || (say('Pilih objek yang akan diekspor'), false);
 
   const triggerDl = (blob: Blob, ext: string) => {
+    if (isNativeAndroid()) {
+      exportBlobNative(blob, 'geovanta-edit.' + ext, 'Geovanta Export')
+        .then(ok => {
+          if (ok) say('File siap dibagikan / disimpan');
+        })
+        .catch(() => {
+          say('Gagal mengekspor file di Android');
+        });
+      return;
+    }
     const u = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = u;

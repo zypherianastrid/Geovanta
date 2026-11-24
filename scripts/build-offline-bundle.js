@@ -8,7 +8,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const distAssets = path.join(root, 'dist', 'assets');
 const webDir = path.join(root, 'web');
-const assetNames = ['geovanta.bundle.js', 'canvaskit-runtime.js', 'canvaskit-LICENSE.txt',
+const assetNames = ['geovanta.bundle.js', 'canvaskit.js', 'canvaskit.wasm', 'canvaskit-runtime.js', 'canvaskit-LICENSE.txt',
   'text-font-runtime.js', 'IBM-Plex-LICENSE.txt'];
 
 function findEsbuild() {
@@ -22,7 +22,11 @@ function findEsbuild() {
 
 function buildCanvasKit() {
   const entry = require.resolve('canvaskit-wasm/bin/canvaskit.js');
-  const wasm = fs.readFileSync(require.resolve('canvaskit-wasm/bin/canvaskit.wasm'));
+  const wasmPath = require.resolve('canvaskit-wasm/bin/canvaskit.wasm');
+  const wasm = fs.readFileSync(wasmPath);
+  const entrySource = fs.readFileSync(entry, 'utf8');
+  fs.writeFileSync(path.join(distAssets, 'canvaskit.js'), entrySource);
+  fs.copyFileSync(wasmPath, path.join(distAssets, 'canvaskit.wasm'));
   // Supply bytes to CanvasKitInit without a fetch, including on the file:// origin.
   const loader = `
 globalThis.initGeovantaCanvasKit = function () {
@@ -34,7 +38,7 @@ globalThis.initGeovantaCanvasKit = function () {
   return CanvasKitInit({wasmBinary});
 };
 `;
-  fs.writeFileSync(path.join(distAssets, 'canvaskit-runtime.js'), fs.readFileSync(entry, 'utf8') + '\n' + loader);
+  fs.writeFileSync(path.join(distAssets, 'canvaskit-runtime.js'), entrySource + '\n' + loader);
   fs.copyFileSync(path.join(path.dirname(entry), '..', 'LICENSE'), path.join(distAssets, 'canvaskit-LICENSE.txt'));
 }
 
@@ -103,7 +107,7 @@ async function build() {
     : path.join(webDir, 'index.html');
   const html = fs.readFileSync(htmlSrcPath, 'utf8')
     .replaceAll('./dist/assets/', './assets/')
-    .replaceAll('./assets/geovanta.bundle.js', './assets/geovanta.bundle.js?v=' + bundleVer);
+    .replace(/\.\/assets\/geovanta\.bundle\.js(?:\?v=[0-9a-f]+)*/g, './assets/geovanta.bundle.js?v=' + bundleVer);
   fs.writeFileSync(path.join(webDir, 'index.html'), html);
   if (!fs.existsSync(path.join(root, 'index.html'))) {
     fs.writeFileSync(path.join(root, 'index.html'), html);

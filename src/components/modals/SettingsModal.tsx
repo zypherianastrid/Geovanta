@@ -7,7 +7,7 @@ import ReactDOM from 'react-dom';
 import { AboutVectorHeroBg, AboutAnimatedLogo } from './AboutVectorHeroBg.tsx';
 import { RENDER_CONFIG, updateRenderConfig, PERF_TELEMETRY } from '../../utils/renderConfigAndTelemetry.tsx';
 import { usePresence } from '../../utils/presenceAndFilePicker.tsx';
-import { applyTheme, applyMotion, applyAccent, previewAccent, savePrefs, detectSystemAccentColor, resolveSystemAccentColorAsync, generateRandomAccentColor } from '../../utils/themeAndPrefsManager.tsx';
+import { applyTheme, applyMotion, applyAccent, previewAccent, savePrefs, detectSystemAccentColor, resolveSystemAccentColorAsync, generateRandomAccentColor, getAccentPlatformSource } from '../../utils/themeAndPrefsManager.tsx';
 import { LS_KEY, DEFAULT_PREFS, ACCENT_PALETTE } from '../../constants/themeAndPrefsConstants.tsx';
 import { GEOMETRY_CACHE } from '../../renderer/geometryCache.tsx';
 import { Ico, Keys } from '../ui/IconGlyphs.tsx';
@@ -251,6 +251,14 @@ const Settings = ({
     hits: 0,
     misses: 0
   };
+  const platform = getAccentPlatformSource();
+  const platformIcon: 'windows' | 'sparkle' | 'auto' =
+    platform === 'desktop_windows' ? 'windows' :
+    platform === 'mobile_android_material_you' ? 'sparkle' :
+    'auto';
+  const autoAccentLabel = L.accentSystemAuto || 'Otomatis';
+  const autoAccentSub = L.accentSystemAutoSub || (prefs.lang === 'en' ? 'Follow browser or system accent color automatically' : 'Mengikuti warna aksen browser atau sistem secara otomatis');
+  const platformSubText = `${autoAccentSub} (${sysAccentHex.toUpperCase()})`;
   return ReactDOM.createPortal(<div className={'ov ' + (lv ? 'out' : 'in')} onPointerDown={e => {
     if (e.target === e.currentTarget) onClose();
   }}><div className="hp stg-modal" role="dialog" aria-label={L.title} style={{
@@ -270,7 +278,7 @@ const Settings = ({
         }}><div className="stg-sec"><div className="stg-sec-hdr"><span className="stg-sec-lbl"><Ico n="palette" size={13} /><span>{L.secAppearance}</span></span><span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{
                 background: 'var(--fig-sel)',
                 color: 'var(--acc)'
-              }}>{prefs.accentMode === 'system' ? `${L.accentSystemWin} · ` : ''}{(prefs.accent || '#13b152').toUpperCase()}</span></div><div className="stg-group"><div className="stg-row" data-tip="setTheme"><div className="stg-meta"><span className="stg-ico"><Ico n="eye" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.themeLabel}</span><span className="stg-sub">{L.themeSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.theme} on={set('theme')} o={[['system', L.themeSystem], ['light', L.themeLight], ['dark', L.themeDark]]} tip="setTheme" /></div></div><div className="stg-row" data-tip="setLang"><div className="stg-meta"><span className="stg-ico"><Ico n="flow" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.langLabel}</span><span className="stg-sub">{L.langSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.lang === 'en' ? 'en' : 'id'} on={set('lang')} o={[['id', 'Indonesia'], ['en', 'English']]} tip="setLang" /></div></div><div className="stg-row-col"><div className="flex flex-wrap items-center justify-between gap-2"><div className="stg-meta"><span className="stg-ico"><Ico n="brush" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.accentLabel}</span><span className="stg-sub">{L.accentSub}</span></div></div><div className="stg-ctrl" style={{
+              }}>{prefs.accentMode === 'system' ? `${autoAccentLabel} · ` : ''}{(prefs.accent || '#13b152').toUpperCase()}</span></div><div className="stg-group"><div className="stg-row" data-tip="setTheme"><div className="stg-meta"><span className="stg-ico"><Ico n="eye" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.themeLabel}</span><span className="stg-sub">{L.themeSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.theme} on={set('theme')} o={[['system', L.themeSystem], ['light', L.themeLight], ['dark', L.themeDark]]} tip="setTheme" /></div></div><div className="stg-row" data-tip="setLang"><div className="stg-meta"><span className="stg-ico"><Ico n="flow" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.langLabel}</span><span className="stg-sub">{L.langSub}</span></div></div><div className="stg-ctrl"><Seg v={prefs.lang === 'en' ? 'en' : 'id'} on={set('lang')} o={[['id', 'Indonesia'], ['en', 'English']]} tip="setLang" /></div></div><div className="stg-row-col"><div className="flex flex-wrap items-center justify-between gap-2"><div className="stg-meta"><span className="stg-ico"><Ico n="brush" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.accentLabel}</span><span className="stg-sub">{L.accentSub}</span></div></div><div className="stg-ctrl" style={{
                       alignItems: 'flex-start'
                     }}><ColorField L={getAppStr(prefs && prefs.lang)} value={prefs.accent || '#13b152'} on={(v, meta) => {
                       if (v && v !== 'none') {
@@ -297,10 +305,10 @@ const Settings = ({
                       height: 30,
                       padding: '0 10px',
                       borderRadius: 9
-                    }} onClick={() => setAccentCustom('#13b152')}><Ico n="reset" size={13} /><span>{L.defaultBtn}</span></button></div></div><div className="stg-pal-wrap"><button type="button" data-testid="accent-system-windows" className={'stg-pal-chip' + (prefs.accentMode === 'system' ? ' on' : '')} data-tip-text={`${L.accentSystemWinSub} (${sysAccentHex.toUpperCase()})`} onClick={setAccentSystem}><span className="stg-pal-dot" style={{
+                    }} onClick={() => setAccentCustom('#13b152')}><Ico n="reset" size={13} /><span>{L.defaultBtn}</span></button></div></div><div className="stg-pal-wrap"><button type="button" data-testid="accent-system-auto accent-system-windows" data-platform-source={platform} className={'stg-pal-chip' + (prefs.accentMode === 'system' ? ' on' : '')} data-tip-text={platformSubText} onClick={setAccentSystem}><span className="stg-pal-dot" style={{
                         background: sysAccentHex,
                         forcedColorAdjust: 'none'
-                      }}>{prefs.accentMode === 'system' && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><Ico n="windows" size={12} /><span>{L.accentSystemWin}</span></button>{ACCENT_PALETTE.map(([hex, name]) => {
+                      }}>{prefs.accentMode === 'system' && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><Ico n={platformIcon} size={12} /><span>{autoAccentLabel}</span></button>{ACCENT_PALETTE.map(([hex, name]) => {
                     const active = prefs.accentMode !== 'system' && (prefs.accent || '#13b152').toLowerCase() === hex.toLowerCase();
                     return <button key={hex} type="button" className={'stg-pal-chip' + (active ? ' on' : '')} data-tip-text={name + ' (' + hex.toUpperCase() + ')'} onClick={() => setAccentCustom(hex)}><span className="stg-pal-dot" style={{
                         background: hex,

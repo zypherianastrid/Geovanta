@@ -27,6 +27,7 @@ export interface MobileEditorTopBarProps {
   onToggleRight: () => void;
   railOpen: boolean;
   onToggleRail: () => void;
+  onQuickExport?: () => void;
   selCount?: number;
 }
 
@@ -51,6 +52,7 @@ const MobileEditorTopBar: React.FC<MobileEditorTopBarProps> = ({
   onToggleRight,
   railOpen,
   onToggleRail,
+  onQuickExport,
   selCount = 0,
 }) => {
   const isEn = lang === 'en';
@@ -119,6 +121,18 @@ const MobileEditorTopBar: React.FC<MobileEditorTopBarProps> = ({
         >
           {zoomText}
         </button>
+        {onQuickExport && (
+          <button
+            type="button"
+            className="mob-top-btn mob-export-btn"
+            data-testid="mob-export-btn"
+            aria-label={isEn ? 'Export' : 'Ekspor'}
+            onClick={onQuickExport}
+          >
+            <Ico n="download" size={14} />
+            <span>{isEn ? 'Export' : 'Ekspor'}</span>
+          </button>
+        )}
         <button
           type="button"
           className={'mob-top-btn' + (railOpen ? ' on' : '')}

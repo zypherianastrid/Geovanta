@@ -452,7 +452,15 @@ class SceneRenderer {
   drawFrame() {
     const start = performance.now();
     const {width, height} = this.camera;
-    const dpr = Math.min(window.devicePixelRatio || 1, RENDER_CONFIG.maxRenderDpr);
+    const isObjectDragging = Boolean(this.dragOffset && this.dragOffset.ids && this.dragOffset.ids.size > 0);
+    const interacting = Boolean(this.cameraInteracting || this.sceneInteracting || isObjectDragging);
+    const interactiveCap = interacting && ACTIVE_DEVICE_PROFILE?.interactiveDprCap
+      ? ACTIVE_DEVICE_PROFILE.interactiveDprCap
+      : null;
+    const targetMaxDpr = interactiveCap != null
+      ? Math.min(RENDER_CONFIG.maxRenderDpr, interactiveCap)
+      : RENDER_CONFIG.maxRenderDpr;
+    const dpr = Math.min(window.devicePixelRatio || 1, targetMaxDpr);
     const {pw, ph, effectiveDpr, maxSide, maxPixels} = computeSafeFramebufferSize(width, height, dpr, ACTIVE_DEVICE_PROFILE);
     const {scene} = this;
     this.ensureSurface(pw, ph);
@@ -468,8 +476,6 @@ class SceneRenderer {
     this._lastFramePreserveAntiSeam = preserveAntiSeam;
     const background = this.bg.mode === 'solid' ? this.bg.color || '#ffffff' : null;
     const smoothEdges = true;
-    const isObjectDragging = Boolean(this.dragOffset && this.dragOffset.ids && this.dragOffset.ids.size > 0);
-    const interacting = Boolean(this.cameraInteracting || this.sceneInteracting || isObjectDragging);
     const canvas = this.surface.getCanvas();
     const objCount = this.doc.objects?.length || 0;
     const isGpu = this.backend === 'CanvasKit GPU';

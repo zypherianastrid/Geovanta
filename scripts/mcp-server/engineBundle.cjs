@@ -1016,6 +1016,7 @@ var DEVICE_PROFILES = {
   "low-mobile": {
     tier: "low-mobile",
     maxDpr: 1.5,
+    interactiveDprCap: 1,
     maxBackingPixels: 4e6,
     // 4 MP
     maxExportPixels: 16777216,
@@ -1031,6 +1032,7 @@ var DEVICE_PROFILES = {
   "mid-mobile": {
     tier: "mid-mobile",
     maxDpr: 2,
+    interactiveDprCap: 1.15,
     maxBackingPixels: 8e6,
     // 8 MP
     maxExportPixels: 33554432,
@@ -1043,9 +1045,26 @@ var DEVICE_PROFILES = {
     maxHistoryBytes: 20 * 1024 * 1024,
     targetPixelError: 0.28
   },
+  "android-high": {
+    tier: "android-high",
+    maxDpr: 2,
+    interactiveDprCap: 1.25,
+    maxBackingPixels: 6e6,
+    // 6 MP
+    maxExportPixels: 33554432,
+    // 32 MP
+    maxExportDimension: 6144,
+    maxVerticesPerObject: 32768,
+    maxVerticesPerFrame: 22e4,
+    maxGeometryCacheBytes: 24 * 1024 * 1024,
+    maxImageCachePixels: 2e7,
+    maxHistoryBytes: 16 * 1024 * 1024,
+    targetPixelError: 0.28
+  },
   "desktop": {
     tier: "desktop",
     maxDpr: 2,
+    interactiveDprCap: null,
     maxBackingPixels: 16e6,
     // 16 MP
     maxExportPixels: 67108864,
@@ -1061,6 +1080,7 @@ var DEVICE_PROFILES = {
   "high-memory": {
     tier: "high-memory",
     maxDpr: 2.5,
+    interactiveDprCap: null,
     maxBackingPixels: 24e6,
     // 24 MP
     maxExportPixels: 67108864,
@@ -1076,6 +1096,7 @@ var DEVICE_PROFILES = {
   "battery-saver": {
     tier: "battery-saver",
     maxDpr: 1.25,
+    interactiveDprCap: 1,
     maxBackingPixels: 3e6,
     // 3 MP
     maxExportPixels: 16777216,
@@ -1089,17 +1110,32 @@ var DEVICE_PROFILES = {
     targetPixelError: 0.4
   }
 };
-var detectDeviceProfile = (overrideTier = null) => {
+var detectDeviceProfile = (overrideTier = null, envOverride = null) => {
   if (overrideTier && DEVICE_PROFILES[overrideTier]) return { ...DEVICE_PROFILES[overrideTier] };
   const nav = typeof navigator !== "undefined" ? navigator : {};
-  const memory = Number(nav.deviceMemory) || 4;
-  const cores = Number(nav.hardwareConcurrency) || 4;
+  const env = envOverride || {};
+  const memory = Number(env.deviceMemory ?? nav.deviceMemory) || 4;
+  const cores = Number(env.hardwareConcurrency ?? nav.hardwareConcurrency) || 4;
+  const maxTouchPoints = Number(env.maxTouchPoints ?? nav.maxTouchPoints) || 0;
+  const ua = String(env.userAgent ?? nav.userAgent ?? "");
+  const isCapacitorNative = Boolean(
+    env.isCapacitorNative ?? (typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.())
+  );
+  const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const isCoarse = Boolean(
+    env.isCoarsePointer ?? (typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches)
+  );
+  const isMobileDevice = isCapacitorNative || isMobileUa || maxTouchPoints > 0 && isCoarse;
   let tier = "desktop";
   if (memory <= 2 || cores <= 2) tier = "low-mobile";
-  else if (nav.maxTouchPoints > 0 && (memory <= 4 || cores <= 4)) tier = "mid-mobile";
+  else if (isMobileDevice && (memory <= 4 || cores <= 4)) tier = "mid-mobile";
+  else if (isMobileDevice) tier = "android-high";
   return { ...DEVICE_PROFILES[tier] };
 };
 var ACTIVE_DEVICE_PROFILE = detectDeviceProfile();
+if (typeof window !== "undefined") {
+  window.__geovantaDeviceProfile = ACTIVE_DEVICE_PROFILE;
+}
 
 // src/utils/renderConfigAndTelemetry.tsx
 var _initDevProf = typeof ACTIVE_DEVICE_PROFILE !== "undefined" && ACTIVE_DEVICE_PROFILE ? ACTIVE_DEVICE_PROFILE : {

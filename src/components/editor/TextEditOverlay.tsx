@@ -113,6 +113,11 @@ export const TextEditOverlay = forwardRef<TextEditViewport, TextEditOverlayProps
     ? `"${activeFamily}", "${spec.fontFamily}", sans-serif`
     : `"${spec.fontFamily}", "IBM Plex Sans", sans-serif`;
 
+  const isMobile = typeof document !== 'undefined' && (
+    document.documentElement.dataset.mobile === '1' ||
+    (typeof window !== 'undefined' && window.innerWidth <= 800)
+  );
+
   return (
     <div
       data-testid="text-edit-overlay"
@@ -232,6 +237,29 @@ export const TextEditOverlay = forwardRef<TextEditViewport, TextEditOverlayProps
           />
         ))}
       </div>
+      {isMobile && (
+        <div
+          data-testid="text-edit-accessory-bar"
+          className="mob-text-accessory-bar fade"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-semibold mut px-1">Teks</span>
+            <span className="text-[11px] mut font-mono">{value.length} kar</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="text-edit-done-btn"
+              className="btn pri mob-text-done-btn"
+              onClick={finish}
+            >
+              ✓ Selesai
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

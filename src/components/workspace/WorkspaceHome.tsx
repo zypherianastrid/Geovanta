@@ -297,7 +297,21 @@ const WorkspaceHome = ({
                         setOpenMenuId(null);
                         setDeleteTarget(proj);
                       }}><Ico n="x" size={13} /><span>Delete Permanently</span></button></div>}</div></div><div className="ws-card-meta"><span>{L.wsEdited.replace('{d}', formatDateRel(proj.updatedAt, lang))}</span><span>·</span><span className="font-mono">{formatBytes(proj.storageSize || 0)}</span><span>·</span><span className="font-mono">v{proj.revision || 1}</span></div></div></div>;
-          })}</div>}</main></div>{createModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
+          })}</div>}</main></div>{navTab !== 'trash' && (
+      <button
+        type="button"
+        className="mob-home-fab"
+        data-testid="mob-home-fab"
+        aria-label={L.wsCreateProject || 'Create New Project'}
+        onClick={() => {
+          setNewProjName('Untitled Project');
+          setCreateModalOpen(true);
+        }}
+      >
+        <Ico n="plus" size={22} />
+        <span>{lang === 'en' ? 'New' : 'Baru'}</span>
+      </button>
+    )}{createModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
       if (e.target === e.currentTarget) setCreateModalOpen(false);
     }}><div className="hp" role="dialog" aria-label={L.wsCreateAria} style={{
         maxWidth: 440

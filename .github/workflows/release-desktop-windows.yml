@@ -1,4 +1,4 @@
-name: Release Desktop Windows
+name: Release Desktop Windows & Android
 
 on:
   push:
@@ -7,15 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to build and attach Windows installers to (e.g. v1.2.0)'
+        description: 'Release tag to build and attach Windows installers and Android APK to (e.g. v1.3.0)'
         required: true
-        default: 'v1.2.0'
+        default: 'v1.3.0'
 
 permissions:
   contents: write
 
 jobs:
-  build-windows-desktop:
+  build-and-release:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -28,6 +28,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Setup Java JDK 21 for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Setup Rust stable (MSVC x64)
         uses: dtolnay/rust-toolchain@stable
@@ -43,7 +49,18 @@ jobs:
           node scripts/build-offline-bundle.js
           npx tauri build --target x86_64-pc-windows-msvc
 
-      - name: Upload Windows installers to GitHub Release
+      - name: Build Android APK
+        shell: pwsh
+        run: |
+          npx cap sync android
+          Push-Location android
+          try {
+            .\gradlew.bat assembleDebug --no-daemon
+          } finally {
+            Pop-Location
+          }
+
+      - name: Upload Windows installers and Android APK to GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,7 +69,8 @@ jobs:
           $ver = $tag.TrimStart('v')
           $nsisSrc = Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*.exe" | Select-Object -First 1
           $msiSrc = Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi" | Select-Object -First 1
-          $outDir = "dist\release-win"
+          $apkSrc = "android\app\build\outputs\apk\debug\app-debug.apk"
+          $outDir = "dist\release-assets"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
           $assets = @()
           if ($nsisSrc) {
@@ -65,12 +83,17 @@ jobs:
             Copy-Item $msiSrc.FullName $msiDst -Force
             $assets += $msiDst
           }
+          if (Test-Path $apkSrc) {
+            $apkDst = Join-Path $outDir "Geovanta-v${ver}-android.apk"
+            Copy-Item $apkSrc $apkDst -Force
+            $assets += $apkDst
+          }
           if ($assets.Count -eq 0) {
-            throw "No Windows desktop installers found after tauri build."
+            throw "No release artifacts found."
           }
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag @assets --clobber
           } else {
-            gh release create $tag @assets --title "Geovanta Vector Editor $tag" --notes "Official Windows 64-bit installers for $tag"
+            gh release create $tag @assets --title "Geovanta Vector Editor $tag" --notes "Official Windows 64-bit installers (.exe, .msi) and Android APK (.apk) for $tag"
           }

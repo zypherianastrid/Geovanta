@@ -5,6 +5,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.3.0] — 2026-11-24
+
+### Added
+- **Multi-Platform Automatic Accent Color ("Otomatis" / "Automatic System") (`themeAndPrefsManager.tsx`, `SettingsModal.tsx`, `settingsI18n.tsx`)**:
+  - Replaced the platform-specific "Sistem Windows" option with universal **"Otomatis"** (Indonesian) / **"Automatic System"** (English).
+  - **Web App (Google Chrome / modern browsers)**: Accurately mirrors browser theme accents via CSS `AccentColor`. If Chrome is set to default device mode, it dynamically tracks the host OS accent color.
+  - **Desktop Windows (EXE / Tauri)**: Preserves native Windows 10/11 DWM registry accent extraction via Tauri bridge (`get_windows_accent_color`).
+  - **Mobile Android**: Dynamically links to Android 12+ **Material You Dynamic Color** (Monet engine) through Chromium WebView CSS `AccentColor` mapping and native bridge hooks.
+  - Live listener synchronizes accent color on browser focus and OS scheme switches without requiring page reload.
+- **Android Native Mobile UI/UX & Performance Overhaul (`androidNativeBridge.ts`, `mobileStyles.ts`, `MobileBottomSheet.tsx`, `MobileSelectionActionBar.tsx`)**:
+  - **Performance & Streaming**: Deferred font & CanvasKit streaming; initial Workspace load skips WASM overhead; adaptive DPR (`android-high`) locks 60fps rendering.
+  - **Capacitor 7 Native Bridge**: Hardware Back button navigation hierarchy (sheets → modals → workspace), tactile haptic feedback on long-press & snap, dynamic soft-keyboard inset metrics (`--android-kb-height`), dark/light StatusBar synchronization, and native SVG/PNG export to Android cache with system Share sheet.
+  - **Touch Ergonomics & Gestures**: Standardized touch targets (`≥ 44–48dp`), enlarged `12px` selection corner handles, 2-finger tap Undo & 3-finger tap Redo, and full landscape support down to `800×360`.
+  - **Touch-Optimized UI & Sheets**: Material 3 Action Sheet context menu, floating selection bar, draggable bottom sheet inspector, Home screen FAB `+ Baru`, Mobile Color Picker drawer with 14 preset palette, Text Edit Keyboard Accessory Bar (`✓ Selesai`), floating Pen/Node action pills, Multi-Select toggle `☷ Multi`, 48px Layer Tree items with drag handle `≡` and menu `⋮`, and 3 quick Auto-Trace presets with collapsible advanced options.
+- **Automated Multi-Platform Release Pipeline (`release-desktop-windows.yml`, `build-android-apk.ps1`)**:
+  - Configured GitHub Actions and local Gradle pipeline to package and release both Windows 64-bit installers (`.exe` NSIS, `.msi`) and standalone Android APK (`Geovanta-v1.3.0-android.apk`, 13.79 MB).
+
+### Changed
+- Bumped application version to **`v1.3.0`** across `package.json`, `src-tauri/tauri.conf.json`, `android/app/build.gradle` (`versionCode 3`, `versionName 1.3.0`), `src/constants/settingsI18n.tsx` (`SETTINGS_STR.id.version` & `SETTINGS_STR.en.version`), `scripts/build-android-apk.ps1`, `README.md`, and `README.id.md`.
+
+---
+
 ## [1.2.0] — 2026-11-24
 
 ### Added

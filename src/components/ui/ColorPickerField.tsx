@@ -28,6 +28,11 @@ export interface ColorFieldProps {
   label?: string;
 }
 
+const CP_PRESETS = [
+  '#ffffff', '#e2e8f0', '#94a3b8', '#475569', '#1e293b', '#000000',
+  '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'
+];
+
 /* Pemilih warna kustom lengkap: SV area, Hue slider, Slider Transparansi (0-100%), Hapus Warna (No Color), Hex & Opacity CustomTextBox, dan Eye Color Dropper */
 const ColorField: React.FC<ColorFieldProps> = ({
   value,
@@ -292,7 +297,7 @@ const ColorField: React.FC<ColorFieldProps> = ({
          snapshot (guard `hexEditRef`) lalu Esc mengembalikan warna basi. */
       hexPrevRef.current = null;
       hexEditRef.current = false;
-    }} w={276} cls="cp"><div ref={sv} className="sv" data-tip="cpSV" style={{
+    }} w={276} cls="cp"><div className="cp-mob-header"><span className="cp-mob-handle" /><div className="cp-mob-title-row"><span className="cp-mob-title">{LL.cpTitle || 'Pilih Warna'}</span><button type="button" className="cp-mob-close" onClick={() => setOpen(false)} aria-label="Tutup">✕</button></div></div><div ref={sv} className="sv" data-tip="cpSV" style={{
         background: `linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,${hsv2hex(hsv[0], 1, 1)})`
       }} onPointerDown={svDown} onPointerMove={svMove} onPointerUp={svUp} onPointerCancel={svUp}><div className={'sv-h' + (drg ? ' drag' : '')} style={{
           left: hsv[1] * 100 + '%',
@@ -323,7 +328,18 @@ const ColorField: React.FC<ColorFieldProps> = ({
           color: 'var(--danger)',
           fontSize: 11,
           marginTop: 6
-        }}>{hexHint}</div>}<div className="cp-act-bar"><button type="button" className={'cp-act-btn' + (isNone || alpha <= 0 ? ' on' : '')} onClick={clearColor} data-tip="veNoColor"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg><span>{LL.cpNoColor}</span></button><button type="button" className={'cp-act-btn' + (pk ? ' on' : '')} onClick={pipe} data-tip="cpPipette"><Ico n="pipette" size={13} /><span>{LL.cpPipette}</span></button></div><div className="cp-act-bar" style={{ marginTop: 6, paddingTop: 6 }}><button type="button" className="cp-act-btn" data-testid="cp-copy-btn" data-tip="veCopyColor" data-copied={copyFb.status === 'copied' ? '' : undefined} aria-label={LL.cpCopyColorAria || LL.cpCopy} onClick={copyColor}><Ico n={copyFb.status === 'copied' ? 'check' : 'copy'} size={13} /><span>{LL.cpCopy || 'Salin'}</span></button><button type="button" className="cp-act-btn" data-testid="cp-paste-btn" data-tip="vePasteColor" aria-label={LL.cpPasteColorAria || LL.cpPaste} onClick={pasteColor}><Ico n="paste" size={13} /><span>{LL.cpPaste || 'Tempel'}</span></button><span role="status" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0.001, pointerEvents: 'none' }}>{copyFb.liveMsg}</span></div></Float></div>;
+        }}>{hexHint}</div>}<div className="cp-act-bar"><button type="button" className={'cp-act-btn' + (isNone || alpha <= 0 ? ' on' : '')} onClick={clearColor} data-tip="veNoColor"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg><span>{LL.cpNoColor}</span></button><button type="button" className={'cp-act-btn' + (pk ? ' on' : '')} onClick={pipe} data-tip="cpPipette"><Ico n="pipette" size={13} /><span>{LL.cpPipette}</span></button></div><div className="cp-act-bar" style={{ marginTop: 6, paddingTop: 6 }}><button type="button" className="cp-act-btn" data-testid="cp-copy-btn" data-tip="veCopyColor" data-copied={copyFb.status === 'copied' ? '' : undefined} aria-label={LL.cpCopyColorAria || LL.cpCopy} onClick={copyColor}><Ico n={copyFb.status === 'copied' ? 'check' : 'copy'} size={13} /><span>{LL.cpCopy || 'Salin'}</span></button><button type="button" className="cp-act-btn" data-testid="cp-paste-btn" data-tip="vePasteColor" aria-label={LL.cpPasteColorAria || LL.cpPaste} onClick={pasteColor}><Ico n="paste" size={13} /><span>{LL.cpPaste || 'Tempel'}</span></button><span role="status" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0.001, pointerEvents: 'none' }}>{copyFb.liveMsg}</span></div><div className="cp-presets-grid" data-testid="cp-presets-grid">{CP_PRESETS.map(hex => <button key={hex} type="button" className="cp-preset-chip" style={{ background: hex }} aria-label={`Preset ${hex}`} data-hex={hex} onClick={() => {
+        const nextA = alpha <= 0 ? 1 : alpha;
+        setHsv(hex2hsv(hex));
+        setAlpha(nextA);
+        setHx(null);
+        if (onOpacity) {
+          if (alpha <= 0) onOpacity(1);
+          out(hex);
+        } else {
+          out(formatColorWithAlpha(hex, nextA));
+        }
+      }} />)}</div></Float></div>;
 };
 
 export { ColorField };

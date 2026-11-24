@@ -6,8 +6,23 @@ import { LS_KEY, DEFAULT_PREFS } from '../constants/themeAndPrefsConstants.tsx';
 import { updateRenderConfig } from './renderConfigAndTelemetry.tsx';
 import { hex2hsv, hsv2hex } from './colorMath.tsx';
 import { isTauriDesktop, invokeTauriCommand } from '../vendor/tauriDesktopBridge.tsx';
+import { isNativeAndroid } from '../bridge/androidNativeBridge.ts';
 
 let _lastSysAccent = '#0078d4';
+
+export type AccentPlatformSource = 'desktop_windows' | 'mobile_android_material_you' | 'webapp_browser_chrome';
+
+/**
+ * Mendeteksi platform eksekusi untuk resolusi warna aksen otomatis:
+ * - desktop_windows: Tauri x64 Desktop EXE (mengikuti aksen Windows DWM)
+ * - mobile_android_material_you: Android Native Capacitor / WebView (mengikuti Material You Dynamic Color)
+ * - webapp_browser_chrome: Web Browser / Google Chrome (mengikuti tema/aksen browser Chrome, atau sistem OS jika Chrome di-set otomatis)
+ */
+const getAccentPlatformSource = (): AccentPlatformSource => {
+  if (isTauriDesktop()) return 'desktop_windows';
+  if (isNativeAndroid()) return 'mobile_android_material_you';
+  return 'webapp_browser_chrome';
+};
 
 const parseComputedCssColorToHex = (cssColor: string): string | null => {
   const s = String(cssColor || '').trim();
@@ -48,22 +63,43 @@ const probeCssSystemColor = (keyword: string): string | null => {
   }
 };
 
-const detectSystemAccentColor = (): string => {
-  if (typeof document === 'undefined') return _lastSysAccent || '#0078d4';
+/**
+ * Resolusi aksen Material You dinamis di Android (API 31+):
+ * WebView Chromium secara native memetakan CSS AccentColor ke system_accent1_600.
+ * Mendukung override diagnostik untuk pengujian otomatis.
+ */
+const detectAndroidMaterialYouAccent = (): string => {
+  if (typeof window !== 'undefined' && (window as any).__geovantaAndroidMaterialYouColor) {
+    const ov = (window as any).__geovantaAndroidMaterialYouColor;
+    if (typeof ov === 'string' && /^#[0-9a-f]{6}$/i.test(ov)) return ov.toLowerCase();
+  }
   const fromAccent = probeCssSystemColor('AccentColor');
-  if (fromAccent) {
-    _lastSysAccent = fromAccent;
-    return fromAccent;
-  }
-  const fromHighlight = probeCssSystemColor('Highlight');
-  if (fromHighlight) {
-    _lastSysAccent = fromHighlight;
-    return fromHighlight;
-  }
-  return _lastSysAccent || '#0078d4';
+  if (fromAccent) return fromAccent;
+  return '#006a6a'; // Standar Material 3 Dynamic Teal/Primary
 };
 
-const resolveSystemAccentColorAsync = async (): Promise<string> => {
+/**
+ * Resolusi aksen Web App (Google Chrome / modern browsers):
+ * Di Google Chrome, CSS AccentColor memantulkan warna tema browser yang dipilih pengguna.
+ * Jika Chrome diatur "Otomatis / Ikuti Perangkat", AccentColor otomatis memantulkan aksen OS sistem.
+ */
+const detectWebBrowserAccent = (): string => {
+  if (typeof window !== 'undefined' && (window as any).__geovantaWebBrowserAccentColor) {
+    const ov = (window as any).__geovantaWebBrowserAccentColor;
+    if (typeof ov === 'string' && /^#[0-9a-f]{6}$/i.test(ov)) return ov.toLowerCase();
+  }
+  const fromAccent = probeCssSystemColor('AccentColor');
+  if (fromAccent) return fromAccent;
+  const fromHighlight = probeCssSystemColor('Highlight');
+  if (fromHighlight) return fromHighlight;
+  return '#0d99ff'; // Default aksen browser (Chrome/Figma Blue)
+};
+
+/**
+ * Resolusi aksen desktop Windows (Tauri Desktop App / EXE):
+ * Mengambil nilai aksen sistem Windows dari DWM Registry via Tauri bridge.
+ */
+const detectDesktopWindowsAccent = async (): Promise<string> => {
   if (isTauriDesktop()) {
     try {
       const winColor = await invokeTauriCommand('get_windows_accent_color');
@@ -73,7 +109,47 @@ const resolveSystemAccentColorAsync = async (): Promise<string> => {
       }
     } catch (e) {}
   }
-  return detectSystemAccentColor();
+  const fromAccent = probeCssSystemColor('AccentColor');
+  if (fromAccent) return fromAccent;
+  const fromHighlight = probeCssSystemColor('Highlight');
+  if (fromHighlight) return fromHighlight;
+  return _lastSysAccent || '#0078d4'; // Windows Blue
+};
+
+/**
+ * Deteksi sinkron langsung warna aksen otomatis sesuai platform saat ini.
+ */
+const detectSystemAccentColor = (): string => {
+  if (typeof document === 'undefined') return _lastSysAccent || '#0078d4';
+  const platform = getAccentPlatformSource();
+  if (platform === 'mobile_android_material_you') {
+    const col = detectAndroidMaterialYouAccent();
+    _lastSysAccent = col;
+    return col;
+  }
+  if (platform === 'webapp_browser_chrome') {
+    const col = detectWebBrowserAccent();
+    _lastSysAccent = col;
+    return col;
+  }
+  // desktop_windows fallback
+  const fromAccent = probeCssSystemColor('AccentColor') || probeCssSystemColor('Highlight') || _lastSysAccent || '#0078d4';
+  _lastSysAccent = fromAccent;
+  return fromAccent;
+};
+
+/**
+ * Resolusi asinkron warna aksen otomatis (menunggu Tauri bridge bila berjalan di Desktop EXE).
+ */
+const resolveSystemAccentColorAsync = async (): Promise<string> => {
+  const platform = getAccentPlatformSource();
+  if (platform === 'desktop_windows') {
+    return await detectDesktopWindowsAccent();
+  }
+  if (platform === 'mobile_android_material_you') {
+    return detectAndroidMaterialYouAccent();
+  }
+  return detectWebBrowserAccent();
 };
 
 const generateRandomAccentColor = (excludeHex?: string): string => {
@@ -231,4 +307,16 @@ const readLangPref = () => {
   }
 };
 
-export { applyAccent, previewAccent, loadPrefs, savePrefs, applyTheme, applyMotion, readLangPref, detectSystemAccentColor, resolveSystemAccentColorAsync, generateRandomAccentColor };
+export {
+  applyAccent,
+  previewAccent,
+  loadPrefs,
+  savePrefs,
+  applyTheme,
+  applyMotion,
+  readLangPref,
+  detectSystemAccentColor,
+  resolveSystemAccentColorAsync,
+  generateRandomAccentColor,
+  getAccentPlatformSource
+};

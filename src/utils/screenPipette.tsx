@@ -88,14 +88,22 @@ const pagePipette = () => new Promise(res => {
     ov = document.createElement('div'),
     ring = document.createElement('div'),
     chip = document.createElement('div'),
-    hint = document.createElement('div');
+    hint = document.createElement('div'),
+    cancelBtn = document.createElement('button');
   ov.className = 'pip-ov';
   ring.className = 'pip-ring';
   chip.className = 'pip-chip';
   hint.className = 'pip-hint';
+  cancelBtn.className = 'pip-cancel-btn';
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = '✕ Batal';
+  cancelBtn.setAttribute('data-testid', 'pipette-cancel-btn');
+  cancelBtn.style.cssText = 'position:fixed;top:18px;right:18px;z-index:100001;min-height:44px;padding:8px 18px;border-radius:999px;background:rgba(15,23,42,0.85);color:#fff;border:1px solid rgba(255,255,255,0.2);font-weight:600;font-size:13px;cursor:pointer;backdrop-filter:blur(8px);';
+  cancelBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); done(null); });
+  cancelBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); done(null); });
   chip.innerHTML = '<i></i><span>—</span>';
   hint.textContent = 'Klik di kanvas/layar untuk mengambil warna · Esc untuk batal';
-  ov.append(ring, chip, hint);
+  ov.append(ring, chip, hint, cancelBtn);
   host.appendChild(ov);
   let cur = null;
   const upd = e => {

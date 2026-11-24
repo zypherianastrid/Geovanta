@@ -6,7 +6,9 @@ import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { usePresence } from '../../utils/presenceAndFilePicker.tsx';
 import { clampN } from '../../utils/colorMath.tsx';
-import { Vi } from './IconGlyphs.tsx';
+import { Vi, Ico } from './IconGlyphs.tsx';
+
+const QUICK_KEYS = new Set(['copy', 'paste', 'dup', 'del']);
 
 const CtxMenu = ({
   menu,
@@ -28,10 +30,16 @@ const CtxMenu = ({
   const L = last.current;
   useLayoutEffect(() => {
     if (!m || !L || !ref.current) return;
-    const isMob = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const isMob =
+      (typeof document !== 'undefined' && document.documentElement.getAttribute('data-mobile') === '1') ||
+      (typeof window !== 'undefined' && window.innerWidth <= 768);
+    if (isMob) {
+      setPos({ left: 0, top: 0, ox: 0, oy: 0 });
+      return;
+    }
     const el = ref.current,
       w = Math.min(el.offsetWidth, Math.max(160, innerWidth - 16)),
-      h = Math.min(el.offsetHeight, isMob ? Math.round(innerHeight * 0.65) : innerHeight - 16),
+      h = Math.min(el.offsetHeight, innerHeight - 16),
       left = clampN(L.x, 8, Math.max(8, innerWidth - w - 8)),
       flip = L.y + h > innerHeight - 8,
       top = clampN(flip ? L.y - h : L.y, 8, Math.max(8, innerHeight - h - 8));
@@ -95,15 +103,105 @@ const CtxMenu = ({
     };
   }, [!!menu]);
   if (!m || !L) return null;
-  const isMobMenu = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const isMobMenu =
+    (typeof document !== 'undefined' && document.documentElement.getAttribute('data-mobile') === '1') ||
+    (typeof window !== 'undefined' && window.innerWidth <= 768);
+  if (isMobMenu) {
+    const safeItems = Array.isArray(items) ? items : [];
+    const quickItems = safeItems.filter(it => it && !it.sep && QUICK_KEYS.has(it.k));
+    const listRaw = safeItems.filter(it => it && (it.sep || !QUICK_KEYS.has(it.k)));
+    const listItems: any[] = [];
+    for (const it of listRaw) {
+      if (it.sep) {
+        if (listItems.length > 0 && !listItems[listItems.length - 1].sep) {
+          listItems.push(it);
+        }
+      } else {
+        listItems.push(it);
+      }
+    }
+    if (listItems.length > 0 && listItems[listItems.length - 1].sep) {
+      listItems.pop();
+    }
+    return ReactDOM.createPortal(
+      <>
+        <div
+          className="mob-ctx-backdrop"
+          onPointerDown={() => onCloseRef.current()}
+          onClick={() => onCloseRef.current()}
+        />
+        <div
+          ref={ref}
+          role="menu"
+          data-testid="mobile-action-sheet"
+          className={'ctx mob-action-sheet ' + (lv ? 'out' : 'in')}
+          onContextMenu={e => e.preventDefault()}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          <div className="mob-sheet-header">
+            <div className="mob-sheet-pill" aria-hidden="true" />
+            <span className="text-xs font-semibold">Aksi Cepat</span>
+            <button
+              type="button"
+              className="mob-top-btn"
+              aria-label="Tutup"
+              onClick={() => onCloseRef.current()}
+            >
+              <Ico n="x" size={14} />
+            </button>
+          </div>
+          {quickItems.length > 0 && (
+            <div className="mob-ctx-grid">
+              {quickItems.map(it => (
+                <button
+                  key={it.k}
+                  type="button"
+                  role="menuitem"
+                  disabled={it.dis}
+                  className={'mob-ctx-card' + (it.k === 'del' ? ' danger' : '')}
+                  onClick={() => {
+                    it.act();
+                    onClose();
+                  }}
+                >
+                  <Vi d={it.ic} s={18} />
+                  <span>{it.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mob-ctx-list">
+            {listItems.map((it, i) =>
+              it.sep ? (
+                <div key={'s' + i} className="ctx-s" />
+              ) : (
+                <button
+                  key={it.k}
+                  type="button"
+                  role="menuitem"
+                  disabled={it.dis}
+                  className="ctx-i"
+                  onClick={() => {
+                    it.act();
+                    onClose();
+                  }}
+                >
+                  <Vi d={it.ic} s={16} />
+                  <span className="lb">{it.label}</span>
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      </>,
+      document.body
+    );
+  }
   return ReactDOM.createPortal(<div ref={ref} role="menu" className={'ctx ' + (lv ? 'out' : 'in')} onContextMenu={e => e.preventDefault()} onPointerMove={() => {
     if (hiRef.current !== -1) setHi(-1);
   }} style={{
     left: pos ? pos.left : 0,
     top: pos ? pos.top : 0,
-    maxWidth: isMobMenu ? Math.max(160, window.innerWidth - 16) : undefined,
-    maxHeight: isMobMenu ? Math.round(window.innerHeight * 0.65) : undefined,
-    overflowY: isMobMenu ? 'auto' : undefined,
     visibility: pos ? 'visible' : 'hidden',
     ['--ox' as any]: (pos ? pos.ox : 0) + 'px',
     ['--oy' as any]: (pos ? pos.oy : 0) + 'px'

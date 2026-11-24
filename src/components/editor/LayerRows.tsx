@@ -141,7 +141,7 @@ const LayerObjRow: React.FC<any> = React.memo(({
     e.stopPropagation();
     clickSkipRef.current = true;
     onStartRename(o);
-  }}><span className="fig-lay-ico" data-tip={o.text ? 'veLayerText' : o.img ? 'veLayerImage' : 'veLayerShape'}><LayerSvgPreview o={o} fastScroll={fastScroll} /></span><span className="ved-swatch" style={o.img ? {
+  }}><span className="mob-lay-drag-handle" aria-hidden="true">≡</span><span className="fig-lay-ico" data-tip={o.text ? 'veLayerText' : o.img ? 'veLayerImage' : 'veLayerShape'}><LayerSvgPreview o={o} fastScroll={fastScroll} /></span><span className="ved-swatch" style={o.img ? {
       width: 15,
       height: 15,
       backgroundImage: 'url(' + o.img.href + ')',
@@ -165,7 +165,10 @@ const LayerObjRow: React.FC<any> = React.memo(({
     }}><Ico n={o.hidden ? 'eyeOff' : 'eye'} size={14} /></button>{child && <button type="button" className="fig-eject" data-tip="layEject" aria-label={tipT(lang, 'layEject')} onClick={e => {
       e.stopPropagation();
       onEjectChild(o);
-    }}><Vi s={14} d="M7 17L17 7M9 7h8v8" /></button>}</>)}</div>);
+    }}><Vi s={14} d="M7 17L17 7M9 7h8v8" /></button>}</>)}<button type="button" className="mob-lay-more" aria-label="Menu layer" onClick={e => {
+      e.stopPropagation();
+      onOpenCtx(e, o);
+    }}>⋮</button></div>);
 
 const LayerGroupRow: React.FC<any> = React.memo(({
   item,
