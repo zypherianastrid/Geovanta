@@ -162,6 +162,22 @@ Sesuaikan ruang kerja dengan preferensi Anda: beralih mulus antara tema **Terang
 ### 12. Charts Studio Vektor Murni Apache ECharts (`v1.3.2`)
 Buat visualisasi data **100% vektor murni** berbasis **Apache ECharts** langsung di dalam Geovanta — mendukung **seluruh 22 tipe seri resmi ECharts** (*Line, Bar, Pie/Donut/Rose, Scatter, EffectScatter, Radar, Tree, Treemap, Sunburst, Boxplot, Candlestick, Heatmap, Geo Map dengan peta Indonesia/Dunia bawaan + impor GeoJSON kustom, Parallel, Lines, Graph, Sankey, Funnel, Gauge, PictorialBar, ThemeRiver, dan Custom*) dengan gaya kartu Fintech SaaS modern. Klik chart mana saja di kanvas untuk mengedit **nilai data (Tabel/CSV/JSON), warna, gradien, tipografi/font, komponen (Card Frame, KPI Hero & Badge Tren, Pil Periode, Legenda, MarkLine/MarkPoint, Footnote), hingga opsi JSON ECharts mentah** secara langsung dari bagian paling atas Sidebar Kanan, atau lepas menjadi path vektor individual kapan saja.
 
+<img src="docs/screenshots/17-charts-studio-modal.png" alt="Modal Charts Studio Vektor Apache ECharts" width="100%" />
+
+<br />
+
+<img src="docs/screenshots/18-charts-canvas-and-inspector.png" alt="Chart Vektor di Kanvas dengan Panel Kustomisasi di Atas Sidebar Kanan" width="100%" />
+
+---
+
+### 13. Penggaris & Garis Pandu Kanvas, Panduan Harmoni Warna & Konverter Solid-ke-Gradien
+Bekerja dengan presisi tinggi serta palet warna harmonis langsung di editor:
+- **Penggaris & Garis Pandu (`Ctrl + R`)**: Tampilkan penggaris horizontal & vertikal dalam satuan `px`, `mm`, `cm`, `in`, atau `pt`, seret garis pandu langsung ke artboard, kunci/sembunyikan garis pandu, atau atur ulang titik nol penggaris.
+- **Panduan Warna (Color Guide)**: Hasilkan skema *Complementary, Analogous, Triadic, Split-Complementary, Tetradic*, dan *Monochromatic* dari warna aktif beserta variasi *Tints & Shades*.
+- **Solid-to-Gradient Converter**: Ubah warna solid datar menjadi gradien linear, radial, atau angular multi-stop dalam satu klik.
+
+<img src="docs/screenshots/19-rulers-color-guide-and-solid-to-gradient.png" alt="Penggaris Kanvas, Color Guide Harmoni, dan Konverter Solid-ke-Gradien" width="100%" />
+
 ---
 
 ## 📋 Referensi Lengkap Seluruh Fitur

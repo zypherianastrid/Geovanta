@@ -162,6 +162,22 @@ Tailor the studio to match your workflow: switch seamlessly between **Light**, *
 ### 12. Apache ECharts Pure Vector Charts Studio (`v1.3.2`)
 Create publication-grade **100% pure vector data visualizations** powered by **Apache ECharts** directly inside Geovanta — supporting **all 22 official ECharts series types** (*Line, Bar, Pie/Donut/Rose, Scatter, EffectScatter, Radar, Tree, Treemap, Sunburst, Boxplot, Candlestick, Heatmap, Geo Map with built-in World/Indonesia + custom GeoJSON import, Parallel, Lines, Graph, Sankey, Funnel, Gauge, PictorialBar, ThemeRiver, and Custom*) with modern Fintech SaaS card defaults. Select any chart on the canvas to customize **data values (Table/CSV/JSON), colors, gradients, typography, components (Card Frame, KPI Hero & Trend Badges, Period Pills, Legend, MarkLine/MarkPoint, Footnote), or raw ECharts JSON** live from the top of the Right Sidebar, or detach into individual editable vector paths at any time.
 
+<img src="docs/screenshots/17-charts-studio-modal.png" alt="Apache ECharts Pure Vector Charts Studio Modal" width="100%" />
+
+<br />
+
+<img src="docs/screenshots/18-charts-canvas-and-inspector.png" alt="Vector Chart on Canvas with Top-of-Right-Sidebar Full Customization" width="100%" />
+
+---
+
+### 13. Precision Rulers & Guides, Color Harmony Guide & Solid-to-Gradient Converter
+Work with print-and-UI precision and rich color tools right inside the editor:
+- **Canvas Rulers & Draggable Guides (`Ctrl + R`)**: Toggle horizontal & vertical rulers in `px`, `mm`, `cm`, `in`, or `pt`, drag custom alignment guides straight onto the artboard, lock/hide guides, or reset the ruler origin.
+- **Color Guide (Harmonies, Tints & Shades)**: Generate *Complementary, Analogous, Triadic, Split-Complementary, Tetradic*, and *Monochromatic* palettes from any selected color with instant tint/shade swatches.
+- **Solid-to-Gradient Converter**: One-click conversion from any flat solid fill into a multi-stop linear, radial, or angular gradient with preset harmony ramps.
+
+<img src="docs/screenshots/19-rulers-color-guide-and-solid-to-gradient.png" alt="Canvas Rulers, Color Guide Harmony, and Solid-to-Gradient Converter" width="100%" />
+
 ---
 
 ## 📋 Complete Feature Reference
