@@ -180,6 +180,16 @@ Work with print-and-UI precision and rich color tools right inside the editor:
 
 ---
 
+### 14. Rich Vector Typography, Google Fonts & Text-to-Path Engine (`T`)
+Design crisp headlines and multi-line vector copy with full typographic control:
+- **On-Canvas Caret Editing & Live Typography Inspector**: Double-click any text object or edit directly from the Right Inspector (*Font Family, Weight, Italic, Size, Line Height, Letter Spacing, Paragraph Spacing, Text Align, & Text Case*).
+- **Offline Bundled + Local `.TTF`/`.OTF` + Google Fonts**: Ships with **IBM Plex Sans** offline, supports importing custom local font files, and embeds **Google Fonts** directly into the project.
+- **Convert Text to Editable Bézier Paths**: Outline any text object into pure vector curves for custom lettering, Booleans, and corner fillets.
+
+<img src="docs/screenshots/20-typography-and-text-inspector.png" alt="Vector Typography Studio and Text Inspector" width="100%" />
+
+---
+
 ## 📋 Complete Feature Reference
 
 > For the chronological release history, see **[CHANGELOG.md](CHANGELOG.md)**.

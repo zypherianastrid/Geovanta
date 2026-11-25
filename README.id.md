@@ -180,6 +180,16 @@ Bekerja dengan presisi tinggi serta palet warna harmonis langsung di editor:
 
 ---
 
+### 14. Tipografi Vektor Kaya Fitur, Google Fonts & Konversi Teks ke Path (`T`)
+Rancang judul dan paragraf vektor yang tajam dengan kendali tipografi lengkap:
+- **Edit Langsung di Kanvas & Typography Inspector**: Klik dua kali objek teks atau atur langsung dari Sidebar Kanan (*Font Family, Weight, Italic, Size, Line Height, Letter Spacing, Paragraph Spacing, Text Align, & Text Case*).
+- **Font Offline + Impor `.TTF`/`.OTF` Lokal + Google Fonts**: Dibundel dengan **IBM Plex Sans** secara offline, mendukung impor berkas font lokal, serta penyematan **Google Fonts** langsung ke proyek.
+- **Konversi Teks ke Kurva Bézier (`Convert to Path`)**: Ubah teks menjadi path vektor murni untuk modifikasi huruf kustom, operasi Boolean, maupun *corner fillet*.
+
+<img src="docs/screenshots/20-typography-and-text-inspector.png" alt="Studio Tipografi Vektor dan Text Inspector" width="100%" />
+
+---
+
 ## 📋 Referensi Lengkap Seluruh Fitur
 
 > Untuk riwayat rilis kronologis sejak versi awal, lihat **[CHANGELOG.md](CHANGELOG.md)**.
