@@ -260,6 +260,49 @@ export function generateRelevantGradients(
     ];
   }
 
+  // Tambahkan 94 variasi kurasi OKLCH agar total tepat 100 preset relevan
+  const primaryHex = norm[0];
+  const pOk = oklchHue(primaryHex);
+  const baseC = Math.max(0.05, pOk.c);
+  const curations: Array<{ name: string; dL1: number; dL2: number; dH1: number; dH2: number; cMul1: number; cMul2: number }> = [
+    { name: 'Aurora Mist', dL1: 0.22, dL2: -0.10, dH1: 35, dH2: -45, cMul1: 0.9, cMul2: 1.1 },
+    { name: 'Solar Flare', dL1: 0.16, dL2: -0.14, dH1: 28, dH2: 58, cMul1: 1.15, cMul2: 1.05 },
+    { name: 'Oceanic Drift', dL1: 0.14, dL2: -0.18, dH1: -35, dH2: -75, cMul1: 0.95, cMul2: 1.1 },
+    { name: 'Velvet Dusk', dL1: -0.08, dL2: -0.26, dH1: 22, dH2: 48, cMul1: 1.0, cMul2: 0.85 },
+    { name: 'Prism Spark', dL1: 0.18, dL2: 0.04, dH1: 120, dH2: 240, cMul1: 1.1, cMul2: 1.1 },
+    { name: 'Pastel Whisper', dL1: 0.28, dL2: 0.18, dH1: 18, dH2: -18, cMul1: 0.45, cMul2: 0.5 },
+    { name: 'Obsidian Edge', dL1: -0.18, dL2: -0.34, dH1: -12, dH2: 12, cMul1: 0.8, cMul2: 0.55 },
+    { name: 'Neon Pulse', dL1: 0.12, dL2: -0.05, dH1: 60, dH2: -60, cMul1: 1.35, cMul2: 1.35 },
+    { name: 'Amber Horizon', dL1: 0.20, dL2: -0.12, dH1: 42, dH2: 84, cMul1: 1.0, cMul2: 0.9 },
+    { name: 'Frost Glass', dL1: 0.30, dL2: 0.10, dH1: -25, dH2: -55, cMul1: 0.38, cMul2: 0.55 },
+  ];
+  let idx = 0;
+  while (recipes.length < 100) {
+    const c = curations[idx % curations.length];
+    const ring = Math.floor(idx / curations.length);
+    const hueShift = (ring * 19) % 360;
+    const lShift = ((ring % 3) - 1) * 0.06;
+    const c1 = oklch2hex(
+      clampN(pOk.l + c.dL1 + lShift, 0.12, 0.96),
+      clampN(baseC * c.cMul1, 0.02, 0.34),
+      pOk.h + c.dH1 + hueShift
+    );
+    const c2 = oklch2hex(
+      clampN(pOk.l + c.dL2 - lShift * 0.5, 0.10, 0.94),
+      clampN(baseC * c.cMul2, 0.02, 0.34),
+      pOk.h + c.dH2 + hueShift
+    );
+    const mid = interpolateBridgeColor(c1, primaryHex, { deltaL: (ring % 2 === 0 ? 0.04 : -0.04), chromaScale: 0.96 });
+    const seq = ring % 3 === 0 ? [c1, primaryHex, c2] : ring % 3 === 1 ? [primaryHex, mid, c2] : [c1, mid, c2, primaryHex];
+    const presetNum = recipes.length + 1;
+    recipes.push({
+      id: `curated-${presetNum}`,
+      labelKey: `${c.name} #${presetNum}`,
+      colors: seq
+    });
+    idx++;
+  }
+
   return recipes.map(r => {
     const rawStops = buildStopsFromPalette(r.colors, gradType);
     return {

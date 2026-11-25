@@ -5,6 +5,7 @@
 import './vendor/reactOfflineBundle.tsx';
 import './vendor/tailwindOfflineBundle.tsx';
 import './styles/mobileStyles.ts';
+import { injectGeovantaSansUiFont } from './assets/fonts/geovantaSansUiFontCss.ts';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { App } from './App.tsx';
@@ -24,7 +25,8 @@ import { WorkspaceController } from './workspace/workspaceController.tsx';
 import { isTauriDesktop, syncDesktopWindowTitle } from './vendor/tauriDesktopBridge.tsx';
 import { initWasmEngine, wasmEngine } from './bridge/wasmEngineBridge.ts';
 
-// Inisialisasi akselerasi Rust WebAssembly di background saat startup
+// Inisialisasi font UI Geovanta Sans & akselerasi Rust WebAssembly di background saat startup
+injectGeovantaSansUiFont();
 initWasmEngine().catch(err => console.warn('[Geovanta] WASM acceleration startup fallback:', err));
 
 if (typeof window !== 'undefined') {

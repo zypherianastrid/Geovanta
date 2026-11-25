@@ -10,6 +10,7 @@ import { Vi, Chev, ShapeGlyph, IconBtn, Ico } from '../ui/IconGlyphs.tsx';
 import { Float } from '../ui/FloatPopover.tsx';
 import { Slider } from '../ui/Slider.tsx';
 import { VE } from '../../engine/vectorEngine.tsx';
+import { RULER_UNITS, RulerUnit } from './CanvasRulers.tsx';
 
 const FrameToolGlyph = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1" /><rect x="7.5" y="7.5" width="9" height="9" rx="0.5" /></svg>;
 const NodeSizeGlyph = ({ s = 16 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9.5" y="9.5" width="5" height="5" rx="1" fill="currentColor" stroke="none" /><line x1="5.5" y1="18.5" x2="18.5" y2="5.5" stroke="currentColor" strokeWidth="1.6" /><circle cx="5.5" cy="18.5" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="18.5" cy="5.5" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M4 8V4h4 M20 16v4h-4" stroke="currentColor" strokeWidth="1.6" /></svg>;
@@ -54,6 +55,16 @@ const EditorFloatingToolbar = ({
   snapCfg,
   gridOn,
   setGridOn,
+  rulersOn = false,
+  setRulersOn,
+  rulerUnit = 'px',
+  setRulerUnit,
+  guidesVisible = true,
+  setGuidesVisible,
+  guidesLocked = false,
+  setGuidesLocked,
+  onClearGuides,
+  onResetRulerOrigin,
   mirrorBtn,
   mirrorCur,
   selNodes,
@@ -94,6 +105,8 @@ const EditorFloatingToolbar = ({
 }: any) => {
   /* Boolean / Pathfinder: syarat seleksi (sama seperti menu konteks). */
   const [lastBoolOp, setLastBoolOp] = React.useState('union');
+  const [gridMenuOpen, setGridMenuOpen] = React.useState(false);
+  const gridMenuBtn = React.useRef<HTMLDivElement | null>(null);
   const isMob = typeof document !== 'undefined' && document.documentElement.getAttribute('data-mobile') === '1';
   const isEn = lang === 'en';
   const MOB_LABELS: Record<string, string> = {
@@ -158,6 +171,7 @@ const EditorFloatingToolbar = ({
   WebkitBackdropFilter: 'none'
 }} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}><style>{`
   .fig-floating-bar .tool-btn, .flt .opt, .flt .tool-btn, .flt .ved-pill, .flt .snp-row { transition: background-color .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+  .fig-floating-bar .tool-btn.chev-btn { min-width: 24px; width: 24px; }
   .fig-floating-bar .tool-btn:hover:not(:disabled), .flt .opt:hover, .flt .tool-btn:hover:not(:disabled), .flt .ved-pill:hover:not(:disabled), .flt .snp-row:hover:not(:disabled) { background-color: color-mix(in srgb, var(--acc) 12%, var(--card)); color: var(--ink); border-color: color-mix(in srgb, var(--acc) 32%, var(--line)); }
   .fig-floating-bar .tool-btn:focus-visible, .flt .opt:focus-visible, .flt button:focus-visible { outline: 2px solid color-mix(in srgb, var(--acc) 72%, transparent); outline-offset: 1px; }
   .flt .snp-row, .flt .snp-row:hover:not(:disabled), .flt .snp-row.on, .flt .snp-row:focus-visible { background: transparent !important; border: 0 !important; box-shadow: none !important; outline: none; }
@@ -301,7 +315,10 @@ const EditorFloatingToolbar = ({
           ...c,
           [k]: !c[k]
         }))}><SnapIcon k={k} /><span className="snp-lb">{label}{!activeInTool ? L.ftOtherTool : ''}</span><span className="snp-sw" aria-hidden="true" /></button>;
-      })}</div></Float><IconBtn lang={lang} label={isMob ? 'Grid' : undefined} s={isMob ? 19 : 22} on={gridOn} tip="veGrid" act={() => setGridOn(g => !g)} d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" /><span className="fig-bar-sep" /><div ref={mirrorBtn} className="inline-flex items-center"><button type="button" className={'tool-btn has-sub' + (mirrorCur ? ' on' : '')} disabled={!selNodes.size} data-tip="veMirror" aria-label="Mirroring Handle" aria-haspopup="listbox" aria-expanded={mirrorOpen} onClick={() => setMirrorOpen(o => !o)}><Vi d={(MIRROR_OPTS.find(q => q[0] === (mirrorCur || 'symmetric')) || MIRROR_OPTS[3])[3]} s={isMob ? 19 : 22} />{mobLbl('Mirror')}</button><button type="button" className="tool-btn chev-btn" disabled={!selNodes.size} data-tip="veMirror" aria-label={L.ftPickMirror} aria-expanded={mirrorOpen} onClick={e => {
+      })}</div></Float><div ref={gridMenuBtn} className="inline-flex items-center"><button type="button" className={'tool-btn has-sub' + (gridOn || rulersOn ? ' on' : '')} data-tip="veGrid" aria-label={isMob ? 'Grid' : 'Grid & Rulers'} aria-pressed={gridOn} onClick={() => setGridOn((g: boolean) => !g)}><Vi d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" s={isMob ? 19 : 22} />{mobLbl('Grid')}</button><button type="button" className="tool-btn chev-btn" data-testid="grid-rulers-chevron" aria-label={isEn ? 'Grid & Rulers Options' : 'Opsi Grid & Rulers'} aria-expanded={gridMenuOpen} onClick={e => {
+        e.stopPropagation();
+        setGridMenuOpen(o => !o);
+      }}><Chev open={gridMenuOpen} /></button></div><Float anchor={gridMenuBtn} open={gridMenuOpen} onClose={() => setGridMenuOpen(false)} w={248} cls="cp" preferUp={true}><div className="text-[11px] mut px-1 pb-1.5 font-semibold uppercase tracking-wider">{isEn ? 'Grid & Rulers' : 'Grid & Rulers'}</div><div className="space-y-1"><button type="button" role="switch" data-testid="toggle-grid" aria-checked={gridOn} className={'snp-row' + (gridOn ? ' on' : '')} style={{ ['--c' as any]: 'var(--acc)' }} onClick={() => setGridOn((g: boolean) => !g)}><SnapIcon k="grid" /><span className="snp-lb">{isEn ? 'Show Grid' : 'Tampilkan Grid'}</span><span className="snp-sw" aria-hidden="true" /></button><button type="button" role="switch" data-testid="toggle-rulers" aria-checked={rulersOn} className={'snp-row' + (rulersOn ? ' on' : '')} style={{ ['--c' as any]: 'var(--acc)' }} onClick={() => setRulersOn && setRulersOn((r: boolean) => !r)}><SnapIcon k="spacing" /><span className="snp-lb">{isEn ? 'Show Rulers' : 'Tampilkan Rulers'}</span><span className="snp-sw" aria-hidden="true" /></button><button type="button" role="switch" data-testid="toggle-guides" aria-checked={guidesVisible} className={'snp-row' + (guidesVisible ? ' on' : '')} style={{ ['--c' as any]: '#0ea5e9' }} onClick={() => setGuidesVisible && setGuidesVisible((v: boolean) => !v)}><SnapIcon k="axial" /><span className="snp-lb">{isEn ? 'Show Guides' : 'Tampilkan Guides'}</span><span className="snp-sw" aria-hidden="true" /></button><button type="button" role="switch" data-testid="toggle-guides-lock" aria-checked={guidesLocked} className={'snp-row' + (guidesLocked ? ' on' : '')} style={{ ['--c' as any]: '#f59e0b' }} onClick={() => setGuidesLocked && setGuidesLocked((v: boolean) => !v)}><SnapIcon k="perp" /><span className="snp-lb">{isEn ? 'Lock Guides' : 'Kunci Guides'}</span><span className="snp-sw" aria-hidden="true" /></button></div><div className="pt-2 mt-2 border-t border-[var(--line)]"><div className="text-[10px] mut font-semibold uppercase tracking-wider mb-1.5">{isEn ? 'Ruler Unit' : 'Satuan Ruler'}</div><div className="flex gap-1">{RULER_UNITS.map(u => <button key={u.id} type="button" data-testid={`ruler-unit-${u.id}`} className={'ved-pill flex-1 text-[10px] py-0.5' + (rulerUnit === u.id ? ' on' : '')} onClick={() => setRulerUnit && setRulerUnit(u.id as RulerUnit)}>{u.label}</button>)}</div></div><div className="flex gap-1.5 pt-2 mt-2 border-t border-[var(--line)]"><button type="button" className="ved-pill flex-1 text-[10px]" onClick={() => { onResetRulerOrigin && onResetRulerOrigin(); }}>{isEn ? 'Reset Origin' : 'Reset Origin'}</button><button type="button" className="ved-pill flex-1 text-[10px]" onClick={() => { onClearGuides && onClearGuides(); }}>{isEn ? 'Clear Guides' : 'Hapus Guides'}</button></div></Float><span className="fig-bar-sep" /><div ref={mirrorBtn} className="inline-flex items-center"><button type="button" className={'tool-btn has-sub' + (mirrorCur ? ' on' : '')} disabled={!selNodes.size} data-tip="veMirror" aria-label="Mirroring Handle" aria-haspopup="listbox" aria-expanded={mirrorOpen} onClick={() => setMirrorOpen(o => !o)}><Vi d={(MIRROR_OPTS.find(q => q[0] === (mirrorCur || 'symmetric')) || MIRROR_OPTS[3])[3]} s={isMob ? 19 : 22} />{mobLbl('Mirror')}</button><button type="button" className="tool-btn chev-btn" disabled={!selNodes.size} data-tip="veMirror" aria-label={L.ftPickMirror} aria-expanded={mirrorOpen} onClick={e => {
       e.stopPropagation();
       setMirrorOpen(o => !o);
     }}><Chev open={mirrorOpen} /></button></div><IconBtn lang={lang} label={isMob ? (isEn ? 'Curve' : 'Kurva') : undefined} s={isMob ? 19 : 22} on={curveDragOn} tip="veCurveDrag" act={() => {

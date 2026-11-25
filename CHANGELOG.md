@@ -5,6 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.3.2] — 2026-11-25
+
+### Added
+- **Apache ECharts Pure Vector Charts Studio (`src/engine/charts/`, `ChartsStudioModal.tsx`, `ChartInspectorPanel.tsx`, `ChartDataEditor.tsx`)**:
+  - Added full support for **all 22 official Apache ECharts series types** (`line`, `bar`, `pie`, `scatter`, `effectScatter`, `radar`, `tree`, `treemap`, `sunburst`, `boxplot`, `candlestick`, `heatmap`, `map`, `parallel`, `lines`, `graph`, `sankey`, `funnel`, `gauge`, `pictorialBar`, `themeRiver`, and `custom`) plus 29 curated presets rendered 100% offline as pure editable vector paths and text via `renderer: 'svg'`.
+  - Added **Fintech SaaS Modern Defaults** (`geovanta-fintech` palette, rounded white card frames, pill-rounded bars, donut callout badges, and KPI hero + trend delta pills).
+  - Added **Top-of-Right-Sidebar Full Chart Inspector** with 8 segmented tabs (`Type`, `Components`, `Data`, `Color`, `Font`, `Style`, `Size`, `JSON`), **100% Geovanta custom controls** (`CustomTextBox`, `Select`, `ColorField`, `Range`, `Seg`, `pickFiles`, `ChartSwitch`, `ChartCodeBox`), built-in **Indonesia & World GeoJSON maps** + custom GeoJSON import, and **Detach to Pure Vector** with full Undo/Redo support.
+
+### Fixed
+- **ECharts SSR SVG Vector Sanitizer (`chartVectorRenderer.ts`, `echartsOptionBuilder.ts`)**:
+  - Stripped invisible ECharts hit-test rectangles (`fill-opacity="0"`), fixed `pie-rose` empty paths in ECharts 6 SSR, expanded CSS `font:` shorthand attributes for `VE.parseSVG`, and normalized `<text>` `dominant-baseline` vertical alignment.
+
+### Changed
+- Bumped application version to **`v1.3.2`** across `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `android/app/build.gradle` (`versionCode 5`, `versionName 1.3.2`), `src/constants/settingsI18n.tsx`, `scripts/build-android-apk.ps1`, `.github/workflows/release-desktop-windows.yml`, `README.md`, and `README.id.md`.
+
+---
+
 ## [1.3.1] — 2026-11-25
 
 ### Added

@@ -25,6 +25,7 @@ import { blobNodes, regenBlob, DEFAULT_BLOB_PARAMS } from '../../engine/blobGene
 import { weaveStrips, DEFAULT_WEAVE_PARAMS, normalizeWeaveParams } from '../../engine/weaveGenerator.tsx';
 import { lineSegmentNodes, arcNodes, DEFAULT_ARC_PARAMS, normalizeArcParams, regenArc, visibleStrokeStyle } from '../../engine/drawTools.tsx';
 import { shapesCrossedByStroke, applyShapeBuilder } from '../../engine/shapeBuilder.tsx';
+import { threePointArcFromPoints, constrainPoint45, findSelectedOpenEnd, reverseSubpathNodes, translateAnchorInDoc, applyShapeBuilderVectorcraft, makeNodeId } from '../../engine/drawToolsVectorcraft.tsx';
 import { selectSame } from '../../engine/colorWalk.tsx';
 import { directPaintEdit, paintSlot } from '../../engine/colorStyles.tsx';
 import { ICONS } from '../../constants/brandAndIcons.tsx';
@@ -44,6 +45,7 @@ import { Slider } from '../ui/Slider.tsx';
 import { XfField } from '../ui/TransformField.tsx';
 import { CustomTextBox } from '../ui/CustomTextBox.tsx';
 import { EditorFloatingToolbar } from './EditorFloatingToolbar.tsx';
+import { CanvasRulers, GuideLine, RulerUnit } from './CanvasRulers.tsx';
 import { GEOVANTA_BENCHMARK_SUITE } from '../../renderer/benchmarkSuite.tsx';
 import { GEOMETRY_CACHE } from '../../renderer/geometryCache.tsx';
 import { getObjectTessellationLOD } from '../../renderer/objectTessellationLod.tsx';
@@ -52,6 +54,7 @@ import { useEditorShortcuts } from './hooks/useEditorShortcuts.tsx';
 import { useEditorExport } from './hooks/useEditorExport.tsx';
 import { useCanvasWheelZoom } from './hooks/useCanvasWheelZoom.tsx';
 import { IconifyModal } from '../modals/IconifyModal.tsx';
+import { ChartsStudioModal } from '../modals/ChartsStudioModal.tsx';
 import { SvgCodeInspectorModal } from '../modals/SvgCodeInspectorModal.tsx';
 import { MobileEditorTopBar } from './MobileEditorTopBar.tsx';
 import { MobileSelectionActionBar } from './MobileSelectionActionBar.tsx';
@@ -73,6 +76,9 @@ import { loadSet, buildIconSvg, isPaletteIcon, listCollections } from '../../ren
 import { pickFiles } from '../../utils/presenceAndFilePicker.tsx';
 import { TextEditOverlay } from './TextEditOverlay.tsx';
 import { TextInspector } from './TextInspector.tsx';
+import { ChartInspectorPanel } from './ChartInspectorPanel.tsx';
+import { ALL_ECHARTS_SERIES_TYPES, ChartConfig } from '../../engine/charts/chartTypes.ts';
+import { buildChartVectorObjects, findSelectedChartAnchor, regenChartGroup } from '../../engine/charts/chartVectorRenderer.ts';
 import { aiLiveConnector } from '../../bridge/aiLiveConnector.tsx';
 import { registerAndroidBackHandler, triggerHaptic } from '../../bridge/androidNativeBridge.ts';
 
@@ -239,8 +245,79 @@ const VectorEditor = ({
      pass-through. Hanya prop yang diteruskan ke EditorFloatingToolbar yang
      memakai wrapper ini; pemakaian setTool internal tidak berubah. */
   const setToolToggle = React.useCallback(k => {
-    setTool(prev => (k === 'iconify' && prev === 'iconify' ? 'select' : k));
+    setTool(prev => ((k === 'iconify' && prev === 'iconify') || (k === 'charts' && prev === 'charts') ? 'select' : k));
   }, []);
+  const [chartsEditTarget, setChartsEditTarget] = React.useState<{ groupId: string; config: ChartConfig } | null>(null);
+  const onChartsClose = React.useCallback(() => {
+    setChartsEditTarget(null);
+    setTool(prev => (prev === 'charts' ? 'select' : prev));
+  }, []);
+  const onChartInsert = React.useCallback((cfg: ChartConfig) => {
+    const cur = docRef.current;
+    const usedGroups = new Set((cur.objects || []).map(o => o.group).filter(Boolean));
+    const baseGid = `chart-${cfg.chartType}`;
+    let gid = baseGid, gi = 1;
+    while (usedGroups.has(gid)) gid = `${baseGid}-${++gi}`;
+    const existingNames = new Set((cur.objects || []).map(o => o.name).filter(Boolean) as string[]);
+    let originX = 100, originY = 100;
+    if (boxRef.current) {
+      const r = boxRef.current.getBoundingClientRect();
+      const ctr = toDoc(r.left + r.width / 2, r.top + r.height / 2);
+      originX = Math.round(ctr.x - (cfg.width || 600) / 2);
+      originY = Math.round(ctr.y - (cfg.height || 400) / 2);
+    }
+    const { objects: chartObjs, error } = buildChartVectorObjects(cfg, {
+      groupId: gid,
+      originX,
+      originY,
+      existingNames,
+    });
+    if (error || !chartObjs.length) {
+      say(error || 'Gagal membuat chart vektor');
+      return;
+    }
+    commit({ ...cur, objects: [...cur.objects, ...chartObjs] });
+    setSel({ objs: new Set(chartObjs.map(o => o.id)), nodes: new Set() });
+    setChartsEditTarget(null);
+    setTool('select');
+    setRightOpen(true);
+    say((prefs?.lang === 'en' ? 'Vector chart inserted: ' : 'Chart vektor ditambahkan: ') + cfg.chartType);
+  }, [prefs?.lang]);
+
+  const onChartConfigChange = React.useCallback((groupId: string, nextConfig: ChartConfig, meta?: { coalesce?: string }) => {
+    const d = docRef.current;
+    const members = (d.objects || []).filter(
+      o => o && ((o.gen && (o.gen.kind === 'chart' || o.gen.kind === 'chart-member') && o.gen.chartGroupId === groupId) || o.group === groupId)
+    );
+    if (!members.length) return;
+    const { objects: newObjs, error } = regenChartGroup(members, nextConfig, d.objects || []);
+    if (error || !newObjs.length) {
+      say(error || 'Gagal memperbarui chart');
+      return;
+    }
+    const memberIds = new Set(members.map(m => m.id));
+    const firstIdx = d.objects.findIndex(o => o && memberIds.has(o.id));
+    const rest = d.objects.filter(o => o && !memberIds.has(o.id));
+    rest.splice(Math.max(0, Math.min(firstIdx, rest.length)), 0, ...newObjs);
+    commit({ ...d, objects: rest }, meta?.coalesce ? { coalesce: meta.coalesce } : undefined);
+    setSel({ objs: new Set(newObjs.map(o => o.id)), nodes: new Set() });
+  }, []);
+
+  const onChartDetach = React.useCallback((groupId: string) => {
+    const d = docRef.current;
+    let changed = false;
+    const nextObjects = (d.objects || []).map(o => {
+      if (o && o.gen && (o.gen.kind === 'chart' || o.gen.kind === 'chart-member') && o.gen.chartGroupId === groupId) {
+        changed = true;
+        const { gen: _removed, ...rest } = o;
+        return rest;
+      }
+      return o;
+    });
+    if (!changed) return;
+    commit({ ...d, objects: nextObjects });
+    say(prefs?.lang === 'en' ? 'Chart detached to pure vectors' : 'Chart dilepas menjadi vektor murni');
+  }, [prefs?.lang]);
   /* Debugging Mode (Pendekatan A): toggle + pencatat transisi. setEnabled
      sendiri mencatat 'debug-mode-on/off'; snapshot perf dicatat sekali
      saat mode dinyalakan. */
@@ -664,7 +741,13 @@ const VectorEditor = ({
     return calcGridStep(zoomRef.current);
   };
   const [snapOn, setSnapOn] = useState(true),
-    [gridOn, setGridOn] = useState(false);
+    [gridOn, setGridOn] = useState(false),
+    [rulersOn, setRulersOn] = useState(false),
+    [rulerUnit, setRulerUnit] = useState<RulerUnit>('px'),
+    [rulerOrigin, setRulerOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 }),
+    [guides, setGuides] = useState<GuideLine[]>([]),
+    [guidesVisible, setGuidesVisible] = useState(true),
+    [guidesLocked, setGuidesLocked] = useState(false);
   const snapOnRef = useRef(snapOn);
   snapOnRef.current = snapOn;
   const gridOnRef = useRef(gridOn);
@@ -815,6 +898,8 @@ const VectorEditor = ({
      sedang diseret, tampil di panel bantuan kiri (bukan inspector — nilai
      ini sementara dan read-only). null saat tidak ada drag garis. */
   const [lineInfo, setLineInfo] = useState(null);
+  const [lineSizeDlg, setLineSizeDlg] = useState<{ x: number; y: number; sx: number; sy: number; len: string; ang: string } | null>(null);
+  const arc3Ref = useRef<{ start: { x: number; y: number }; end: { x: number; y: number } | null; id: string; name: string; base: any } | null>(null);
   /* Parameter Arc (Task 5): nilai default untuk busur berikutnya; dipakai
      juga sebagai busur default saat klik tanpa seret (radius/sweep dari
      sini, bukan hardcode — default 50 / 90° sesuai brief).
@@ -1077,19 +1162,29 @@ const VectorEditor = ({
       live(dg.base);
     }
     /* Task 4 (Ruling G): sama untuk drag Line. */
-    if (tool !== 'line' && dragRef.current && dragRef.current.type === 'line') {
-      const dg = dragRef.current;
-      dragRef.current = null;
-      setSnapInd(null);
-      setLineInfo(null);
-      live(dg.base);
+    if (tool !== 'line') {
+      setLineSizeDlg(null);
+      if (dragRef.current && dragRef.current.type === 'line') {
+        const dg = dragRef.current;
+        dragRef.current = null;
+        setSnapInd(null);
+        setLineInfo(null);
+        live(dg.base);
+      }
     }
-    /* Task 5 (Ruling G): sama untuk drag Arc. */
-    if (tool !== 'arc' && dragRef.current && dragRef.current.type === 'arc') {
-      const dg = dragRef.current;
-      dragRef.current = null;
-      setSnapInd(null);
-      live(dg.base);
+    /* Task 5 (Ruling G): sama untuk drag Arc & Three-Point Arc. */
+    if (tool !== 'arc') {
+      if (arc3Ref.current) {
+        const a3 = arc3Ref.current;
+        arc3Ref.current = null;
+        live(a3.base);
+      }
+      if (dragRef.current && dragRef.current.type === 'arc') {
+        const dg = dragRef.current;
+        dragRef.current = null;
+        setSnapInd(null);
+        live(dg.base);
+      }
     }
     /* Task 6 (Ruling G): ganti tool saat menggambar Curvature -> buang
        preview TANPA commit (kembalikan doc ke s.base). */
@@ -1348,7 +1443,8 @@ const VectorEditor = ({
         setIndivCornerOpen(false);
         return true;
       }
-      if (st.tool === 'iconify') {
+      if (st.tool === 'iconify' || st.tool === 'charts') {
+        setChartsEditTarget(null);
         setTool('select');
         return true;
       }
@@ -1446,6 +1542,9 @@ const VectorEditor = ({
   const rzProps = k => ({
     role: 'separator',
     'aria-orientation': 'vertical',
+    'aria-valuenow': k === 'a' ? (pw.a || 52) : (pw.l || 240),
+    'aria-valuemin': k === 'a' ? 44 : 180,
+    'aria-valuemax': k === 'a' ? 120 : 480,
     tabIndex: 0,
     'aria-label': k === 'a' ? L.edResizeActions : L.edResizeLayers,
     'data-tip': 'veResizePanel',
@@ -1634,13 +1733,14 @@ const VectorEditor = ({
     return ch;
   };
   // Keluarga font teks terakhir yang dipakai (ronde 5, bug 1): teks baru
-  // memakai keluarga ini, bukan selalu kembali ke IBM Plex Sans. Disimpan
+  // memakai keluarga ini, bukan selalu kembali ke Geovanta Sans. Disimpan
   // di localStorage agar tetap berlaku sesudah reload.
   const lastTextFamilyRef = useRef((() => {
     try {
       const v = localStorage.getItem('geovanta-last-text-family');
-      return typeof v === 'string' && v.trim() ? v : 'IBM Plex Sans';
-    } catch (e) { return 'IBM Plex Sans'; }
+      if (typeof v === 'string' && v.trim() && v.trim() !== 'IBM Plex Sans') return v;
+      return 'Geovanta Sans';
+    } catch (e) { return 'Geovanta Sans'; }
   })());
   const rememberTextFamily = fam => {
     if (typeof fam !== 'string' || !fam.trim()) return;
@@ -3392,6 +3492,9 @@ const VectorEditor = ({
     sr.setCamera(zoomRef.current, panRef.current.x, panRef.current.y, viewport.width, viewport.height);
     sr.renderFrame(true);
     sceneRendererRef.current = sr;
+    sr.ready?.then?.(() => {
+      if (!sr.disposed) setFontCatalogVer(v => v + 1);
+    });
     let ro = null;
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(() => {
@@ -4552,6 +4655,30 @@ const VectorEditor = ({
         dragRef.current = mk('last', s.oid, s.spid, L, base);
         return;
       } /* klik node terakhir */
+    } else {
+      /* VectorCraft Pen: klik ujung path terbuka yang terseleksi = lanjutkan path itu. */
+      const openHit = findSelectedOpenEnd(base, selRef.current.objs, pt, tol);
+      if (openHit) {
+        let nb = base;
+        let contNode = openHit.node;
+        if (openHit.isStart) {
+          nb = {
+            ...base,
+            objects: base.objects.map(o =>
+              o.id !== openHit.obj.id
+                ? o
+                : { ...o, subs: o.subs.map(sp => sp.id === openHit.sp.id ? reverseSubpathNodes(sp) : sp) }
+            )
+          };
+          const revSp = nb.objects.find(o => o.id === openHit.obj.id).subs.find(sp => sp.id === openHit.sp.id);
+          contNode = revSp.nodes[revSp.nodes.length - 1];
+          commit(nb);
+        }
+        setPen({ oid: openHit.obj.id, spid: openHit.sp.id, cur: null, close: false });
+        setSel({ objs: new Set([openHit.obj.id]), nodes: new Set([contNode.id]) });
+        dragRef.current = mk('last', openHit.obj.id, openHit.sp.id, contNode, nb);
+        return;
+      }
     }
 
     const tg = penTarget(e, pt, f),
@@ -4611,6 +4738,18 @@ const VectorEditor = ({
     dragRef.current = mk('new', oid, spid, node, nd);
   };
   const penMove = (e, pt, dg) => {
+    if (spaceRef.current && dg.drag) {
+      const prev = dg.lastPt || pt;
+      const dx = pt.x - prev.x;
+      const dy = pt.y - prev.y;
+      dg.lastPt = { x: pt.x, y: pt.y };
+      dg.P = { x: dg.P.x + dx, y: dg.P.y + dy };
+      dg.base = translateAnchorInDoc(dg.base, dg.oid, dg.spid, dg.nid, dx, dy);
+      dg.moved = true;
+      live(translateAnchorInDoc(docRef.current, dg.oid, dg.spid, dg.nid, dx, dy));
+      return;
+    }
+    dg.lastPt = { x: pt.x, y: pt.y };
     if (!dg.drag && VE.dist(pt, dg.P) * zoomRef.current < 4) return; /* hysteresis jarak layar */
     dg.drag = true;
     let T = pt;
@@ -5571,6 +5710,7 @@ const VectorEditor = ({
         type: 'freehand',
         toolMode: tool,
         base,
+        straightShift: e.shiftKey && tool === 'pencil',
         points: [{ x: p0.x, y: p0.y, pressure: e.pressure !== undefined && e.pressure > 0 ? e.pressure : 0.5, time: Date.now() }],
         id: VE.uid(),
         name: nextFreehandName(tool),
@@ -5634,34 +5774,65 @@ const VectorEditor = ({
        Nama dihitung sekali di sini (pelajaran Task 4). */
     if (tool === 'arc') {
       const p0 = snapAt(pt, e, null, null, base.objects);
-      dragRef.current = {
-        type: 'arc',
-        base,
-        center: {
-          x: p0.x,
-          y: p0.y
-        },
-        sx: e.clientX,
-        sy: e.clientY,
+      const a3 = arc3Ref.current;
+      if (a3 && a3.end) {
+        /* Tahap 2 (titik ke-3 Three-Point Arc): tentukan lengkungan busur */
+        dragRef.current = {
+          type: 'arc',
+          stage: 'third',
+          sx: e.clientX,
+          sy: e.clientY,
+          moved: true
+        };
+        return;
+      }
+      if (a3 && !a3.end) {
+        /* Klik ke-2: tetapkan titik akhir (end) busur */
+        a3.end = e.shiftKey ? constrainPoint45(a3.start, p0) : { x: p0.x, y: p0.y };
+        dragRef.current = {
+          type: 'arc',
+          stage: 'endpoints',
+          base: a3.base,
+          center: a3.start,
+          endPt: a3.end,
+          sx: e.clientX,
+          sy: e.clientY,
+          id: a3.id,
+          name: a3.name,
+          moved: true
+        };
+        return;
+      }
+      arc3Ref.current = {
+        start: { x: p0.x, y: p0.y },
+        end: null,
         id: VE.uid(),
         name: nextArcName(),
+        base
+      };
+      dragRef.current = {
+        type: 'arc',
+        stage: 'endpoints',
+        base,
+        center: { x: p0.x, y: p0.y },
+        sx: e.clientX,
+        sy: e.clientY,
+        id: arc3Ref.current.id,
+        name: arc3Ref.current.name,
         moved: false
       };
       return;
     }
-    /* Shape Builder (Task 7): seret garis melintasi bentuk terseleksi.
-       Q3 A: hanya objek terseleksi; seleksi < 2 -> petunjuk, tanpa drag.
-       Q1 B: Alt+seret mengurangi BENTUK UTUH yang dilewati garis.
-       Titik garis mentah (tanpa snap): garis harus melewati bentuk apa
-       adanya, bukan ditarik ke tepinya. */
+    /* Shape Builder (VectorCraft): bekerja pada >= 1 objek terseleksi;
+       mendukung klik tunggal region maupun seret lintas bentuk; Alt = hapus. */
     if (tool === 'shapebuilder') {
       const eligibleIds = new Set(
         (base.objects || [])
           .filter(o => selRef.current.objs.has(o.id) && !o.locked && !o.hidden && !o.img && !o.text && o.subs && o.subs.length > 0)
           .map(o => o.id)
       );
-      if (eligibleIds.size < 2) {
-        say(L.edShapeBuilderNeed2);
+      if (eligibleIds.size < 1) {
+        say(L.edShapeBuilderNeed2 || 'Pilih minimal 1 bentuk untuk Shape Builder');
         return;
       }
       dragRef.current = {
@@ -5669,6 +5840,7 @@ const VectorEditor = ({
         base,
         stroke: [{ x: pt.x, y: pt.y }],
         alt: e.altKey,
+        shift: e.shiftKey,
         selIds: eligibleIds,
         strokeId: VE.uid(),
         sx: e.clientX,
@@ -5759,14 +5931,15 @@ const VectorEditor = ({
           };
           return;
         }
-        /* Klik di ruang kosong (path belum tertutup) = taruh titik baru. */
+        /* Klik di ruang kosong (path belum tertutup) = taruh titik baru.
+           VectorCraft Curvature: Alt+klik = titik corner. */
         if (!s.closed) {
           const nid = VE.uid();
           s.pts.push({
             id: nid,
             x: p0.x,
             y: p0.y,
-            type: 'smooth'
+            type: e.altKey ? 'corner' : 'smooth'
           });
           rebuildCurvaturePreview();
           setSel({
@@ -5809,7 +5982,7 @@ const VectorEditor = ({
           id: nid,
           x: p0.x,
           y: p0.y,
-          type: 'smooth'
+          type: e.altKey ? 'corner' : 'smooth'
         }],
         closed: false,
         base,
@@ -6238,16 +6411,23 @@ const VectorEditor = ({
       return;
     }
     if (dg.type === 'freehand') {
-      const lastPt = dg.points[dg.points.length - 1];
-      const dist = Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y);
-      if (dist >= 2.0 || !dg.moved) {
-        dg.points.push({
-          x: pt.x,
-          y: pt.y,
-          pressure: e.pressure !== undefined && e.pressure > 0 ? e.pressure : 0.5,
-          time: Date.now()
-        });
-        dg.moved = true;
+      if (dg.straightShift) {
+        const p0 = dg.points[0];
+        const q = constrainPoint45(p0, pt);
+        dg.points = [p0, { x: q.x, y: q.y, pressure: 0.5, time: Date.now() }];
+        dg.moved = Math.hypot(q.x - p0.x, q.y - p0.y) >= 2;
+      } else {
+        const lastPt = dg.points[dg.points.length - 1];
+        const dist = Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y);
+        if (dist >= 2.0 || !dg.moved) {
+          dg.points.push({
+            x: pt.x,
+            y: pt.y,
+            pressure: e.pressure !== undefined && e.pressure > 0 ? e.pressure : 0.5,
+            time: Date.now()
+          });
+          dg.moved = true;
+        }
       }
       if (dg.points.length >= 2) {
         const previewObj = dg.toolMode === 'brush'
@@ -6327,6 +6507,11 @@ const VectorEditor = ({
     }
     if (dg.type === 'line') {
       if (!dg.moved && Math.hypot(e.clientX - dg.sx, e.clientY - dg.sy) < 4) return;
+      if (spaceRef.current) {
+        const prev = dg.lastPt || pt;
+        dg.start = { x: dg.start.x + (pt.x - prev.x), y: dg.start.y + (pt.y - prev.y) };
+      }
+      dg.lastPt = { x: pt.x, y: pt.y };
       const q = snapAt(pt, e, null, null, dg.base.objects),
         opts = {
           constrain45: e.shiftKey,
@@ -6348,31 +6533,60 @@ const VectorEditor = ({
       }
       return;
     }
-    /* Arc (Task 5): radius = jarak kursor-pusat, sweep = sudut kursor dari
-       0° (arah jam 3); Shift = sweep kelipatan 45°. Sudut awal selalu 0°
-       selama drag (model §5.6). */
     if (dg.type === 'arc') {
+      const a3 = arc3Ref.current;
+      if (dg.stage === 'third' && a3 && a3.end) {
+        const q = snapAt(pt, e, null, null, a3.base.objects);
+        const res = threePointArcFromPoints(a3.start, a3.end, q);
+        const st = visibleStrokeStyle(shapeSty, { stroke: accentStroke(prefs && prefs.accent || '#13b152'), sw: 2 });
+        const previewObj = {
+          id: a3.id,
+          name: a3.name,
+          type: 'path',
+          fill: 'none',
+          stroke: st.stroke,
+          strokeWidth: st.sw,
+          opacity: 1,
+          fillRule: 'nonzero',
+          group: null,
+          subs: [{ id: makeNodeId(), closed: false, nodes: res.nodes.map(n => ({ ...n, id: makeNodeId() })) }],
+          gen: { kind: 'arc', cx: res.cx, cy: res.cy, r: res.r, startDeg: res.startDeg || 0, sweepDeg: res.sweepDeg || 90 }
+        };
+        live({ ...a3.base, objects: [...a3.base.objects, previewObj] });
+        return;
+      }
       if (!dg.moved && Math.hypot(e.clientX - dg.sx, e.clientY - dg.sy) < 4) return;
-      const q = snapAt(pt, e, null, null, dg.base.objects),
-        r = Math.hypot(q.x - dg.center.x, q.y - dg.center.y);
-      let sweep = Math.atan2(q.y - dg.center.y, q.x - dg.center.x) * 180 / Math.PI;
-      if (sweep < 0) sweep += 360;
-      if (e.shiftKey) sweep = Math.min(360, Math.round(sweep / 45) * 45);
-      const o = makeArc(dg.center.x, dg.center.y, Math.max(r, 0.01), 0, sweep, dg.id, dg.name);
+      const q0 = snapAt(pt, e, null, null, dg.base.objects);
+      const q = e.shiftKey ? constrainPoint45(dg.center, q0) : q0;
       dg.moved = true;
-      if (o) live({
-        ...dg.base,
-        objects: [...dg.base.objects, o]
-      });
+      dg.endPt = { x: q.x, y: q.y };
+      const st = visibleStrokeStyle(shapeSty, { stroke: accentStroke(prefs && prefs.accent || '#13b152'), sw: 2 });
+      const linePrev = {
+        id: dg.id,
+        name: dg.name,
+        type: 'path',
+        fill: 'none',
+        stroke: st.stroke,
+        strokeWidth: st.sw,
+        opacity: 0.7,
+        fillRule: 'nonzero',
+        group: null,
+        subs: [{ id: makeNodeId(), closed: false, nodes: [
+          { id: makeNodeId(), x: dg.center.x, y: dg.center.y, type: 'corner', handleIn: null, handleOut: null },
+          { id: makeNodeId(), x: q.x, y: q.y, type: 'corner', handleIn: null, handleOut: null }
+        ] }]
+      };
+      live({ ...dg.base, objects: [...dg.base.objects, linePrev] });
       return;
     }
-    /* Shape Builder (Task 7): tambah titik ke garis seret + gambar garis
-       sementara (preview). Garis hanya pratinjau: commit memakai dg.base
-       (tanpa objek garis) di pointerup. */
     if (dg.type === 'shapebuilder') {
       if (!dg.moved && Math.hypot(e.clientX - dg.sx, e.clientY - dg.sy) < 4) return;
-      const last = dg.stroke[dg.stroke.length - 1];
-      if (Math.hypot(pt.x - last.x, pt.y - last.y) > 0.5) dg.stroke.push({ x: pt.x, y: pt.y });
+      if (e.shiftKey || dg.shift) {
+        dg.stroke = [dg.stroke[0], { x: pt.x, y: pt.y }];
+      } else {
+        const last = dg.stroke[dg.stroke.length - 1];
+        if (Math.hypot(pt.x - last.x, pt.y - last.y) > 0.5) dg.stroke.push({ x: pt.x, y: pt.y });
+      }
       dg.moved = true;
       const preview = {
         id: dg.strokeId,
@@ -7082,7 +7296,7 @@ const VectorEditor = ({
           x: tx,
           y: ty,
           fontSize,
-          fontFamily: lastTextFamilyRef.current || 'IBM Plex Sans',
+          fontFamily: lastTextFamilyRef.current || 'Geovanta Sans',
           fontWeight: 'normal',
           fontStyle: 'normal',
           textAnchor: 'start',
@@ -7147,6 +7361,8 @@ const VectorEditor = ({
     if (dg.type === 'freehand') {
       let o = null;
       if (dg.moved && dg.points && dg.points.length >= 2) {
+        const closeByEnd = dg.points.length >= 4 && Math.hypot(dg.points[dg.points.length - 1].x - dg.points[0].x, dg.points[dg.points.length - 1].y - dg.points[0].y) < 12 / zoomRef.current;
+        const shouldClose = e.altKey || closeByEnd;
         o = dg.toolMode === 'brush'
           ? VE.createBrushObject(
               dg.points,
@@ -7178,9 +7394,13 @@ const VectorEditor = ({
                 name: dg.name,
                 tolerance: 1.5,
                 minDistance: 2.0,
-                smooth: true
+                smooth: !dg.straightShift,
+                closed: shouldClose
               }
             );
+        if (o && shouldClose && o.subs && o.subs[0]) {
+          o = { ...o, subs: [{ ...o.subs[0], closed: true }] };
+        }
         if (o) {
           commit({
             ...dg.base,
@@ -7270,85 +7490,88 @@ const VectorEditor = ({
     if (dg.type === 'line') {
       setLineInfo(null);
       let o = null;
-      /* Klik tanpa seret (deadzone) = tidak ada garis — berbeda dengan shape/
-         blob yang membuat objek default. Garis nol tidak ada artinya. */
       if (dg.moved) {
         o = docRef.current.objects.find(q => q.id === dg.id) || null;
         if (o) commit(docRef.current);
+      } else {
+        /* VectorCraft Line: klik tanpa seret membuka dialog ukuran garis (panjang & sudut) */
+        setLineSizeDlg({
+          x: dg.start.x,
+          y: dg.start.y,
+          sx: dg.sx,
+          sy: dg.sy,
+          len: '100',
+          ang: '0'
+        });
+        return;
       }
       if (o) {
         setSel({
           objs: new Set([o.id]),
           nodes: new Set()
         });
-        /* Pola shape tool: kembali ke Select sesudah commit (garis tidak
-           punya parameter lanjutan seperti Blob/Weave). */
         setTool('select');
         say(o.name + ' ditambahkan');
       }
       return;
     }
     if (dg.type === 'arc') {
-      let o = null;
-      if (dg.moved) {
-        o = docRef.current.objects.find(q => q.id === dg.id) || null;
-        if (o) commit(docRef.current);
-      } else {
-        /* Klik tanpa seret = busur default (radius/sweep dari default sesi
-           arcParams: 50 / 90° sesuai brief Review Focus 3). */
-        const p = arcParamsRef.current;
-        o = makeArc(dg.center.x, dg.center.y, p.r, p.startDeg, p.sweepDeg, dg.id, dg.name);
-        if (o) commit({
-          ...dg.base,
-          objects: [...dg.base.objects, o]
-        });
-      }
-      if (o) {
-        setSel({
-          objs: new Set([o.id]),
-          nodes: new Set()
-        });
-        /* Sengaja TIDAK setTool('select') (seperti Blob/Weave): tool Arc
-           tetap aktif sesudah commit, supaya parameter di inspector tetap
-           mengubah busur yang sama dan user bisa menggambar busur
-           berikutnya. SENGAJA TIDAK ada nesting Frame (seperti Line):
-           brief tidak meminta; pekerjaan lanjutan kecil bila diinginkan. */
+      const a3 = arc3Ref.current;
+      if (dg.stage === 'third' && a3 && a3.end) {
+        const q = snapAt(toDoc(e.clientX, e.clientY), e, null, null, a3.base.objects);
+        const res = threePointArcFromPoints(a3.start, a3.end, q);
+        const st = visibleStrokeStyle(shapeSty, { stroke: accentStroke(prefs && prefs.accent || '#13b152'), sw: 2 });
+        const o = {
+          id: a3.id,
+          name: a3.name,
+          type: 'path',
+          fill: 'none',
+          stroke: st.stroke,
+          strokeWidth: st.sw,
+          opacity: 1,
+          fillRule: 'nonzero',
+          group: null,
+          subs: [{ id: makeNodeId(), closed: false, nodes: res.nodes.map(n => ({ ...n, id: makeNodeId() })) }],
+          gen: { kind: 'arc', cx: res.cx, cy: res.cy, r: res.r, startDeg: res.startDeg || 0, sweepDeg: res.sweepDeg || 90 }
+        };
+        arc3Ref.current = null;
+        commit({ ...a3.base, objects: [...a3.base.objects, o] });
+        setSel({ objs: new Set([o.id]), nodes: new Set() });
         say(o.name + ' ditambahkan');
+        return;
+      }
+      if (dg.stage === 'endpoints' && a3) {
+        if (dg.moved && dg.endPt) {
+          /* Drag dari start ke end selesai -> tunggu titik ke-3 */
+          a3.end = dg.endPt;
+          say('Klik titik ke-3 untuk membentuk busur');
+        } else {
+          /* Klik ke-1 hanya menetapkan start; tunggu klik ke-2 untuk end */
+          say('Klik titik akhir busur');
+        }
+        return;
       }
       return;
     }
-    /* Shape Builder (Task 7): terapkan boolean pada doc asal (dg.base,
-       tanpa garis pratinjau) lalu commit. Klik tanpa seret = tanpa
-       perubahan (garis butuh 2+ titik). Gagal -> applyShapeBuilder sudah
-       say() pesannya; cukup kembalikan preview ke dg.base. */
     if (dg.type === 'shapebuilder') {
-      if (!dg.moved) {
+      const sbRes = applyShapeBuilderVectorcraft(
+        dg.base,
+        dg.selIds,
+        dg.stroke,
+        { alt: dg.alt, shift: dg.shift },
+        say
+      );
+      if (!sbRes.changed) {
         live(dg.base);
+        if (sbRes.resultId) setSel({ objs: new Set([sbRes.resultId]), nodes: new Set() });
         return;
       }
-      const mode = dg.alt ? 'subtract' : 'union';
-      const crossed = shapesCrossedByStroke(dg.base.objects.filter(o => dg.selIds.has(o.id)), dg.stroke);
-      const nd = applyShapeBuilder(dg.base, dg.selIds, dg.stroke, mode, say);
-      if (nd === dg.base) {
-        live(dg.base);
-        return;
+      commit(sbRes.doc, null);
+      if (sbRes.resultId) {
+        setSel({ objs: new Set([sbRes.resultId]), nodes: new Set() });
+      } else {
+        setSel({ objs: new Set(), nodes: new Set() });
       }
-      const baseIds = new Set(dg.base.objects.map(o => o.id));
-      const result = nd.objects.find(o => !baseIds.has(o.id));
-      commit(nd, null);
-      if (result) {
-        setSel({
-          objs: new Set([result.id]),
-          nodes: new Set()
-        });
-        say(mode === 'subtract'
-          ? `Shape Builder: ${crossed.length} bentuk dikurangkan → ${result.name}`
-          : `Shape Builder: ${crossed.length} bentuk digabung → ${result.name}`);
-      }
-      /* Sengaja TIDAK setTool('select') (seperti Arc/Blob/Weave): tool
-         tetap aktif supaya bisa menggabungkan bentuk lain; seleksi
-         sesudah commit hanya 1 objek, jadi seret berikutnya menampilkan
-         petunjuk bila belum memilih 2+ bentuk. */
       return;
     }
     /* Curvature (Task 6): klik (tanpa seret) = toggle smooth/corner atau
@@ -9568,12 +9791,34 @@ const VectorEditor = ({
         })}</Float></React.Fragment>;
   });
   const leftSidebarNode = leftOpen ? <EditorLeftSidebar L={L} lang={prefs && prefs.lang || 'id'} onBackToWorkspace={onBackToWorkspace} docRef={docRef} zoomRef={zoomRef} panRef={panRef} saveStatus={saveStatus} onRetrySave={onRetrySave} onRenameProject={onRenameProject} projectName={projectName} doc={doc} nTotal={nTotal} sel={sel} selNodes={selNodes} createFrameSel={createFrameSel} groupSel={groupSel} clipFrames={clipFrames} setClipFrames={setClipFrames} groupSameColor={groupSameColor} setGroupSameColor={setGroupSameColor} layerScrollRef={layerScrollRef} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} tool={tool} pen={pen} penSty={penSty} setPenSty={setPenSty} penRef={penRef} lineInfo={lineInfo} commitObjs={commitObjs} finishPen={finishPen} selObjs={selObjs} autoSel={autoSel} autoAll={autoAll} ahOpt={ahOpt} setAhOpt={setAhOpt} primary={primary} alOpt={alOpt} setAlOpt={setAlOpt} applyNodeAngleAlign={applyNodeAngleAlign} selHandles={selHandles} applyStraight={applyStraight} applyAutoRefine={applyAutoRefine} applyPruneNodes={applyPruneNodes} pruneOpt={pruneOpt} setPruneOpt={setPruneOpt} sOpt={sOpt} setSOpt={setSOpt} vcSimp={vcSimp} vcSimpRetain={vcSimpRetain} openVcSimplify={openVcSimplify} triggerAutoSimplifyLevel={triggerAutoSimplifyLevel} openVcMoreOptions={openVcMoreOptions} updateVcSimplify={updateVcSimplify} cancelVcSimplify={cancelVcSimplify} confirmVcSimplify={confirmVcSimplify} virtualLayerRows={virtualLayerRows} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} layerAnchor={layerAnchor} layerFlatIds={layerFlatIds} setSel={setSel} setLayerIns={setLayerIns} renameVal={renameVal} setRenameVal={setRenameVal} renameSkip={renameSkip} setRenamingId={setRenamingId} renamingId={renamingId} layerIns={layerIns} openLayerCtx={openLayerCtx} overFrameId={overFrameId} reorderLayerTo={reorderLayerTo} layerClickSkipExpandRef={layerClickSkipExpandRef} commitRename={commitRename} say={say} dropFrameId={dropFrameId} toggleCollapseGrp={toggleCollapseGrp} ungroupIds={ungroupIds} rzProps={rzProps} /> : null;
-  const rightInspectorNode = rightOpen ? <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} onSeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} onFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} onExportBackup={onExportBackup} onOpenCodeInspector={openCodeInspector} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} textControls={primary && primary.type === 'text' ? (() => {
+  const chartMatch = findSelectedChartAnchor(selObjs, doc.objects || []);
+  const chartControlsNode = chartMatch ? (() => {
+    void fontCatalogVer;
+    const reg = sceneRendererRef.current?.scene?.fontRegistry || null;
+    const availFonts = reg && typeof reg.listFamilies === 'function' ? reg.listFamilies().map(f => typeof f === 'string' ? f : f && f.family).filter(Boolean) : ['Geovanta Sans'];
+    return (
+      <ChartInspectorPanel
+        config={chartMatch.config}
+        groupId={chartMatch.groupId}
+        onChangeConfig={(nextCfg, meta) => onChartConfigChange(chartMatch.groupId, nextCfg, meta)}
+        onOpenStudio={() => {
+          setChartsEditTarget({ groupId: chartMatch.groupId, config: chartMatch.config });
+          setTool('charts');
+        }}
+        onDetachToVector={() => onChartDetach(chartMatch.groupId)}
+        availableFonts={availFonts}
+        googleFonts={GOOGLE_FONTS.families.map(f => f.family)}
+        L={L}
+        lang={prefs?.lang || 'id'}
+      />
+    );
+  })() : null;
+  const rightInspectorNode = rightOpen ? <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} onSeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} onFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} onExportBackup={onExportBackup} onOpenCodeInspector={openCodeInspector} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} chartControls={chartControlsNode} textControls={primary && primary.type === 'text' ? (() => {
             void fontCatalogVer;
             const reg = sceneRendererRef.current?.scene?.fontRegistry || null;
-            const availFonts = reg && typeof reg.listFamilies === 'function' ? reg.listFamilies().map(f => typeof f === 'string' ? f : f && f.family).filter(Boolean) : ['IBM Plex Sans'];
+            const availFonts = reg && typeof reg.listFamilies === 'function' ? reg.listFamilies().map(f => typeof f === 'string' ? f : f && f.family).filter(Boolean) : ['Geovanta Sans'];
             const pSpec = legacyTextSpec(primary);
-            const isFontAvail = reg ? !!reg.getFace(pSpec.fontFamily, pSpec.fontWeight, pSpec.fontStyle) : pSpec.fontFamily === 'IBM Plex Sans';
+            const isFontAvail = reg ? !!reg.getFace(pSpec.fontFamily, pSpec.fontWeight, pSpec.fontStyle) : pSpec.fontFamily === 'Geovanta Sans';
             return <TextInspector
               object={primary}
               lang={prefs?.lang || 'id'}
@@ -9793,7 +10038,7 @@ const VectorEditor = ({
             display: 'none',
             backgroundImage: bg.mode === 'solid' ? 'none' : 'conic-gradient(var(--card) 25%, var(--line) 0 50%, var(--card) 0 75%, var(--line) 0)',
             backgroundSize: '16px 16px'
-          }} />{docLoading && <div data-testid="doc-loading" role="progressbar" aria-label="Memuat dokumen" aria-valuemin={0} aria-valuemax={docLoading.total} aria-valuenow={docLoading.loaded} style={{
+          }} /><CanvasRulers visible={rulersOn} unit={rulerUnit} origin={rulerOrigin} zoom={zoomRef.current} pan={panRef.current} guides={guides} guidesVisible={guidesVisible} guidesLocked={guidesLocked} onAddGuide={(axis, pos) => setGuides(gs => [...gs, { id: VE.uid(), axis, pos }])} onMoveGuide={(id, pos) => setGuides(gs => gs.map(g => g.id === id ? { ...g, pos } : g))} onDeleteGuide={id => setGuides(gs => gs.filter(g => g.id !== id))} onSetOrigin={setRulerOrigin} onSetUnit={setRulerUnit} containerRef={boxRef} lang={prefs && prefs.lang || 'id'} />{docLoading && <div data-testid="doc-loading" role="progressbar" aria-label="Memuat dokumen" aria-valuemin={0} aria-valuemax={docLoading.total} aria-valuenow={docLoading.loaded} style={{
             position: 'absolute',
             inset: 0,
             /* zIndex 2: tepat di atas host SVG dalam-kanvas (zIndex 1),
@@ -10252,7 +10497,7 @@ const VectorEditor = ({
                   setRenamingId(null);
                 }} /></div>;
             }
-          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} applySeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} applyFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} onOpenCodeInspector={openCodeInspector} isCodeInspectorOpen={isCodeInspectorOpen} />{(() => {
+          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} rulersOn={rulersOn} setRulersOn={setRulersOn} rulerUnit={rulerUnit} setRulerUnit={setRulerUnit} guidesVisible={guidesVisible} setGuidesVisible={setGuidesVisible} guidesLocked={guidesLocked} setGuidesLocked={setGuidesLocked} onClearGuides={() => setGuides([])} onResetRulerOrigin={() => setRulerOrigin({ x: 0, y: 0 })} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} applySeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} applyFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} onOpenCodeInspector={openCodeInspector} isCodeInspectorOpen={isCodeInspectorOpen} />{(() => {
             if (typeof window !== 'undefined') {
               Object.defineProperty(window, '__geovantaAutoSimplifyOn', {
                 get: () => autoSimplifyOnRef.current,
@@ -10274,6 +10519,7 @@ const VectorEditor = ({
                 setGridOn,
                 getSnapOn: () => snapOnRef.current,
                 setSnapOn,
+                setSelObjs: (ids: string[]) => setSel({ objs: new Set(ids), nodes: new Set() }),
                 triggerFrameClick: (x, y) => {
                   const base = docRef.current;
                   const hitF = VE.listFrames(base, null).find(f => x >= f.bb[0] && x <= f.bb[2] && y >= f.bb[1] && y <= f.bb[3]);
@@ -10301,7 +10547,7 @@ const VectorEditor = ({
                         x: x || 50,
                         y: (y || 50) + 16,
                         fontSize: 16,
-                        fontFamily: 'IBM Plex Sans',
+                        fontFamily: 'Geovanta Sans',
                         fontWeight: 'normal',
                         fontStyle: 'normal',
                         textAnchor: 'start',
@@ -10352,6 +10598,10 @@ const VectorEditor = ({
                 getOffsetStripState: () => offStripRef.current,
                 onIconifyInsert,
                 getIconifyCascadeCount: () => iconifyCascadeRef.current,
+                insertChart: onChartInsert,
+                updateChartConfig: onChartConfigChange,
+                detachChart: onChartDetach,
+                getChartTypes: () => ALL_ECHARTS_SERIES_TYPES,
                 autoTraceSelectedImages,
                 openBoolPopup: () => setBoolOpen(true),
                 closeBoolPopup: () => setBoolOpen(false),
@@ -10659,7 +10909,42 @@ const VectorEditor = ({
             e.stopPropagation();
             setRightOpen(o => !o);
           }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M14.5 4v16" /><path d={rightOpen ? 'M9 9.5L11.5 12 9 14.5' : 'M11 9.5L8.5 12 11 14.5'} /></svg></button>{rightInspectorNode}</div>
-    )}</div><IconifyModal open={tool === 'iconify'} onInsert={onIconifyInsert} onClose={onIconifyClose} L={L} recentIcons={prefs && prefs.recentIcons || []} /><SvgCodeInspectorModal isOpen={isCodeInspectorOpen} onClose={() => setIsCodeInspectorOpen(false)} doc={doc} onUpdateDoc={(newDoc) => commit(newDoc)} lang={prefs && prefs.lang || 'id'} />{importModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
+    )}</div>{lineSizeDlg && <div data-testid="line-size-dialog" className="flt p-3 rounded-xl shadow-xl border border-[var(--line)] space-y-2" style={{
+              position: 'fixed',
+              left: Math.min(window.innerWidth - 230, Math.max(12, lineSizeDlg.sx + 10)),
+              top: Math.min(window.innerHeight - 160, Math.max(12, lineSizeDlg.sy + 10)),
+              width: 210,
+              zIndex: 9999,
+              background: 'var(--card)'
+            }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+              <div className="text-[11px] font-semibold uppercase mut">Line Segment</div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] mut flex flex-col gap-0.5">
+                  <span>Length</span>
+                  <input data-testid="line-size-length" type="number" className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--sub)] text-[11px] text-[var(--ink)]" value={lineSizeDlg.len} onChange={e => setLineSizeDlg(d => d ? { ...d, len: e.target.value } : null)} />
+                </label>
+                <label className="text-[10px] mut flex flex-col gap-0.5">
+                  <span>Angle (°)</span>
+                  <input data-testid="line-size-angle" type="number" className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--sub)] text-[11px] text-[var(--ink)]" value={lineSizeDlg.ang} onChange={e => setLineSizeDlg(d => d ? { ...d, ang: e.target.value } : null)} />
+                </label>
+              </div>
+              <div className="flex justify-end gap-1.5 pt-1">
+                <button type="button" className="ved-pill text-[10px]" onClick={() => setLineSizeDlg(null)}>Batal</button>
+                <button type="button" data-testid="line-size-apply" className="btn pri text-[10px] px-2.5 py-1 rounded-lg" onClick={() => {
+                  const len = Math.max(1, Number(lineSizeDlg.len) || 100);
+                  const rad = ((Number(lineSizeDlg.ang) || 0) * Math.PI) / 180;
+                  const endPt = { x: lineSizeDlg.x + len * Math.cos(rad), y: lineSizeDlg.y + len * Math.sin(rad) };
+                  const o = makeLine({ x: lineSizeDlg.x, y: lineSizeDlg.y }, endPt, {}, VE.uid(), nextLineName());
+                  setLineSizeDlg(null);
+                  if (o) {
+                    commit({ ...docRef.current, objects: [...docRef.current.objects, o] });
+                    setSel({ objs: new Set([o.id]), nodes: new Set() });
+                    setTool('select');
+                    say(o.name + ' ditambahkan');
+                  }
+                }}>OK</button>
+              </div>
+            </div>}<IconifyModal open={tool === 'iconify'} onInsert={onIconifyInsert} onClose={onIconifyClose} L={L} recentIcons={prefs && prefs.recentIcons || []} /><ChartsStudioModal open={tool === 'charts'} initialConfig={chartsEditTarget?.config || null} editingGroupId={chartsEditTarget?.groupId || null} onInsert={onChartInsert} onUpdate={(gid, cfg) => { onChartConfigChange(gid, cfg); onChartsClose(); }} onClose={onChartsClose} googleFonts={GOOGLE_FONTS.families.map(f => f.family)} L={L} lang={prefs && prefs.lang || 'id'} /><SvgCodeInspectorModal isOpen={isCodeInspectorOpen} onClose={() => setIsCodeInspectorOpen(false)} doc={doc} selIds={sel.objs} onUpdateDoc={(newDoc) => commit(newDoc)} lang={prefs && prefs.lang || 'id'} />{importModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
       if (e.target === e.currentTarget) setImportModalOpen(false);
     }}><div className="hp" role="dialog" aria-label="Impor Berkas" style={{
         maxWidth: 480

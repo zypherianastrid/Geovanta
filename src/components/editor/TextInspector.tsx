@@ -20,7 +20,7 @@ export function TextInspector({
   edit,
   onImportFont,
   onConvertToPath,
-  availableFonts = ['IBM Plex Sans'],
+  availableFonts = ['Geovanta Sans'],
   isFontAvailable = true,
   lang = 'id',
   googleFonts = [],
@@ -71,7 +71,7 @@ export function TextInspector({
   // dan meng-unmount seluruh app (blank putih).
   const families = Array.from(new Set([
     ...availableFonts.filter(Boolean).map((f: any) => typeof f === 'string' ? f : f && f.family).filter(Boolean),
-    'IBM Plex Sans',
+    'Geovanta Sans',
     ...(t.fontFamily ? [t.fontFamily] : [])
   ]));
 
@@ -216,9 +216,9 @@ export function TextInspector({
               type="button"
               className="ved-pill text-[10px] flex-1 justify-center"
               data-tip="veTextUsePlex"
-              onClick={() => update({fontFamily: 'IBM Plex Sans', fontAssetId: null, fontAssetIds: null})}
+              onClick={() => update({fontFamily: 'Geovanta Sans', fontAssetId: null, fontAssetIds: null})}
             >
-              {en ? 'Use IBM Plex Sans' : 'Pakai IBM Plex Sans'}
+              {en ? 'Use Geovanta Sans' : 'Pakai Geovanta Sans'}
             </button>
           </div>
         </div>

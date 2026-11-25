@@ -242,7 +242,8 @@ const loadPrefs = () => {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return {
-      ...DEFAULT_PREFS
+      ...DEFAULT_PREFS,
+      theme: typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : DEFAULT_PREFS.theme
     };
     const p = JSON.parse(raw);
     /* T10: tegakkan batas 10 warna terakhir juga di jalur muat — daftar

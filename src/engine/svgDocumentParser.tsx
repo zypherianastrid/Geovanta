@@ -73,6 +73,17 @@ function parseGenData(el) {
       startDeg: g.startDeg,
       sweepDeg: g.sweepDeg
     };
+    if (g && typeof g === 'object' && g.kind === 'chart' && typeof g.chartGroupId === 'string' && g.config && typeof g.config === 'object' && typeof g.config.chartType === 'string') return {
+      kind: 'chart',
+      version: num(g.version) ? g.version : 1,
+      chartGroupId: g.chartGroupId,
+      config: g.config,
+      bounds: g.bounds && typeof g.bounds === 'object' ? g.bounds : { x: 0, y: 0, w: 600, h: 400 }
+    };
+    if (g && typeof g === 'object' && g.kind === 'chart-member' && typeof g.chartGroupId === 'string') return {
+      kind: 'chart-member',
+      chartGroupId: g.chartGroupId
+    };
   } catch (e) {}
   return null;
 }
@@ -606,7 +617,7 @@ function parseSVG(str) {
       const mScale = Math.hypot(m[0], m[1]) || 1;
       const rawFs = parseFloat(prop(el, 'font-size') || el.getAttribute('font-size') || '16') || 16;
       const fontSize = Math.max(1, rd(rawFs * mScale));
-      const rawFam = (prop(el, 'font-family') || el.getAttribute('font-family') || 'IBM Plex Sans').replace(/^['"]+|['"]+$/g, '').split(',')[0].trim() || 'IBM Plex Sans';
+      const rawFam = (prop(el, 'font-family') || el.getAttribute('font-family') || 'Geovanta Sans').replace(/^['"]+|['"]+$/g, '').split(',')[0].trim() || 'Geovanta Sans';
       const fontWeight = prop(el, 'font-weight') || el.getAttribute('font-weight') || 'normal';
       const fontStyle = prop(el, 'font-style') || el.getAttribute('font-style') || 'normal';
       const textAnchor = prop(el, 'text-anchor') || el.getAttribute('text-anchor') || cur['text-anchor'] || 'start';
@@ -624,10 +635,12 @@ function parseSVG(str) {
          tidak ada di doc.styles dibuang oleh readStyleLinks. */
       const textStyleLinks: any = readStyleLinks(el, styleIds);
       const textFx = readEffects(el);
+      const textGen = parseGenData(el);
       const textBm = normalizeBlendMode(prop(el, 'mix-blend-mode'));
       objects.push({
         id: el.getAttribute('data-id') || el.getAttribute('id') || uid(),
         name,
+        ...(textGen ? { gen: textGen } : {}),
         type: 'text',
         fill: fillVal,
         ...(textBm !== 'normal' ? { blendMode: textBm } : {}),

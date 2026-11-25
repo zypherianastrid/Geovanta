@@ -873,7 +873,7 @@ export class AiLiveConnector {
       x: Number(params.x ?? 120),
       y: Number(params.y ?? 160),
       fontSize: Number(params.fontSize ?? 48),
-      fontFamily: params.fontFamily || 'IBM Plex Sans',
+      fontFamily: params.fontFamily || 'Geovanta Sans',
       fontWeight: params.fontWeight || 'normal',
       fontStyle: params.fontStyle || 'normal',
       fill: params.fill || '#111827',

@@ -10,8 +10,8 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
-  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.1" target="_blank"><img src="https://img.shields.io/badge/Release-v1.3.1-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.3.1" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.3.1-8b5cf6?style=for-the-badge" alt="Changelog v1.3.1" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.2" target="_blank"><img src="https://img.shields.io/badge/Release-v1.3.2-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.3.2" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.3.2-8b5cf6?style=for-the-badge" alt="Changelog v1.3.2" /></a>
 </p>
 
 <p>
@@ -159,6 +159,11 @@ Tailor the studio to match your workflow: switch seamlessly between **Light**, *
 
 ---
 
+### 12. Apache ECharts Pure Vector Charts Studio (`v1.3.2`)
+Create publication-grade **100% pure vector data visualizations** powered by **Apache ECharts** directly inside Geovanta — supporting **all 22 official ECharts series types** (*Line, Bar, Pie/Donut/Rose, Scatter, EffectScatter, Radar, Tree, Treemap, Sunburst, Boxplot, Candlestick, Heatmap, Geo Map with built-in World/Indonesia + custom GeoJSON import, Parallel, Lines, Graph, Sankey, Funnel, Gauge, PictorialBar, ThemeRiver, and Custom*) with modern Fintech SaaS card defaults. Select any chart on the canvas to customize **data values (Table/CSV/JSON), colors, gradients, typography, components (Card Frame, KPI Hero & Trend Badges, Period Pills, Legend, MarkLine/MarkPoint, Footnote), or raw ECharts JSON** live from the top of the Right Sidebar, or detach into individual editable vector paths at any time.
+
+---
+
 ## 📋 Complete Feature Reference
 
 > For the chronological release history, see **[CHANGELOG.md](CHANGELOG.md)**.
@@ -279,17 +284,17 @@ flowchart LR
 Launch Geovanta directly in any modern browser (Chrome, Edge, Firefox) with no installation required:
 - **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
 
-### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.3.1` Release)
-Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.3.1)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.1)**:
-1. Download [`Geovanta.Vector.Editor_1.3.1_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.1/Geovanta.Vector.Editor_1.3.1_x64-setup.exe) (or the `.msi` installer).
+### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.3.2` Release)
+Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.3.2)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.2)**:
+1. Download [`Geovanta.Vector.Editor_1.3.2_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.2/Geovanta.Vector.Editor_1.3.2_x64-setup.exe) (or the `.msi` installer).
 2. Run the `.exe` installer and follow the setup wizard.
 3. Launch **Geovanta Vector Editor** from your Start Menu or Desktop shortcut.
 
-### Option 3: 📱 Install Android App (`.apk` — `v1.3.1` Release)
+### Option 3: 📱 Install Android App (`.apk` — `v1.3.2` Release)
 Install Geovanta directly on Android phones and tablets (with Dedicated Mobile Mode, Material 3 Action Sheet, two-finger pinch-to-zoom/pan, 2-finger Undo, 3-finger Redo, Material You dynamic accent, and native Capacitor 7 bridge):
-1. Download [`Geovanta-v1.3.1-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.1/Geovanta-v1.3.1-android.apk) from **[GitHub Releases (v1.3.1)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.1)**.
+1. Download [`Geovanta-v1.3.2-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.2/Geovanta-v1.3.2-android.apk) from **[GitHub Releases (v1.3.2)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.2)**.
 2. Tap the `.apk` file on your Android device and allow installation if prompted.
-3. *(Optional)* Build the APK locally from source using `npm run android:build:apk` or `build-android-apk.bat` (outputs to `dist/android/Geovanta-v1.3.1-android.apk`).
+3. *(Optional)* Build the APK locally from source using `npm run android:build:apk` or `build-android-apk.bat` (outputs to `dist/android/Geovanta-v1.3.2-android.apk`).
 
 ### Option 4: 📦 Run Offline Bundle Locally (No Build Required)
 Serve or open `web/index.html` in Chrome, Edge, or any modern Chromium browser. All JavaScript bundles, fonts, and Skia CanvasKit WebAssembly runtimes are bundled locally — no internet connection required.
@@ -306,7 +311,7 @@ npm run typecheck
 # 3. Rebuild the 100% offline web bundle (updates dist/ and web/)
 npm run build:web
 
-# 4. Build Android APK locally (outputs dist/android/Geovanta-v1.3.1-android.apk)
+# 4. Build Android APK locally (outputs dist/android/Geovanta-v1.3.2-android.apk)
 npm run android:build:apk
 ```
 
@@ -316,8 +321,8 @@ Requires **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual Stu
 build-windows-64bit.bat
 ```
 Generated 64-bit installers are placed in:
-- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.3.1_x64-setup.exe`
-- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.3.1_x64_en-US.msi`
+- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.3.2_x64-setup.exe`
+- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.3.2_x64_en-US.msi`
 
 ---
 

@@ -122,7 +122,7 @@ const TOOL_DEFINITIONS = [
         x: { type: 'number', description: 'X position on artboard (default 100)' },
         y: { type: 'number', description: 'Y position on artboard (default 150)' },
         fontSize: { type: 'number', description: 'Font size in pixels (default 48)' },
-        fontFamily: { type: 'string', description: 'Font family name (default IBM Plex Sans)' },
+        fontFamily: { type: 'string', description: 'Font family name (default Geovanta Sans)' },
         fontWeight: { type: 'string', description: "Font weight ('normal', 'bold', '600', '700')" },
         fontStyle: { type: 'string', enum: ['normal', 'italic'], description: 'Font style' },
         fill: { type: 'string', description: 'Text fill color hex (default #111827)' },

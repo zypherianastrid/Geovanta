@@ -11,3 +11,7 @@ android/.gradle/
 android/build/
 android/app/build/
 *.log
+
+test-deploy.zip
+*.pyc
+__pycache__/

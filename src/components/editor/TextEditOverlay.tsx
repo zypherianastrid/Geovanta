@@ -111,7 +111,7 @@ export const TextEditOverlay = forwardRef<TextEditViewport, TextEditOverlayProps
   const effLineHeightPx = (lineAdvance > 0 ? lineAdvance : resolvedLineHeightPx) * zoom;
   const fontFamilyCss = activeFamily !== spec.fontFamily
     ? `"${activeFamily}", "${spec.fontFamily}", sans-serif`
-    : `"${spec.fontFamily}", "IBM Plex Sans", sans-serif`;
+    : `"${spec.fontFamily}", "Geovanta Sans", sans-serif`;
 
   const isMobile = typeof document !== 'undefined' && (
     document.documentElement.dataset.mobile === '1' ||

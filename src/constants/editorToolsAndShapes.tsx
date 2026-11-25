@@ -50,6 +50,9 @@ const VE_TOOLS = [{
      (segitiga + kotak + lingkaran = "ikon"), tanpa ikon baru yang dibundel. */
   type: 'single',
   item: ['iconify', 'veIconify', ICONS.shapes]
+}, {
+  type: 'single',
+  item: ['charts', 'veCharts', 'M4 20h16 M7 16v-5 M12 16V7 M17 16v-8']
 }];
 /* ---------- Pustaka shape: setiap generator mengembalikan path M/L/C/Z di kotak (x, y, w, h) ---------- */
 
@@ -111,6 +114,14 @@ TIPS.veIconify = {
 TIPS_EN.veIconify = {
   t: 'Icons',
   d: 'Search and insert vector icons from Iconify. Click again to close the panel.'
+};
+TIPS.veCharts = {
+  t: 'Charts',
+  d: 'Buat & edit semua jenis chart vektor Apache ECharts (22+ tipe) yang bisa dikustomisasi penuh.'
+};
+TIPS_EN.veCharts = {
+  t: 'Charts',
+  d: 'Create & edit all Apache ECharts vector chart types (22+ types) with full customization.'
 };
 /* Daftar opsi Snap (Custom Checklist) + warna penanda + matriks kapabilitas per alat (SN-006) */
 const DEFAULT_SNAP_CFG = {

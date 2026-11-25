@@ -382,11 +382,11 @@ const CustomTextBox: React.FC<CustomTextBoxProps> = ({
     }
     setEditing(true);
     const s = bufRef.current;
-    let font = '12px Inter, sans-serif';
+    let font = '12px "Geovanta Sans", Inter, sans-serif';
     if (typeof window !== 'undefined' && ref.current) {
       const cs = window.getComputedStyle(ref.current);
       const fs = cs.fontSize || '12px';
-      const ff = cs.fontFamily || 'Inter, sans-serif';
+      const ff = cs.fontFamily || '"Geovanta Sans", Inter, sans-serif';
       const fw = cs.fontWeight || '400';
       font = `${fw} ${fs} ${ff}`;
     }

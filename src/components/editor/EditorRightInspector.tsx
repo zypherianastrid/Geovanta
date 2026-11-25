@@ -23,6 +23,7 @@ import { CustomTextBox } from '../ui/CustomTextBox.tsx';
 import { createStyle, renameStyle, deleteStyle, linkStyle, unlinkStyle, applyStyleEdit, paintSlot, directPaintEdit } from '../../engine/colorStyles.tsx';
 import { FindReplaceSection } from './FindReplaceSection.tsx';
 import { RecolorSection } from './RecolorSection.tsx';
+import { ColorGuideSection } from './ColorGuideSection.tsx';
 import { SolidToGradientSection } from './SolidToGradientSection.tsx';
 import { addEffect, removeEffect, updateEffect, toggleEffect } from '../../engine/effectsEngine.tsx';
 import { Float } from '../ui/FloatPopover.tsx';
@@ -144,6 +145,7 @@ const EditorRightInspector = ({
   exportSvg,
   downloadSvg,
   onExportBackup,
+  chartControls,
   textControls,
   tool,
   blobParams,
@@ -342,7 +344,7 @@ const EditorRightInspector = ({
         justifyContent: 'center',
         textAlign: 'center'
       }} data-tip="veZoomFit" onClick={fitView}>{L.riFit}</button></div></div>
-)}<div className="fig-r-scroll-wrap"><div className="fig-r-scroll" ref={rScrollRef}>{showTools && textControls}{showTools && (() => {
+)}<div className="fig-r-scroll-wrap"><div className="fig-r-scroll" ref={rScrollRef}>{showTools && chartControls}{showTools && textControls}{showTools && (() => {
   /* Seksi "Parameter tool" (Task 2): switch per tool — Task 3 (Weave) dan
      Task 5 (Arc) menambahkan cabang mereka sendiri di sini. Tool AKTIF menang
      atas fallback seleksi (fix round 1 Task 3): bila tool adalah generator,
@@ -408,7 +410,7 @@ const EditorRightInspector = ({
             background: 'var(--sub)',
             width: 30,
             height: 30
-          }} data-tip="veCorner" aria-pressed={indivCornerOpen} onClick={() => setIndivCornerOpen(v => !v)}><Vi s={14} d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" /></button></div>{indivCornerOpen && !primary.img && !primary.text && <div className="p-2.5 rounded-xl space-y-2 fade" style={{
+          }} data-tip="veCorner" aria-label={lang === 'en' ? 'Individual Corner Radius' : 'Radius Sudut Individual'} aria-pressed={indivCornerOpen} onClick={() => setIndivCornerOpen(v => !v)}><Vi s={14} d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" /></button></div>{indivCornerOpen && !primary.img && !primary.text && <div className="p-2.5 rounded-xl space-y-2 fade" style={{
           background: 'var(--sub)',
           border: '1px solid var(--line)'
         }}><div className="flex items-center justify-between gap-1"><span className="text-[11px] font-semibold">Individual Radius ({detectedCorners.length} {lang === 'en' ? 'corners' : 'sudut'})</span></div><Seg v={cornerMode} on={m => {
@@ -505,7 +507,27 @@ const EditorRightInspector = ({
     const linkedCount = (doc.objects || []).filter(o => o.fillStyleId === s.id || o.strokeStyleId === s.id).length;
     return <div key={s.id} className="flex items-center gap-2 p-1.5 rounded-xl" style={{ background: 'var(--sub)' }} data-testid="style-row" data-style-id={s.id}><button type="button" className="swatch" style={{ background: s.hex }} data-tip="veStyleApply" data-style-id={s.id} aria-label={L.riStyleApply + ': ' + s.name} onClick={() => applyStyle(s.id)} /><ColorField L={L} tip="veStyleHex" value={s.hex} on={(v, meta) => editStyleHex(s, v, meta)} /><div className="flex-1 min-w-0"><CustomTextBox value={s.name} ariaLabel={L.riStyleRename} onCommit={v => renameStyleById(s, v)} /></div><span className="fig-badge">{L.riStyleCount.replace('{n}', String(linkedCount))}</span><button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-tip="veStyleDelete" onClick={() => deleteStyleById(s)}>×</button></div>;
   })}</div>}{recents.length > 0 && <div className="pt-2"><div className="fig-sub-lbl">{L.riRecentColors}</div><div className="flex flex-wrap gap-1.5" data-testid="recent-colors">{recents.map(c => <button key={c} type="button" className="swatch" style={{ background: c, width: 22, height: 22 }} data-tip="veRecentColor" data-color={c} aria-label={c} disabled={!paintTargetIds.size} onClick={() => applyRecentColor(c)} />)}</div></div>}</div>;
-})()}{showStyle && primary && !primary.img && <div className="fig-isec fade" data-tip="veFill"><div className="fig-isec-title"><span>Fill{paintObjs.length === 1 && isBgObj(paintObjs[0]) && selObjs.length > 1 ? ' (Frame)' : ''}</span><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" data-tip="vePipetteFill" onClick={async () => {
+})()}{showStyle && <ColorGuideSection lang={lang} currentColor={(cp && cp.fill && cp.fill !== 'none' ? cp.fill : cp && cp.stroke && cp.stroke !== 'none' ? cp.stroke : '#e67828')} hasSelection={paintTargetIds.size > 0} onApplyColor={(hex, slot) => {
+  if (!paintTargetIds.size) return;
+  commitObjs(o => paintTargetIds.has(o.id) && !o.img ? directEditUnlink(o, {
+    ...o,
+    ...(slot === 'fill' ? { fill: hex, grad: null, ...(o.type === 'text' && o.text ? { text: { ...o.text, fill: hex } } : {}) } : { stroke: hex, strokeGrad: null }),
+  }, slot, doc.styles) : o, 'p:' + slot);
+  if (onRecentColor) onRecentColor(hex);
+}} onSaveToPalette={colors => {
+  const existing = doc && Array.isArray(doc.styles) ? doc.styles : [];
+  const nextStyles = [...existing];
+  let added = 0;
+  for (const hex of colors) {
+    if (nextStyles.some(s => (s.hex || '').toLowerCase() === hex.toLowerCase())) continue;
+    nextStyles.push({ id: VE.uid(), name: 'Guide ' + hex.toUpperCase(), hex });
+    added++;
+  }
+  if (added > 0) {
+    commit({ ...docRef.current, styles: nextStyles }, 'style:guide');
+    say((lang === 'en' ? 'Saved ' : 'Tersimpan ') + added + (lang === 'en' ? ' colors to palette' : ' warna ke palet'));
+  }
+}} />}{showStyle && primary && !primary.img && <div className="fig-isec fade" data-tip="veFill"><div className="fig-isec-title"><span>Fill{paintObjs.length === 1 && isBgObj(paintObjs[0]) && selObjs.length > 1 ? ' (Frame)' : ''}</span><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" data-tip="vePipetteFill" aria-label={lang === 'en' ? 'Pick Fill Color' : 'Ambil Warna Fill'} onClick={async () => {
             const c = await pickScreenColor();
             if (c) {
               commitObjs(o => paintTargetIds.has(o.id) && !o.img ? directEditUnlink(o, {
@@ -516,7 +538,7 @@ const EditorRightInspector = ({
               }, 'fill', doc.styles) : o, 'p:fill');
               if (onRecentColor) onRecentColor(c);
             }
-          }}><Ico n="pipette" size={13} /></button><button type="button" className="fig-ibtn" data-tip="veFillNone" onClick={() => {
+          }}><Ico n="pipette" size={13} /></button><button type="button" className="fig-ibtn" data-tip="veFillNone" aria-label={lang === 'en' ? 'Toggle Fill' : 'Aktifkan/Matikan Fill'} onClick={() => {
             const nf = cp.fill === 'none' ? '#0d99ff' : 'none';
             commitObjs(o => paintTargetIds.has(o.id) && !o.img ? directEditUnlink(o, {
               ...o,
@@ -577,7 +599,7 @@ const EditorRightInspector = ({
           const st = (doc.styles || []).find(x => x.id === cp.fillStyleId);
           if (!st) return null;
           return <div className="flex items-center gap-2 pt-1" data-testid="fill-style-link"><span className="fig-badge">Style · {st.name}</span><button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-tip="veStyleUnlinkFill" onClick={() => { commit(unlinkStyle(docRef.current, paintTargetIds, 'fill'), 'style:unlink'); say(L.riStyleUnlinked); }}>{L.riStyleUnlink}</button></div>;
-        })()}</div></div>}{showStyle && primary && !primary.img && paintObjs.length > 0 && <SolidToGradientSection L={L} lang={lang} paintObjs={paintObjs} paintTargetIds={paintTargetIds} commitObjs={commitObjs} say={say} />}{showStyle && strokeCp && <div className="fig-isec fade" data-tip="veStroke"><div className="fig-isec-title"><span>Stroke{strokeObjs.length === 1 && isBgObj(strokeObjs[0]) && selObjs.length > 1 ? ' (Frame)' : ''}</span><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" data-tip="vePipetteStroke" onClick={async () => {
+        })()}</div></div>}{showStyle && primary && !primary.img && paintObjs.length > 0 && <SolidToGradientSection L={L} lang={lang} paintObjs={paintObjs} paintTargetIds={paintTargetIds} commitObjs={commitObjs} say={say} />}{showStyle && strokeCp && <div className="fig-isec fade" data-tip="veStroke"><div className="fig-isec-title"><span>Stroke{strokeObjs.length === 1 && isBgObj(strokeObjs[0]) && selObjs.length > 1 ? ' (Frame)' : ''}</span><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" data-tip="vePipetteStroke" aria-label={lang === 'en' ? 'Pick Stroke Color' : 'Ambil Warna Stroke'} onClick={async () => {
             const c = await pickScreenColor();
             if (c) {
               commitObjs(o => strokeTargetIds.has(o.id) ? directEditUnlink(o, {
@@ -587,7 +609,7 @@ const EditorRightInspector = ({
               }, 'stroke', doc.styles) : o, 'p:stroke');
               if (onRecentColor) onRecentColor(c);
             }
-          }}><Ico n="pipette" size={13} /></button><button type="button" className="fig-ibtn" data-tip="veStrokeNone" onClick={() => commitObjs(o => strokeTargetIds.has(o.id) ? directEditUnlink(o, {
+          }}><Ico n="pipette" size={13} /></button><button type="button" className="fig-ibtn" data-tip="veStrokeNone" aria-label={lang === 'en' ? 'Toggle Stroke' : 'Aktifkan/Matikan Stroke'} onClick={() => commitObjs(o => strokeTargetIds.has(o.id) ? directEditUnlink(o, {
             ...o,
             stroke: (strokeCp.stroke === 'none' && !VE.strokeGradOn(strokeCp)) ? '#000000' : 'none',
             strokeWidth: (strokeCp.stroke === 'none' && !VE.strokeGradOn(strokeCp)) ? o.strokeWidth || 1 : o.strokeWidth

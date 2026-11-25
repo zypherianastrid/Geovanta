@@ -86,7 +86,7 @@ export function makeTextLayout(kit, registry, object) {
   if (!spec) throw new Error('Objek teks tidak valid');
   const requestedFamily = spec.fontFamily;
   const missingFont = !registry.getFace(requestedFamily, spec.fontWeight, spec.fontStyle);
-  const family = missingFont ? (registry.defaultFamily || 'IBM Plex Sans') : requestedFamily;
+  const family = missingFont ? (registry.defaultFamily || 'Geovanta Sans') : requestedFamily;
   if (!registry.getFace(family, spec.fontWeight, spec.fontStyle)) {
     throw new Error('Face font untuk teks tidak tersedia');
   }

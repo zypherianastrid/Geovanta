@@ -9,7 +9,7 @@ const DEFAULT_PREFS = {
   motion: 'system',
   tips: true,
   persist: true,
-  accent: '#13b152',
+  accent: '#0b7a37',
   accentMode: 'custom',
   m3White: true,
   lang: 'id',

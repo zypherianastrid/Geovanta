@@ -21,6 +21,7 @@ export interface SvgCodeInspectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   doc: any; // Geovanta document model
+  selIds?: Set<string> | string[]; // Seleksi aktif; kosong = semua objek kanvas
   onUpdateDoc?: (newDoc: any) => void; // dipanggil saat pengguna mengedit SVG XML valid
   lang?: string; // 'id' | 'en'
 }
@@ -88,6 +89,7 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
   isOpen,
   onClose,
   doc,
+  selIds,
   onUpdateDoc,
   lang = 'id'
 }) => {
@@ -96,6 +98,19 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
   const [codeText, setCodeText] = useState<string>('');
   const [xmlError, setXmlError] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
+
+  const selSet = useMemo(() => {
+    if (!selIds) return new Set<string>();
+    return selIds instanceof Set ? selIds : new Set<string>(selIds);
+  }, [selIds]);
+
+  const scopedDoc = useMemo(() => {
+    if (!doc || !Array.isArray(doc.objects) || selSet.size === 0) return doc;
+    const filtered = doc.objects.filter((o: any) => selSet.has(o.id) || (o.group && selSet.has(o.group)));
+    return filtered.length > 0 ? { ...doc, objects: filtered } : doc;
+  }, [doc, selSet]);
+
+  const isScoped = Boolean(doc && Array.isArray(doc.objects) && selSet.size > 0 && scopedDoc !== doc);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
@@ -135,7 +150,7 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
     }
   }, [serializeCurrentDoc]);
 
-  // Kanvas -> Kode: Perbarui tampilan kode saat prop `doc` atau `activeTab` berubah
+  // Kanvas -> Kode: Perbarui tampilan kode saat prop `scopedDoc` atau `activeTab` berubah
   useEffect(() => {
     if (!isOpen) return;
 
@@ -146,16 +161,16 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
       }
       // Jangan timpa jika pengguna sedang fokus mengetik di textarea
       if (!isFocusedRef.current) {
-        const raw = serializeCurrentDoc(doc);
+        const raw = serializeCurrentDoc(scopedDoc);
         setCodeText(raw);
         setXmlError(null);
       }
     } else {
-      const generated = getCodeForTab(activeTab, doc);
+      const generated = getCodeForTab(activeTab, scopedDoc);
       setCodeText(generated);
       setXmlError(null);
     }
-  }, [doc, activeTab, isOpen, serializeCurrentDoc, getCodeForTab]);
+  }, [doc, scopedDoc, activeTab, isOpen, serializeCurrentDoc, getCodeForTab]);
 
   // Validasi dan sinkronisasi Kode -> Kanvas
   const validateAndSync = useCallback((code: string) => {
@@ -169,9 +184,22 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
       const parsed = VE && typeof VE.parseSVG === 'function' ? VE.parseSVG(code) : parseSVG(code);
       if (parsed && !parsed.error && Array.isArray(parsed.objects)) {
         setXmlError(null);
-        lastSentDocRef.current = parsed;
+        let nextDoc = parsed;
+        if (isScoped && doc && Array.isArray(doc.objects)) {
+          const scopedIds = new Set((scopedDoc?.objects || []).map((o: any) => o.id));
+          const firstIdx = doc.objects.findIndex((o: any) => scopedIds.has(o.id));
+          const kept = doc.objects.filter((o: any) => !scopedIds.has(o.id));
+          const insertAt = firstIdx >= 0 ? Math.min(firstIdx, kept.length) : kept.length;
+          const mergedObjs = [
+            ...kept.slice(0, insertAt),
+            ...parsed.objects,
+            ...kept.slice(insertAt),
+          ];
+          nextDoc = { ...doc, objects: mergedObjs };
+        }
+        lastSentDocRef.current = nextDoc;
         if (onUpdateDoc) {
-          onUpdateDoc(parsed);
+          onUpdateDoc(nextDoc);
         }
       } else {
         setXmlError('Failed to parse SVG elements');
@@ -179,7 +207,7 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
     } catch (err: any) {
       setXmlError(err?.message || 'SVG parser error');
     }
-  }, [onUpdateDoc]);
+  }, [onUpdateDoc, isScoped, doc, scopedDoc]);
 
   // Perubahan teks di textarea dengan debouncing 300ms
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -379,7 +407,7 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
   const savingsPct = useMemo(() => {
     if (activeTab !== 'svg-minified') return 0;
     try {
-      const raw = serializeCurrentDoc(doc);
+      const raw = serializeCurrentDoc(scopedDoc);
       const rawBytes = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(raw).length : raw.length;
       if (rawBytes <= 0) return 0;
       return Math.max(0, Math.round(((rawBytes - byteLength) / rawBytes) * 100));
@@ -440,6 +468,11 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
             <div className="min-w-0">
               <div className="text-sm font-semibold truncate flex items-center gap-2">
                 <span>{lang === 'en' ? 'SVG Code Inspector & Live Editor' : 'SVG Code Inspector & Live Editor'}</span>
+                <span className="fig-badge" data-testid="code-inspector-scope-badge">
+                  {isScoped
+                    ? `${lang === 'en' ? 'Selection' : 'Seleksi'}: ${scopedDoc?.objects?.length || 0}`
+                    : (lang === 'en' ? 'All Canvas' : 'Semua Kanvas')}
+                </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
                 {xmlError ? (
@@ -530,6 +563,11 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
         </div>
 
         {/* Tab Bar (Segmented Control) */}
+        <style>{`
+          .svg-insp-tab { color: var(--mut); background: transparent; cursor: pointer; }
+          .svg-insp-tab:hover { color: var(--ink) !important; background: var(--sub) !important; }
+          .svg-insp-tab.on { color: var(--ink) !important; background: var(--sub) !important; font-weight: 600; box-shadow: inset 0 0 0 1px var(--line); }
+        `}</style>
         <div
           className="flex items-center gap-1 px-5 py-2.5 border-b overflow-x-auto shrink-0 select-none"
           style={{ borderColor: 'var(--line, #334155)', background: 'var(--card, #1e293b)' }}
@@ -542,12 +580,7 @@ export const SvgCodeInspectorModal: React.FC<SvgCodeInspectorModalProps> = ({
                 type="button"
                 data-testid={tab.testId}
                 onClick={() => handleTabChange(tab.id)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                  isActive
-                    ? 'bg-slate-800 text-white shadow-sm font-semibold ring-1 ring-slate-700'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                }`}
-                style={isActive ? { background: 'var(--sub, #0f172a)', color: 'var(--ink, #ffffff)' } : undefined}
+                className={`svg-insp-tab px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${isActive ? 'on' : ''}`}
               >
                 <span>{tab.label}</span>
                 {tab.id === 'svg-raw' && (

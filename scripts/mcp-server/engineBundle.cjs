@@ -2485,6 +2485,17 @@ function parseGenData(el) {
       startDeg: g.startDeg,
       sweepDeg: g.sweepDeg
     };
+    if (g && typeof g === "object" && g.kind === "chart" && typeof g.chartGroupId === "string" && g.config && typeof g.config === "object" && typeof g.config.chartType === "string") return {
+      kind: "chart",
+      version: num(g.version) ? g.version : 1,
+      chartGroupId: g.chartGroupId,
+      config: g.config,
+      bounds: g.bounds && typeof g.bounds === "object" ? g.bounds : { x: 0, y: 0, w: 600, h: 400 }
+    };
+    if (g && typeof g === "object" && g.kind === "chart-member" && typeof g.chartGroupId === "string") return {
+      kind: "chart-member",
+      chartGroupId: g.chartGroupId
+    };
   } catch (e) {
   }
   return null;
@@ -2967,7 +2978,7 @@ function parseSVG(str) {
       const mScale = Math.hypot(m[0], m[1]) || 1;
       const rawFs = parseFloat(prop(el, "font-size") || el.getAttribute("font-size") || "16") || 16;
       const fontSize = Math.max(1, rd(rawFs * mScale));
-      const rawFam = (prop(el, "font-family") || el.getAttribute("font-family") || "IBM Plex Sans").replace(/^['"]+|['"]+$/g, "").split(",")[0].trim() || "IBM Plex Sans";
+      const rawFam = (prop(el, "font-family") || el.getAttribute("font-family") || "Geovanta Sans").replace(/^['"]+|['"]+$/g, "").split(",")[0].trim() || "Geovanta Sans";
       const fontWeight = prop(el, "font-weight") || el.getAttribute("font-weight") || "normal";
       const fontStyle = prop(el, "font-style") || el.getAttribute("font-style") || "normal";
       const textAnchor = prop(el, "text-anchor") || el.getAttribute("text-anchor") || cur["text-anchor"] || "start";
@@ -2983,10 +2994,12 @@ function parseSVG(str) {
       const grpOp2 = cur.groupOpacity != null && cur.groupOpacity < 1 ? rd(cur.groupOpacity) : void 0;
       const textStyleLinks = readStyleLinks(el, styleIds);
       const textFx = readEffects(el);
+      const textGen = parseGenData(el);
       const textBm = normalizeBlendMode(prop(el, "mix-blend-mode"));
       objects.push({
         id: el.getAttribute("data-id") || el.getAttribute("id") || uid(),
         name: name2,
+        ...textGen ? { gen: textGen } : {},
         type: "text",
         fill: fillVal2,
         ...textBm !== "normal" ? { blendMode: textBm } : {},
@@ -5424,7 +5437,7 @@ function serializeDoc(doc, opt = {}) {
         gdefs += gradXml(o.grad, gid, ox, oy);
         textFillA = "url(#" + gid + ")";
       }
-      body += '<text id="' + uq(o.name || o.id || "text") + '" data-id="' + esc(o.id) + '"' + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : "") + ' x="' + r6(t.x - ox) + '" y="' + r6(t.y - oy) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" text-anchor="' + esc(t.textAnchor === "justify" ? "start" : t.textAnchor) + '"' + lsAttr + decAttr + rotAttr + ' fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + ">" + spans + "</text>";
+      body += '<text id="' + uq(o.name || o.id || "text") + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : "") + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : "") + ' x="' + r6(t.x - ox) + '" y="' + r6(t.y - oy) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" text-anchor="' + esc(t.textAnchor === "justify" ? "start" : t.textAnchor) + '"' + lsAttr + decAttr + rotAttr + ' fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + ">" + spans + "</text>";
       return;
     }
     let fillA = esc(o.fill === "transparent" || !o.fill ? "none" : o.fill);

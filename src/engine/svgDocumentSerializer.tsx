@@ -318,7 +318,7 @@ function serializeDoc(doc, opt: Record<string, any> = {}) {
         gdefs += gradXml(o.grad, gid, ox, oy);
         textFillA = 'url(#' + gid + ')';
       }
-      body += '<text id="' + uq(o.name || o.id || 'text') + '" data-id="' + esc(o.id) + '"' + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : '') + ' x="' + r6(t.x - ox) + '" y="' + r6(t.y - oy) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" text-anchor="' + esc(t.textAnchor === 'justify' ? 'start' : t.textAnchor) + '"' + lsAttr + decAttr + rotAttr + ' fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + '>' + spans + '</text>';
+      body += '<text id="' + uq(o.name || o.id || 'text') + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : '') + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : '') + ' x="' + r6(t.x - ox) + '" y="' + r6(t.y - oy) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" text-anchor="' + esc(t.textAnchor === 'justify' ? 'start' : t.textAnchor) + '"' + lsAttr + decAttr + rotAttr + ' fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + '>' + spans + '</text>';
       return;
     }
     let fillA = esc(o.fill === 'transparent' || !o.fill ? 'none' : o.fill);

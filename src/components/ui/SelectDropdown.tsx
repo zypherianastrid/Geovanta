@@ -59,7 +59,7 @@ const Select: React.FC<SelectProps> = ({
   // masuk (tanpa render ulang React).
   const previewFontStack = fam => {
     const name = String(fam || '').replace(/"/g, '');
-    return name ? `"${name}", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif` : undefined;
+    return name ? `"${name}", "Geovanta Sans", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif` : undefined;
   };
   // Beri tahu pemanggil opsi mana yang terlihat (saat dibuka + saat scroll
   // + saat daftar berubah) agar pemanggil bisa memuat font preview-nya

@@ -829,7 +829,7 @@ class GeovantaMcpServer {
           const y = Number(args.y ?? 150);
           const fontSize = Number(args.fontSize ?? 48);
           const fill = args.fill || '#111827';
-          const fontFamily = args.fontFamily || 'IBM Plex Sans';
+          const fontFamily = args.fontFamily || 'Geovanta Sans';
           const escaped = String(args.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><text x="${x}" y="${y}" font-size="${fontSize}" font-family="${fontFamily}" fill="${fill}">${escaped}</text></svg>`;
           return {

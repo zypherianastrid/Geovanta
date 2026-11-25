@@ -118,7 +118,26 @@ const SolidToGradientSection: React.FC<SolidToGradientSectionProps> = ({
     <div className="fig-isec fade" data-testid="solid-to-grad-section" data-tip="veSolidToGrad">
       <div className="fig-isec-title">
         <span>{L.s2gTitle || (lang === 'en' ? 'Solid to Gradient' : 'Solid ke Gradien')}</span>
-        {sourceColors.length > 0 && <span className="fig-badge" data-testid="s2g-color-count">{countText}</span>}
+        <div className="flex items-center gap-1">
+          {presets.length > 0 && (
+            <button
+              type="button"
+              data-testid="s2g-randomize"
+              className="ved-pill text-[10px]"
+              style={{ padding: '2px 7px' }}
+              title={lang === 'en' ? 'Pick a random gradient preset' : 'Acak preset gradien'}
+              onClick={() => {
+                const others = presets.filter(p => p.id !== lastPresetId);
+                const pool = others.length > 0 ? others : presets;
+                const pick = pool[Math.floor(Math.random() * pool.length)];
+                if (pick) applyPreset(pick);
+              }}
+            >
+              {lang === 'en' ? 'Randomize' : 'Acak'}
+            </button>
+          )}
+          {sourceColors.length > 0 && <span className="fig-badge" data-testid="s2g-color-count">{countText}</span>}
+        </div>
       </div>
 
       {sourceColors.length === 0 ? (
@@ -196,7 +215,11 @@ const SolidToGradientSection: React.FC<SolidToGradientSectionProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 pt-0.5" data-testid="s2g-preset-grid">
+          <div
+            data-testid="s2g-preset-scroll"
+            style={{ maxHeight: 200, overflowY: 'auto', paddingRight: 4 }}
+          >
+            <div className="grid grid-cols-2 gap-2 pt-0.5" data-testid="s2g-preset-grid">
             {presets.map(p => {
               const isSelected = lastPresetId === p.id && lastAppliedSelKeyRef.current === selKey && paintObjs.some(o => VE.gradOn(o) && o.grad?.type === gradType);
               return (
@@ -222,11 +245,12 @@ const SolidToGradientSection: React.FC<SolidToGradientSectionProps> = ({
                     }}
                   />
                   <div className="text-[10.5px] font-medium truncate" style={{ color: 'var(--ink)' }}>
-                    {L[p.labelKey] || p.id}
+                    {L[p.labelKey] || p.labelKey || p.id}
                   </div>
                 </button>
               );
             })}
+            </div>
           </div>
         </div>
       )}

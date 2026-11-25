@@ -38,6 +38,15 @@ const MOBILE_CSS = `
   display: none;
 }
 
+.fig-nav-dock .dk-b.chev-b {
+  min-height: 24px !important;
+}
+
+.ws-nav-item .ws-nav-sub {
+  color: var(--ink) !important;
+  opacity: 0.72;
+}
+
 @media (max-width: 1180px) {
   .fig-floating-bar,
   .fig-tabbar-fixed.fig-floating-bar {

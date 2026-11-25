@@ -1,0 +1,10 @@
+Geovanta Sans Custom Font License (SIL Open Font License 1.1)
+Copyright (c) 2026 Geovanta Vector Studio.
+
+Geovanta Sans is a 100% custom geometric-humanist rounded typeface
+designed exclusively for Geovanta Vector Editor.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the terms of the SIL Open Font License 1.1.

@@ -1,7 +1,9 @@
 // The packaged runtime supplies WASM bytes directly so file:// and Tauri work offline,
 // while http(s) origins (including Capacitor Android) stream canvaskit.wasm lazily on editor entry.
+declare const __GEOVANTA_FONT_RUNTIME_VER__: string | undefined;
 const loadedScripts = new Map<string, Promise<void>>();
 let runtime: Promise<any> | null = null;
+const FONT_RUNTIME_VER = typeof __GEOVANTA_FONT_RUNTIME_VER__ !== 'undefined' ? __GEOVANTA_FONT_RUNTIME_VER__ : '';
 
 function loadScriptOnce(src: string): Promise<void> {
   const existing = loadedScripts.get(src);
@@ -26,8 +28,14 @@ function loadScriptOnce(src: string): Promise<void> {
 }
 
 export function ensureBundledTextFonts(): Promise<void> {
-  if ((globalThis as any).GEOVANTA_BUNDLED_TEXT_FONT) return Promise.resolve();
-  return loadScriptOnce('./assets/text-font-runtime.js').catch(() => {});
+  const bundled = (globalThis as any).GEOVANTA_BUNDLED_TEXT_FONT;
+  if (bundled && bundled.family === 'Geovanta Sans' && bundled.faces?.regular) {
+    return Promise.resolve();
+  }
+  const src = FONT_RUNTIME_VER
+    ? `./assets/text-font-runtime.js?v=${FONT_RUNTIME_VER}`
+    : './assets/text-font-runtime.js';
+  return loadScriptOnce(src).catch(() => {});
 }
 
 async function initCanvasKitRuntime(): Promise<any> {
