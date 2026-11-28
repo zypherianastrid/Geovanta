@@ -14,7 +14,8 @@ import {
   hasVisibleStroke,
   strokeOutwardExtent,
   formatDasharray,
-  parseDasharray
+  parseDasharray,
+  buildMarkerSvgDef as VE_buildMarkerSvgDef
 } from './strokeStyles.tsx';
 import { normalizeBlendMode } from './blendModes.tsx';
 import { alignedStrokeOutlineSubs } from './pathOffset.tsx';
@@ -318,6 +319,13 @@ function serializeDoc(doc, opt: Record<string, any> = {}) {
         gdefs += gradXml(o.grad, gid, ox, oy);
         textFillA = 'url(#' + gid + ')';
       }
+      if (o.textOnPath?.pathD) {
+        const tpId = 'tp-' + (++gn);
+        gdefs += `<path id="${tpId}" d="${esc(o.textOnPath.pathD)}"/>`;
+        const tpOffset = o.textOnPath.startOffset ? ` startOffset="${rd(o.textOnPath.startOffset)}"` : '';
+        body += '<text id="' + uq(o.name || o.id || 'text') + '" data-id="' + esc(o.id) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + '><textPath href="#' + tpId + '"' + tpOffset + '>' + esc(display) + '</textPath></text>';
+        return;
+      }
       body += '<text id="' + uq(o.name || o.id || 'text') + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : '') + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : '') + ' x="' + r6(t.x - ox) + '" y="' + r6(t.y - oy) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" text-anchor="' + esc(t.textAnchor === 'justify' ? 'start' : t.textAnchor) + '"' + lsAttr + decAttr + rotAttr + ' fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + '>' + spans + '</text>';
       return;
     }
@@ -335,9 +343,51 @@ function serializeDoc(doc, opt: Record<string, any> = {}) {
       strokeA = 'url(#' + sgid + ')';
     }
 
+    let objClipAttr = '';
+    if (o.clipPathD) {
+      const objClipId = 'clip-' + (++gn);
+      gdefs += '<clipPath id="' + objClipId + '"><path d="' + esc(o.clipPathD) + '"' + (o.clipRule === 'evenodd' ? ' clip-rule="evenodd"' : '') + '/></clipPath>';
+      objClipAttr = ' clip-path="url(#' + objClipId + ')"';
+    }
+
+    let objMarkerAttrs = '';
+    if (strokeVisible && (o.strokeMarkerStart && o.strokeMarkerStart !== 'none' || o.strokeMarkerEnd && o.strokeMarkerEnd !== 'none')) {
+      const mColor = esc(o.stroke === 'transparent' || !o.stroke ? '#000000' : o.stroke);
+      if (o.strokeMarkerStart && o.strokeMarkerStart !== 'none') {
+        const msId = 'mk-s-' + (++gn);
+        gdefs += VE_buildMarkerSvgDef(msId, o.strokeMarkerStart, mColor, o.strokeWidth || 1);
+        objMarkerAttrs += ' marker-start="url(#' + msId + ')"';
+      }
+      if (o.strokeMarkerEnd && o.strokeMarkerEnd !== 'none') {
+        const meId = 'mk-e-' + (++gn);
+        gdefs += VE_buildMarkerSvgDef(meId, o.strokeMarkerEnd, mColor, o.strokeWidth || 1);
+        objMarkerAttrs += ' marker-end="url(#' + meId + ')"';
+      }
+    }
+
+    let extraStackAttrs = '';
+    if (Array.isArray(o.extraFills) && o.extraFills.length) {
+      extraStackAttrs += ' data-extra-fills="' + esc(JSON.stringify(o.extraFills)) + '"';
+      for (const ef of o.extraFills) {
+        if (ef && !ef.disabled && ef.pattern && ef.pattern !== 'none') {
+          const patId = 'pat-' + (++gn);
+          const pCol = esc(ef.color || '#000000');
+          const pBody = ef.pattern === 'dots'
+            ? `<circle cx="6" cy="6" r="2" fill="${pCol}"/>`
+            : ef.pattern === 'stripes'
+              ? `<rect x="0" y="0" width="4" height="12" fill="${pCol}"/>`
+              : `<rect x="0" y="0" width="6" height="6" fill="${pCol}"/>`;
+          gdefs += `<pattern id="${patId}" width="12" height="12" patternUnits="userSpaceOnUse">${pBody}</pattern>`;
+        }
+      }
+    }
+    if (Array.isArray(o.extraStrokes) && o.extraStrokes.length) {
+      extraStackAttrs += ' data-extra-strokes="' + esc(JSON.stringify(o.extraStrokes)) + '"';
+    }
+
     const align = effectiveStrokeAlign(o);
     if (align === 'center' || !strokeVisible) {
-      body += '<path id="' + uq(o.name) + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : '') + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : '') + (o.strokeStyleId ? ' data-stroke-style="' + esc(o.strokeStyleId) + '"' : '') + ' fill="' + fillA + '"' + (strokeVisible ? ' stroke="' + strokeA + '" stroke-width="' + rd(o.strokeWidth) + '" stroke-linejoin="' + esc(o.strokeLinejoin || 'round') + '" stroke-linecap="' + esc(o.strokeLinecap || 'round') + '"' + (o.strokeMiterlimit ? ' stroke-miterlimit="' + rd(o.strokeMiterlimit) + '"' : '') + (o.nonScalingStroke ? ' vector-effect="non-scaling-stroke"' : '') + dashAttrs(o) : '') + (o.paintOrder ? ' paint-order="' + esc(o.paintOrder) + '"' : '') + ((o.opacity ?? 1) !== 1 ? ' opacity="' + rd(o.opacity) + '"' : '') + blendStyleAttr(o) + (o.fillRule === 'evenodd' ? ' fill-rule="evenodd"' : '') + ' d="' + serializePath(o, ox, oy) + '"' + fxAttrs(o) + '/>';
+      body += '<path id="' + uq(o.name) + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : '') + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : '') + (o.strokeStyleId ? ' data-stroke-style="' + esc(o.strokeStyleId) + '"' : '') + ' fill="' + fillA + '"' + (strokeVisible ? ' stroke="' + strokeA + '" stroke-width="' + rd(o.strokeWidth) + '" stroke-linejoin="' + esc(o.strokeLinejoin || 'round') + '" stroke-linecap="' + esc(o.strokeLinecap || 'round') + '"' + (o.strokeMiterlimit ? ' stroke-miterlimit="' + rd(o.strokeMiterlimit) + '"' : '') + (o.nonScalingStroke ? ' vector-effect="non-scaling-stroke"' : '') + dashAttrs(o) : '') + (o.paintOrder ? ' paint-order="' + esc(o.paintOrder) + '"' : '') + ((o.opacity ?? 1) !== 1 ? ' opacity="' + rd(o.opacity) + '"' : '') + blendStyleAttr(o) + (o.fillRule === 'evenodd' ? ' fill-rule="evenodd"' : '') + objClipAttr + objMarkerAttrs + extraStackAttrs + ' d="' + serializePath(o, ox, oy) + '"' + fxAttrs(o) + '/>';
     } else {
       const closedSubs = (o.subs || []).filter(sp => sp.closed);
       const openSubs = (o.subs || []).filter(sp => !sp.closed);

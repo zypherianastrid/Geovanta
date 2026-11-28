@@ -67,7 +67,10 @@ async function initCanvasKitRuntime(): Promise<any> {
 export function loadCanvasKit() {
   if (!runtime) {
     runtime = Promise.all([initCanvasKitRuntime(), ensureBundledTextFonts()])
-      .then(([kit]) => kit)
+      .then(([kit]) => {
+        (globalThis as any).__geovantaCanvasKit = kit;
+        return kit;
+      })
       .catch(err => {
         runtime = null;
         throw err;

@@ -35,18 +35,42 @@ export const TextEditOverlay = forwardRef<TextEditViewport, TextEditOverlayProps
 
   useEffect(() => {
     setValue(spec.content);
+    if (ref.current && ref.current.textContent !== spec.content) {
+      ref.current.textContent = spec.content || '';
+    }
   }, [object.id]);
 
   useEffect(() => {
-    const editor = ref.current;
+    const editor: HTMLDivElement | null = ref.current;
     if (!editor) return;
-    editor.focus({preventScroll: true});
-    if (caret != null) editor.setSelectionRange(caret, caret);
-    else if (!isNew) {
-      editor.setSelectionRange(0, editor.value.length, 'backward');
-      editor.scrollTop = 0;
-      editor.scrollLeft = 0;
+    if (editor.textContent !== spec.content) {
+      editor.textContent = spec.content || '';
     }
+    editor.focus({preventScroll: true});
+    try {
+      const sel = window.getSelection();
+      if (sel && editor.firstChild) {
+        const range = document.createRange();
+        const textNode = editor.firstChild;
+        const len = (textNode.textContent || '').length;
+        if (caret != null) {
+          const pos = Math.max(0, Math.min(len, caret));
+          range.setStart(textNode, pos);
+          range.collapse(true);
+        } else if (!isNew) {
+          range.selectNodeContents(editor);
+        } else {
+          range.setStart(textNode, len);
+          range.collapse(true);
+        }
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } catch {
+      // ignore selection API errors in headless/empty nodes
+    }
+    editor.scrollTop = 0;
+    editor.scrollLeft = 0;
   }, [object.id, caret]);
 
   const finish = () => {
@@ -149,21 +173,22 @@ export const TextEditOverlay = forwardRef<TextEditViewport, TextEditOverlayProps
           color: transparent;
         }
       `}</style>
-      <textarea
+      <div
         ref={ref}
-        className="ve-text-edit-textarea"
-        data-canvas-glyphs={useCanvasGlyphs ? true : undefined}
+        role="textbox"
+        aria-multiline="true"
         aria-label="Edit text"
-        value={value}
-        // G6: spellcheck eksplisit (ala Figma) + lang mengikuti bahasa
-        // aplikasi ('id' default) agar kamus yang dipakai benar.
+        data-custom-input="true"
+        data-canvas-glyphs={useCanvasGlyphs ? true : undefined}
+        className="ve-text-edit-textarea"
+        contentEditable
+        suppressContentEditableWarning
         spellCheck
         lang={lang}
-        rows={1}
-        onChange={e => {
-          const next = e.target.value;
+        onInput={e => {
+          const next = e.currentTarget.textContent || '';
           setValue(next);
-          onLiveChange?.(next, e.target.selectionEnd);
+          onLiveChange?.(next, next.length);
         }}
         onPointerDown={e => e.stopPropagation()}
         onDoubleClick={e => e.stopPropagation()}
@@ -201,11 +226,12 @@ export const TextEditOverlay = forwardRef<TextEditViewport, TextEditOverlayProps
           background: 'transparent',
           border: 'none',
           outline: 'none',
-          resize: 'none',
           overflow: 'hidden',
           whiteSpace: spec.resizing === 'autoWidth' ? 'pre' : 'pre-wrap',
           wordBreak: 'break-word',
-          caretColor: 'var(--acc)'
+          caretColor: 'var(--acc)',
+          cursor: 'text',
+          userSelect: 'text'
         }}
       />
       <div aria-hidden="true" style={{
@@ -245,7 +271,7 @@ export const TextEditOverlay = forwardRef<TextEditViewport, TextEditOverlayProps
           onClick={e => e.stopPropagation()}
         >
           <div className="flex items-center gap-2">
-            <span className="text-[12px] font-semibold mut px-1">Teks</span>
+            <span className="text-[12px] font-semibold mut px-1">{lang === 'en' ? 'Text' : 'Teks'}</span>
             <span className="text-[11px] mut font-mono">{value.length} kar</span>
           </div>
           <div className="flex items-center gap-2">

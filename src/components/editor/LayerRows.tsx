@@ -147,11 +147,19 @@ const LayerObjRow: React.FC<any> = React.memo(({
       backgroundImage: 'url(' + o.img.href + ')',
       backgroundSize: 'cover',
       backgroundPosition: 'center'
-    } : {
-      width: 15,
-      height: 15,
-      background: (o.fill || (o.text && typeof o.text === 'object' ? o.text.fill : null)) === 'none' ? 'transparent' : (o.fill || (o.text && typeof o.text === 'object' ? o.text.fill : '#111827'))
-    }} />{renaming ? <RenInput renameVal={renameVal} layerNameLabel={layerNameLabel} onRenameVal={onRenameVal} onRenameCommit={v => onRenameCommit(o, v)} onRenameCancel={onRenameCancel} /> : <span className="truncate" title={o.name} style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 150 }} onDoubleClick={e => {
+    } : (() => {
+      const gradOn = o.grad && o.grad.type && o.grad.type !== 'none' && Array.isArray(o.grad.stops) && o.grad.stops.length > 0;
+      if (gradOn) {
+        const stopsCss = o.grad.stops.map((st: any) => `${st.color || '#000000'} ${Math.round((st.offset ?? 0) * 100)}%`).join(', ');
+        return { width: 15, height: 15, background: `linear-gradient(90deg, ${stopsCss})` };
+      }
+      const rawFill = o.type === 'text' && o.text && typeof o.text === 'object' ? (o.text.fill || o.fill) : (o.fill || (o.text && typeof o.text === 'object' ? o.text.fill : null));
+      return {
+        width: 15,
+        height: 15,
+        background: rawFill === 'none' ? 'transparent' : (rawFill || '#111827')
+      };
+    })()} />{renaming ? <RenInput renameVal={renameVal} layerNameLabel={layerNameLabel} onRenameVal={onRenameVal} onRenameCommit={v => onRenameCommit(o, v)} onRenameCancel={onRenameCancel} /> : <span className="truncate" title={o.name} style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 150 }} onDoubleClick={e => {
       e.preventDefault();
       e.stopPropagation();
       clickSkipRef.current = true;

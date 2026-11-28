@@ -52,10 +52,15 @@ import { getObjectTessellationLOD } from '../../renderer/objectTessellationLod.t
 import { EditorRightInspector } from './EditorRightInspector.tsx';
 import { useEditorShortcuts } from './hooks/useEditorShortcuts.tsx';
 import { useEditorExport } from './hooks/useEditorExport.tsx';
+import { HistoryTimelinePanel, type NamedSnapshot } from './HistoryTimelinePanel.tsx';
+import { WorkspaceExtras } from '../../workspace/workspaceExtras.ts';
+import { computeSafeExportScale, shouldRejectPalmEvent } from '../../utils/deviceProfiles.tsx';
 import { useCanvasWheelZoom } from './hooks/useCanvasWheelZoom.tsx';
 import { IconifyModal } from '../modals/IconifyModal.tsx';
 import { ChartsStudioModal } from '../modals/ChartsStudioModal.tsx';
-import { SvgCodeInspectorModal } from '../modals/SvgCodeInspectorModal.tsx';
+import { DevModeInspector } from './devmode/DevModeInspector.tsx';
+import { DevModeCanvasOverlay } from './devmode/DevModeCanvasOverlay.tsx';
+import type { DevCodeLang, DevColorFormat, DevUnit } from '../../engine/devModeCodeGen.ts';
 import { MobileEditorTopBar } from './MobileEditorTopBar.tsx';
 import { MobileSelectionActionBar } from './MobileSelectionActionBar.tsx';
 import { MobileBottomSheet } from './MobileBottomSheet.tsx';
@@ -200,11 +205,62 @@ const VectorEditor = ({
   const docRef = useRef(first);
   const hist = useRef<Record<string, any>>({
     s: [first],
+    labels: ['Initial'],
     p: 0,
     key: null,
     t: 0,
     sz: null
   });
+  const [histVer, setHistVer] = useState(0);
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
+  const snapStorageKey = `geovanta-snapshots-${projectId || 'default'}`;
+  const [namedSnapshots, setNamedSnapshots] = useState<NamedSnapshot[]>(() => {
+    try {
+      const raw = localStorage.getItem(snapStorageKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const persistSnapshots = (next: NamedSnapshot[]) => {
+    setNamedSnapshots(next);
+    try { localStorage.setItem(snapStorageKey, JSON.stringify(next)); } catch {}
+  };
+  const saveNamedSnapshot = (name: string) => {
+    const snap: NamedSnapshot = {
+      id: VE.uid(),
+      name,
+      createdAt: Date.now(),
+      doc: JSON.parse(JSON.stringify(docRef.current)),
+    };
+    persistSnapshots([snap, ...namedSnapshots]);
+    say((prefs?.lang === 'en' ? 'Snapshot saved: ' : 'Snapshot disimpan: ') + name);
+  };
+  const restoreNamedSnapshot = (id: string) => {
+    const found = namedSnapshots.find(s => s.id === id);
+    if (!found) return false;
+    commit(JSON.parse(JSON.stringify(found.doc)), 'snapshot:' + found.name);
+    say((prefs?.lang === 'en' ? 'Snapshot restored: ' : 'Snapshot dipulihkan: ') + found.name);
+    return true;
+  };
+  const deleteNamedSnapshot = (id: string) => {
+    persistSnapshots(namedSnapshots.filter(s => s.id !== id));
+  };
+  const jumpToHistory = (index: number) => {
+    const h = hist.current;
+    if (index < 0 || index >= h.s.length) return false;
+    h.p = index;
+    const targetDoc = h.s[index];
+    docRef.current = targetDoc;
+    const rev = ++docRevRef.current;
+    if (sceneRendererRef.current) {
+      sceneRendererRef.current.setScene(targetDoc, rev);
+      sceneRendererRef.current.requestRender(true);
+    }
+    setDocS(targetDoc);
+    setHistVer(v => v + 1);
+    return true;
+  };
   const userExplicitAreaRef = useRef(false);
   const [exportArea, setExportAreaState] = useState('board');
   const setExportArea = React.useCallback(val => {
@@ -299,7 +355,7 @@ const VectorEditor = ({
     const firstIdx = d.objects.findIndex(o => o && memberIds.has(o.id));
     const rest = d.objects.filter(o => o && !memberIds.has(o.id));
     rest.splice(Math.max(0, Math.min(firstIdx, rest.length)), 0, ...newObjs);
-    commit({ ...d, objects: rest }, meta?.coalesce ? { coalesce: meta.coalesce } : undefined);
+    commit({ ...d, objects: rest }, meta?.coalesce || null);
     setSel({ objs: new Set(newObjs.map(o => o.id)), nodes: new Set() });
   }, []);
 
@@ -329,6 +385,9 @@ const VectorEditor = ({
     debugEnabledRef.current = next;
     setDebugEnabled(next);
     DEBUG_LOG.setEnabled(next);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('geovanta-debug-state-change', { detail: { enabled: next } }));
+    }
     if (next) {
       setDebugOpen(true);
       try {
@@ -336,6 +395,17 @@ const VectorEditor = ({
       } catch (e) {}
     }
   };
+  React.useEffect(() => {
+    const onSync = (e: any) => {
+      const next = !!(e?.detail?.enabled);
+      if (debugEnabledRef.current !== next) {
+        debugEnabledRef.current = next;
+        setDebugEnabled(next);
+      }
+    };
+    window.addEventListener('geovanta-debug-state-change', onSync);
+    return () => window.removeEventListener('geovanta-debug-state-change', onSync);
+  }, []);
   /* Task 5 (Iconify): onClose stabil — setTool adalah setter state React
      yang identitasnya stabil, jadi callback tidak pernah stale meskipun
      effect Esc panel hanya berdependensi [open]. */
@@ -791,7 +861,23 @@ const VectorEditor = ({
       color: '#ffffff'
     });
   const [expFmt, setExpFmt] = useState('svg'),
-    [expScale, setExpScale] = useState(2);
+    [expScale, setExpScale] = useState(2),
+    [expQuality, setExpQuality] = useState(0.92),
+    [svgMinify, setSvgMinify] = useState(false),
+    [pdfBleedMm, setPdfBleedMm] = useState(0),
+    [pdfCropMarks, setPdfCropMarks] = useState(false),
+    [pdfColorSpace, setPdfColorSpace] = useState<'rgb' | 'cmyk'>('rgb'),
+    [wireframeMode, setWireframeMode] = useState(false),
+    [isolatedGroupId, setIsolatedGroupId] = useState<string | null>(null);
+  const toggleWireframe = () => setWireframeMode(v => !v);
+  useEffect(() => {
+    const r = sceneRendererRef.current as any;
+    if (r) {
+      r.wireframeMode = wireframeMode;
+      r.isolatedGroupId = isolatedGroupId;
+      r.requestRender?.(true);
+    }
+  }, [wireframeMode, isolatedGroupId]);
   /* Warna default shape & teks mengikuti accent color Pengaturan: fill = accent,
      stroke = varian gelap accent (value HSV x 0.45, senada aksen). */
   const accentStroke = acc => {
@@ -952,7 +1038,9 @@ const VectorEditor = ({
     pathGrp: useRef(null),
     shapeRailGrp: useRef(null),
     blobRailGrp: useRef(null),
-    waveRailGrp: useRef(null)
+    waveRailGrp: useRef(null),
+    iconifyRailGrp: useRef(null),
+    chartsRailGrp: useRef(null)
   };
   const { isMobile } = useMobileViewport();
   const isMobileRef = useRef(isMobile);
@@ -1026,19 +1114,57 @@ const VectorEditor = ({
   const [pickedCornerKeys, setPickedCornerKeys] = useState(() => new Set());
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [pasteSvgDraft, setPasteSvgDraft] = useState('');
-  const [isCodeInspectorOpen, setIsCodeInspectorOpen] = useState(false);
-  const openCodeInspector = React.useCallback(() => setIsCodeInspectorOpen(true), []);
-  const closeCodeInspector = React.useCallback(() => setIsCodeInspectorOpen(false), []);
-  const toggleCodeInspector = React.useCallback(() => setIsCodeInspectorOpen(o => !o), []);
+  const [devMode, setDevMode] = useState(false);
+  const devModeRef = useRef(false);
+  devModeRef.current = devMode;
+  const [devUnit, setDevUnit] = useState<DevUnit>('px');
+  const [devColorFormat, setDevColorFormat] = useState<DevColorFormat>('hex');
+  const [devCodeLang, setDevCodeLang] = useState<DevCodeLang>('css');
+  const [devHoverObjId, setDevHoverObjId] = useState<string | null>(null);
+  const [devMeasure, setDevMeasure] = useState<any>(null);
+  const devHoverRafRef = useRef<number>(0);
+  const devPendingPtrRef = useRef<{ x: number; y: number } | null>(null);
+  const devLastHoverKeyRef = useRef<string>('');
+  const clearDevHoverState = React.useCallback(() => {
+    if (devHoverRafRef.current) {
+      cancelAnimationFrame(devHoverRafRef.current);
+      devHoverRafRef.current = 0;
+    }
+    devPendingPtrRef.current = null;
+    devLastHoverKeyRef.current = '';
+    setDevHoverObjId(null);
+    setDevMeasure(null);
+  }, []);
+  const enterDevMode = React.useCallback(() => {
+    setDevMode(true);
+    setTool('select');
+    setRightOpen(true);
+    setOpenGrp(null);
+  }, []);
+  const exitDevMode = React.useCallback(() => {
+    setDevMode(false);
+    clearDevHoverState();
+  }, [clearDevHoverState]);
+  const toggleDevMode = React.useCallback(() => {
+    setDevMode(prev => {
+      const next = !prev;
+      if (next) {
+        setTool('select');
+        setRightOpen(true);
+        setOpenGrp(null);
+      } else {
+        clearDevHoverState();
+      }
+      return next;
+    });
+  }, [clearDevHoverState]);
+  useEffect(() => () => {
+    if (devHoverRafRef.current) cancelAnimationFrame(devHoverRafRef.current);
+  }, []);
   useEffect(() => {
     const fn = () => setImportModalOpen(true);
     window.addEventListener('svgpeak-open-import', fn);
     return () => window.removeEventListener('svgpeak-open-import', fn);
-  }, []);
-  useEffect(() => {
-    const fn = () => setIsCodeInspectorOpen(true);
-    window.addEventListener('geovanta-open-code-inspector', fn);
-    return () => window.removeEventListener('geovanta-open-code-inspector', fn);
   }, []);
   const [lastGrpTool, setLastGrpTool] = useState({
     nodeGrp: 'node',
@@ -1274,7 +1400,7 @@ const VectorEditor = ({
       ax: 0,
       ay: 0.5,
       frame: true,
-      radius: 8
+      radius: 0
     }),
     alMem = useRef(null);
   const [collapsedGrps, setCollapsedGrps] = useState(new Set()),
@@ -1400,7 +1526,6 @@ const VectorEditor = ({
     rightOpen: false,
     mobileRailOpen: false,
     importModalOpen: false,
-    isCodeInspectorOpen: false,
     indivCornerOpen: false,
     tool: 'select',
     onBackToWorkspace: null as any,
@@ -1411,7 +1536,6 @@ const VectorEditor = ({
     rightOpen,
     mobileRailOpen,
     importModalOpen,
-    isCodeInspectorOpen,
     indivCornerOpen,
     tool,
     onBackToWorkspace,
@@ -1433,10 +1557,6 @@ const VectorEditor = ({
       const st = editorBackStateRef.current;
       if (st.importModalOpen) {
         setImportModalOpen(false);
-        return true;
-      }
-      if (st.isCodeInspectorOpen) {
-        setIsCodeInspectorOpen(false);
         return true;
       }
       if (st.indivCornerOpen) {
@@ -1676,6 +1796,7 @@ const VectorEditor = ({
     const h = hist.current,
       now = Date.now();
     if (!h.sz) h.sz = h.s.map(estimateDocSnapshotBytes);
+    if (!h.labels) h.labels = h.s.map(() => 'Edit');
     const snapBytes = estimateDocSnapshotBytes(d);
     if (key && h.key === key && now - h.t < 900 && h.p === h.s.length - 1 && h.p > 0) {
       h.s[h.p] = d;
@@ -1683,13 +1804,16 @@ const VectorEditor = ({
     } else {
       h.s = h.s.slice(0, h.p + 1);
       h.sz = h.sz.slice(0, h.p + 1);
+      h.labels = h.labels.slice(0, h.p + 1);
       h.s.push(d);
       h.sz.push(snapBytes);
+      h.labels.push(String(key || 'Edit'));
       const maxSteps = 100;
       const maxBytes = ACTIVE_DEVICE_PROFILE && ACTIVE_DEVICE_PROFILE.maxHistoryBytes || 32 * 1024 * 1024;
       let totalBytes = h.sz.reduce((a, b) => a + b, 0);
       while ((h.s.length > maxSteps || totalBytes > maxBytes) && h.s.length > 5) {
         h.s.shift();
+        h.labels.shift();
         const removed = h.sz.shift() || 0;
         totalBytes = Math.max(0, totalBytes - removed);
       }
@@ -1700,6 +1824,7 @@ const VectorEditor = ({
     }
     h.key = key || null;
     h.t = now;
+    setHistVer(v => v + 1);
     notifyDocCommit(d);
   };
   const commit = (d: any, key: any = null) => {
@@ -1717,6 +1842,46 @@ const VectorEditor = ({
     setDocS(d);
     push(d, key);
   };
+  const markCustomizedChartAnchors = (prevObjs: any[], nextObjs: any[]) => {
+    const affectedChartGids = new Set<string>();
+    const prevById = new Map<string, any>();
+    for (const p of prevObjs) {
+      if (p && p.id) prevById.set(p.id, p);
+    }
+    for (const n of nextObjs) {
+      if (!n || !n.gen || (n.gen.kind !== 'chart' && n.gen.kind !== 'chart-member')) continue;
+      const p = prevById.get(n.id);
+      if (!p || p === n) continue;
+      const paintChanged =
+        p.fill !== n.fill ||
+        p.stroke !== n.stroke ||
+        p.grad !== n.grad ||
+        p.strokeGrad !== n.strokeGrad ||
+        (p.text && n.text && p.text.fill !== n.text.fill);
+      if (paintChanged) {
+        const gid = n.gen.chartGroupId || n.group;
+        if (gid) affectedChartGids.add(gid);
+      }
+    }
+    if (!affectedChartGids.size) return nextObjs;
+    return nextObjs.map(o => {
+      if (!o || !o.gen || o.gen.kind !== 'chart' || !o.gen.config) return o;
+      const gid = o.gen.chartGroupId || o.group;
+      if (!gid || !affectedChartGids.has(gid)) return o;
+      if (o.gen.config.themeId === undefined && o.gen.config.paletteId === 'custom') return o;
+      return {
+        ...o,
+        gen: {
+          ...o.gen,
+          config: {
+            ...o.gen.config,
+            themeId: undefined,
+            paletteId: 'custom',
+          }
+        }
+      };
+    });
+  };
   const commitObjs = (fn: any, key: any = null) => {
     const d = docRef.current;
     let ch = false;
@@ -1728,7 +1893,7 @@ const VectorEditor = ({
     });
     if (ch) commit({
       ...d,
-      objects: objs
+      objects: markCustomizedChartAnchors(d.objects, objs)
     }, key);
     return ch;
   };
@@ -2069,7 +2234,7 @@ const VectorEditor = ({
     });
     const finalDoc = ch ? {
       ...d,
-      objects: objs
+      objects: markCustomizedChartAnchors(d.objects, objs)
     } : d;
     commit(finalDoc, key);
     return ch;
@@ -2100,9 +2265,9 @@ const VectorEditor = ({
       sceneRendererRef.current?.setPaintInteracting?.(!!opts.interacting);
     }
     live(d, {
-      isLive: true,
+      isLive: Boolean(opts.previewOnly && opts.interacting),
       onlyPaint: true,
-      paintPreviewOnly: !!opts.previewOnly,
+      paintPreviewOnly: Boolean(opts.previewOnly && opts.interacting),
       syncRender: !!opts.syncRender
     });
   };
@@ -2686,13 +2851,22 @@ const VectorEditor = ({
     const pt = Math.max(0, Math.round(kb[1] - fb[1]));
     const pr = Math.max(0, Math.round(fb[2] - kb[2]));
     const pb = Math.max(0, Math.round(fb[3] - kb[3]));
-    setLay(prev => prev.pt === pt && prev.pr === pr && prev.pb === pb && prev.pl === pl ? prev : {
-      ...prev,
-      pt,
-      pr,
-      pb,
-      pl,
-      split: !(pt === pr && pr === pb && pb === pl)
+    const bgNodes = bgObj.subs?.[0]?.nodes || [];
+    const hasBgCurves = bgNodes.some((n: any) => n.handleIn || n.handleOut);
+    setLay(prev => {
+      const bgRadius = (bgObj.fillets && bgObj.fillets.length)
+        ? Math.round(bgObj.fillets[0].r || 0)
+        : (!hasBgCurves ? 0 : prev.radius);
+      if (prev.pt === pt && prev.pr === pr && prev.pb === pb && prev.pl === pl && prev.radius === bgRadius) return prev;
+      return {
+        ...prev,
+        pt,
+        pr,
+        pb,
+        pl,
+        radius: bgRadius,
+        split: !(pt === pr && pr === pb && pb === pl)
+      };
     });
   }, [sel.objs]);
   const runLayout = (cfg, force, padOnly) => {
@@ -4943,6 +5117,43 @@ const VectorEditor = ({
       clientY: e.clientY
     };
     const pt = toDoc(e.clientX, e.clientY);
+    if (devModeRef.current) {
+      devPendingPtrRef.current = { x: e.clientX, y: e.clientY };
+      if (!devHoverRafRef.current) {
+        devHoverRafRef.current = requestAnimationFrame(() => {
+          devHoverRafRef.current = 0;
+          const ptr = devPendingPtrRef.current;
+          if (!ptr || !devModeRef.current) return;
+          const ptNow = toDoc(ptr.x, ptr.y);
+          const hov = hitObj(ptNow);
+          const nextHovId = hov && !selRef.current.objs.has(hov.id) ? hov.id : null;
+          const sbDev = selBoxNow();
+          const selKey = Array.from(selRef.current.objs).join(',');
+          const nextKey = `${nextHovId || ''}|${selKey}|${sbDev ? sbDev.join(',') : ''}`;
+          if (nextKey === devLastHoverKeyRef.current) return;
+          devLastHoverKeyRef.current = nextKey;
+          setDevHoverObjId(nextHovId);
+          if (!sbDev) {
+            setDevMeasure(null);
+            return;
+          }
+          if (hov && !selRef.current.objs.has(hov.id)) {
+            const tb = VE.tightBBox(hov);
+            setDevMeasure({
+              targetBox: tb,
+              lines: VE.measureDistanceGuides(sbDev, tb, false)
+            });
+          } else {
+            const [vx, vy, vw, vh] = docRef.current.viewBox;
+            setDevMeasure({
+              targetBox: null,
+              lines: VE.measureDistanceGuides(sbDev, [vx, vy, vx + vw, vy + vh], true)
+            });
+          }
+        });
+      }
+      return;
+    }
     const sb = e.altKey && tool === 'select' ? selBoxNow() : null;
     if (!sb) {
       setAltMeasure(m => m ? null : m);
@@ -5573,6 +5784,27 @@ const VectorEditor = ({
     const pt = toDoc(e.clientX, e.clientY),
       add = e.shiftKey || e.ctrlKey || e.metaKey || multiSelectActiveRef.current,
       base = docRef.current;
+    if (devModeRef.current) {
+      e.preventDefault();
+      const hit = hitObj(pt);
+      if (hit) {
+        if (e.shiftKey) {
+          const nextObjs = new Set(selRef.current.objs);
+          if (nextObjs.has(hit.id)) nextObjs.delete(hit.id);
+          else nextObjs.add(hit.id);
+          setSel({ objs: nextObjs, nodes: new Set() });
+        } else {
+          const grpIds = (!e.ctrlKey && !e.metaKey && hit.group)
+            ? base.objects.filter(o => o.group === hit.group && !o.hidden).map(o => o.id)
+            : [hit.id];
+          setSel({ objs: new Set(grpIds), nodes: new Set() });
+        }
+      } else if (!e.shiftKey) {
+        setSel({ objs: new Set(), nodes: new Set() });
+        setDevMeasure(null);
+      }
+      return;
+    }
     if (tool === 'text') {
       e.preventDefault();
       const p0 = snapAt(pt, e, null, null, base.objects);
@@ -6138,11 +6370,28 @@ const VectorEditor = ({
     let o = hitObj(pt),
       emptyBoxHit = false;
     if (o) {
+      const chartGid = o.gen && (o.gen.kind === 'chart' || o.gen.kind === 'chart-member') ? (o.gen.chartGroupId || o.group) : null;
+      const chartIds = (chartGid && isolatedGroupId !== chartGid && !e.altKey)
+        ? base.objects
+            .filter(ch => ch && !ch.hidden && !ch.locked && ((ch.gen && (ch.gen.kind === 'chart' || ch.gen.kind === 'chart-member') && ch.gen.chartGroupId === chartGid) || ch.group === chartGid))
+            .map(ch => ch.id)
+        : null;
       let objs;
       if (add) {
         objs = new Set(sel.objs);
-        objs.has(o.id) ? objs.delete(o.id) : objs.add(o.id);
-      } else objs = sel.objs.has(o.id) ? sel.objs : new Set([o.id]);
+        if (chartIds && chartIds.length > 0) {
+          const allIn = chartIds.every(id => objs.has(id));
+          chartIds.forEach(id => (allIn ? objs.delete(id) : objs.add(id)));
+        } else {
+          objs.has(o.id) ? objs.delete(o.id) : objs.add(o.id);
+        }
+      } else if (sel.objs.has(o.id)) {
+        objs = sel.objs;
+      } else if (chartIds && chartIds.length > 0) {
+        objs = new Set(chartIds);
+      } else {
+        objs = new Set([o.id]);
+      }
       const nextNodes = !add && sel.objs.has(o.id) ? selNodes : new Set();
       const sameSel = objs === sel.objs && nextNodes.size === sel.nodes.size;
       if (!emptyBoxHit && !sameSel) setSel({
@@ -8081,6 +8330,8 @@ const VectorEditor = ({
   const {
     exportSvg,
     downloadSvg,
+    batchExport,
+    getExportFilename,
     triggerDl,
     isRasterFmt,
     hasImgs,
@@ -8090,6 +8341,12 @@ const VectorEditor = ({
     selRef,
     expFmt,
     expScale,
+    expQuality,
+    svgMinify,
+    pdfBleedMm,
+    pdfCropMarks,
+    pdfColorSpace,
+    projectName,
     exportArea,
     bg,
     clipFrames,
@@ -8926,9 +9183,15 @@ const VectorEditor = ({
     setAltMeasure,
     toggleDebugMode,
     say,
+    toggleWireframe,
+    exitIsolation: () => {
+      if (!isolatedGroupId) return false;
+      setIsolatedGroupId(null);
+      return true;
+    },
     figmaKeys,
-    toggleCodeInspector,
-    isCodeInspectorOpen
+    devMode,
+    toggleDevMode
   });
   const grpUn = (() => {
     const g = selObjs.length && selObjs[0].group;
@@ -9527,10 +9790,62 @@ const VectorEditor = ({
   const paintTargetIds = React.useMemo(() => new Set(paintObjs.map(o => o.id)), [paintObjs]);
   const cp = paintObjs.find(o => !o.img) || selObjs.find(o => !o.img) || primary;
   const replaceSelectionColor = (sc, v, meta: Record<string, any> = {}) => {
+    const isLive = Boolean(meta && meta.isLive);
     const S = new Set(sc.ids);
     const stopSet = sc.stopKeys && sc.stopKeys.length ? new Set(sc.stopKeys) : null;
+    const affectedChartGids = new Set<string>();
+    if (!isLive) {
+      for (const q of (docRef.current?.objects || [])) {
+        if (q && S.has(q.id) && q.gen && (q.gen.kind === 'chart' || q.gen.kind === 'chart-member') && (q.gen.chartGroupId || q.group)) {
+          affectedChartGids.add(q.gen.chartGroupId || q.group);
+        }
+      }
+    }
+    const syncChartAnchorCfg = (obj: any) => {
+      if (!obj || !obj.gen || obj.gen.kind !== 'chart' || !obj.gen.config) return obj;
+      const cfg = obj.gen.config;
+      const targetHex = sc.hex;
+      const nextVal = v === 'none' ? v : (sc.kind === 'grad' ? parseColorWithAlpha(v).hex : v);
+      let cfgChanged = false;
+      const mapHex = (c: string) => {
+        if (c && c !== 'none' && c !== 'transparent' && cssToHex(c) === targetHex) {
+          cfgChanged = true;
+          return nextVal;
+        }
+        return c;
+      };
+      const nextColors = Array.isArray(cfg.colors) ? cfg.colors.map(mapHex) : cfg.colors;
+      const nextBg = mapHex(cfg.backgroundColor);
+      const nextCard = cfg.card ? {
+        ...cfg.card,
+        backgroundColor: mapHex(cfg.card.backgroundColor),
+        borderColor: mapHex(cfg.card.borderColor),
+      } : cfg.card;
+      if (!cfgChanged && cfg.themeId === undefined && cfg.paletteId === 'custom') return obj;
+      return {
+        ...obj,
+        gen: {
+          ...obj.gen,
+          config: {
+            ...cfg,
+            themeId: undefined,
+            paletteId: 'custom',
+            colors: nextColors,
+            backgroundColor: nextBg,
+            card: nextCard,
+          }
+        }
+      };
+    };
     const fn = o => {
-      if (!S.has(o.id) || o.locked) return o;
+      const isChartAnchorAffected = !isLive && Boolean(
+        o && o.gen && o.gen.kind === 'chart' && (o.gen.chartGroupId || o.group) &&
+        affectedChartGids.has(o.gen.chartGroupId || o.group)
+      );
+      if ((!S.has(o.id) && !isChartAnchorAffected) || o.locked) return o;
+      if (!S.has(o.id) && isChartAnchorAffected) {
+        return (sc.kind === 'fill' || sc.kind === 'stroke' || sc.kind === 'grad') ? syncChartAnchorCfg(o) : o;
+      }
       if (sc.kind === 'grad') {
         let changed = false;
         let nextObj = o;
@@ -9549,7 +9864,12 @@ const VectorEditor = ({
               op: v === 'none' ? 0 : p.a < 1 ? p.a : st.op ?? 1
             } : st;
           });
-          if (changed) nextObj = VE.updateGradStops(m, nextRaw);
+          if (changed) {
+            nextObj = VE.updateGradStops(m, nextRaw);
+            if (nextRaw[0] && nextRaw[0].color && nextObj.fill && nextObj.fill !== 'none') {
+              nextObj = { ...nextObj, fill: nextRaw[0].color };
+            }
+          }
         }
         if (VE.strokeGradOn(o) && o.strokeGrad) {
           const p = v === 'none' ? {
@@ -9578,32 +9898,23 @@ const VectorEditor = ({
             };
           }
         }
+        if (isChartAnchorAffected) nextObj = syncChartAnchorCfg(nextObj);
         if (changed || nextObj !== o) return nextObj;
       }
-      /* Fix wave F1 (Ruling N): perubahan warna via seksi Selection colors
-         harus melepas tautan style (keputusan 2B/3A) — route lewat
-         directPaintEdit (core per-objek yang sama dipakai ColorField dan
-         unlinkOnDirectPaintEdit). directPaintEdit menerima OBJEK yang
-         sudah dicat (bukan hex): paintSlot diterapkan dulu, lalu
-         directPaintEdit melepas tautan bila nilai baru beda dari hex
-         style / 'none' / alpha < 1. Objek teks: paintSlot menulis
-         text.fill DAN fill bersamaan — kalau hanya o.fill yang berubah,
-         o.text.fill basi dan slot teks colorWalk (yang membaca o.text.fill)
-         menampilkan baris warna lama di Selection colors. kind 'grad'
-         tidak disentuh (Ruling L). Guard no-change (identitas o
-         dipertahankan) agar pratinjau live dengan nilai sama tidak membuat
-         commit history palsu. */
       if (sc.kind === 'fill' || sc.kind === 'stroke') {
         const cur = sc.kind === 'stroke' ? o.stroke : (o.type === 'text' && o.text ? o.text.fill : o.fill);
-        if (cur === v) return o;
-        return directPaintEdit(o, paintSlot(o, sc.kind, v), sc.kind, docRef.current.styles || []);
+        let updated = cur === v ? o : directPaintEdit(o, paintSlot(o, sc.kind, v), sc.kind, docRef.current.styles || []);
+        if (isChartAnchorAffected) {
+          updated = syncChartAnchorCfg(updated);
+        }
+        return updated;
       }
       return o[sc.kind] !== v ? {
         ...o,
         [sc.kind]: v
       } : o;
     };
-    if (meta && meta.isLive) {
+    if (isLive) {
       livePaint(fn, {previewOnly: true});
     } else {
       commitPaint(fn, 'selcol:' + sc.kind + ':' + sc.ids[0]);
@@ -9728,6 +10039,20 @@ const VectorEditor = ({
     toolKey: 'weave',
     tip: 'veWeave',
     d: 'M3 7c3-2.5 6 2.5 9 0s6-2.5 9 0 M3 17c3-2.5 6 2.5 9 0s6-2.5 9 0'
+  }, {
+    id: 'iconifyRailGrp',
+    title: (prefs && prefs.lang === 'en') ? 'Icons' : 'Ikon',
+    isDirectTool: true,
+    toolKey: 'iconify',
+    tip: 'veIconify',
+    d: ICONS.shapes
+  }, {
+    id: 'chartsRailGrp',
+    title: 'Charts',
+    isDirectTool: true,
+    toolKey: 'charts',
+    tip: 'veCharts',
+    d: 'M4 20h16 M7 16v-5 M12 16V7 M17 16v-8'
   }];
   const renderRailDropdowns = () => railGroups.map(grp => {
     const {
@@ -9790,7 +10115,16 @@ const VectorEditor = ({
               }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></span></div>;
         })}</Float></React.Fragment>;
   });
-  const leftSidebarNode = leftOpen ? <EditorLeftSidebar L={L} lang={prefs && prefs.lang || 'id'} onBackToWorkspace={onBackToWorkspace} docRef={docRef} zoomRef={zoomRef} panRef={panRef} saveStatus={saveStatus} onRetrySave={onRetrySave} onRenameProject={onRenameProject} projectName={projectName} doc={doc} nTotal={nTotal} sel={sel} selNodes={selNodes} createFrameSel={createFrameSel} groupSel={groupSel} clipFrames={clipFrames} setClipFrames={setClipFrames} groupSameColor={groupSameColor} setGroupSameColor={setGroupSameColor} layerScrollRef={layerScrollRef} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} tool={tool} pen={pen} penSty={penSty} setPenSty={setPenSty} penRef={penRef} lineInfo={lineInfo} commitObjs={commitObjs} finishPen={finishPen} selObjs={selObjs} autoSel={autoSel} autoAll={autoAll} ahOpt={ahOpt} setAhOpt={setAhOpt} primary={primary} alOpt={alOpt} setAlOpt={setAlOpt} applyNodeAngleAlign={applyNodeAngleAlign} selHandles={selHandles} applyStraight={applyStraight} applyAutoRefine={applyAutoRefine} applyPruneNodes={applyPruneNodes} pruneOpt={pruneOpt} setPruneOpt={setPruneOpt} sOpt={sOpt} setSOpt={setSOpt} vcSimp={vcSimp} vcSimpRetain={vcSimpRetain} openVcSimplify={openVcSimplify} triggerAutoSimplifyLevel={triggerAutoSimplifyLevel} openVcMoreOptions={openVcMoreOptions} updateVcSimplify={updateVcSimplify} cancelVcSimplify={cancelVcSimplify} confirmVcSimplify={confirmVcSimplify} virtualLayerRows={virtualLayerRows} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} layerAnchor={layerAnchor} layerFlatIds={layerFlatIds} setSel={setSel} setLayerIns={setLayerIns} renameVal={renameVal} setRenameVal={setRenameVal} renameSkip={renameSkip} setRenamingId={setRenamingId} renamingId={renamingId} layerIns={layerIns} openLayerCtx={openLayerCtx} overFrameId={overFrameId} reorderLayerTo={reorderLayerTo} layerClickSkipExpandRef={layerClickSkipExpandRef} commitRename={commitRename} say={say} dropFrameId={dropFrameId} toggleCollapseGrp={toggleCollapseGrp} ungroupIds={ungroupIds} rzProps={rzProps} /> : null;
+  const leftSidebarNode = leftOpen ? <EditorLeftSidebar L={L} lang={prefs && prefs.lang || 'id'} onBackToWorkspace={onBackToWorkspace} docRef={docRef} zoomRef={zoomRef} panRef={panRef} saveStatus={saveStatus} onRetrySave={onRetrySave} onRenameProject={onRenameProject} projectName={projectName} doc={doc} nTotal={nTotal} sel={sel} selNodes={selNodes} createFrameSel={createFrameSel} groupSel={groupSel} clipFrames={clipFrames} setClipFrames={setClipFrames} groupSameColor={groupSameColor} setGroupSameColor={setGroupSameColor} layerScrollRef={layerScrollRef} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} tool={tool} pen={pen} penSty={penSty} setPenSty={setPenSty} penRef={penRef} lineInfo={lineInfo} commitObjs={commitObjs} finishPen={finishPen} selObjs={selObjs} autoSel={autoSel} autoAll={autoAll} ahOpt={ahOpt} setAhOpt={setAhOpt} primary={primary} alOpt={alOpt} setAlOpt={setAlOpt} applyNodeAngleAlign={applyNodeAngleAlign} selHandles={selHandles} applyStraight={applyStraight} applyAutoRefine={applyAutoRefine} applyPruneNodes={applyPruneNodes} pruneOpt={pruneOpt} setPruneOpt={setPruneOpt} sOpt={sOpt} setSOpt={setSOpt} vcSimp={vcSimp} vcSimpRetain={vcSimpRetain} openVcSimplify={openVcSimplify} triggerAutoSimplifyLevel={triggerAutoSimplifyLevel} openVcMoreOptions={openVcMoreOptions} updateVcSimplify={updateVcSimplify} cancelVcSimplify={cancelVcSimplify} confirmVcSimplify={confirmVcSimplify} virtualLayerRows={virtualLayerRows} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} layerAnchor={layerAnchor} layerFlatIds={layerFlatIds} setSel={setSel} setLayerIns={setLayerIns} renameVal={renameVal} setRenameVal={setRenameVal} renameSkip={renameSkip} setRenamingId={setRenamingId} renamingId={renamingId} layerIns={layerIns} openLayerCtx={openLayerCtx} overFrameId={overFrameId} reorderLayerTo={reorderLayerTo} layerClickSkipExpandRef={layerClickSkipExpandRef} commitRename={commitRename} say={say} dropFrameId={dropFrameId} toggleCollapseGrp={toggleCollapseGrp} ungroupIds={ungroupIds} rzProps={rzProps} onAddArtboard={() => {
+    const r = VE.addArtboardDoc(docRef.current);
+    commit(r.doc, 'artboard-add');
+  }} onSelectArtboard={(id: string) => {
+    const next = VE.setActiveArtboardDoc(docRef.current, id);
+    if (next !== docRef.current) commit(next, 'artboard-switch');
+  }} onDeleteArtboard={(id: string) => {
+    const next = VE.deleteArtboardDoc(docRef.current, id);
+    if (next !== docRef.current) commit(next, 'artboard-del');
+  }} devMode={devMode} /> : null;
   const chartMatch = findSelectedChartAnchor(selObjs, doc.objects || []);
   const chartControlsNode = chartMatch ? (() => {
     void fontCatalogVer;
@@ -9813,12 +10147,58 @@ const VectorEditor = ({
       />
     );
   })() : null;
-  const rightInspectorNode = rightOpen ? <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} onSeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} onFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} onExportBackup={onExportBackup} onOpenCodeInspector={openCodeInspector} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} chartControls={chartControlsNode} textControls={primary && primary.type === 'text' ? (() => {
+  const historyPanelNode = historyPanelOpen ? (
+    <HistoryTimelinePanel
+      embedded={true}
+      lang={prefs?.lang || 'id'}
+      labels={(void histVer, hist.current.labels || hist.current.s.map((_: any, i: number) => i === 0 ? 'Initial' : 'Edit'))}
+      currentIndex={hist.current.p}
+      onJumpToHistory={jumpToHistory}
+      snapshots={namedSnapshots}
+      onSaveSnapshot={saveNamedSnapshot}
+      onRestoreSnapshot={restoreNamedSnapshot}
+      onDeleteSnapshot={deleteNamedSnapshot}
+      onClose={() => setHistoryPanelOpen(false)}
+    />
+  ) : null;
+  const rightInspectorNode = rightOpen ? (devMode ? (
+    <DevModeInspector
+      lang={prefs && prefs.lang || 'id'}
+      doc={doc}
+      selObjs={selObjs}
+      primary={primary}
+      setSel={setSel}
+      say={say}
+      zoom={zoom}
+      zoomBy={zoomBy}
+      setZ={setZ}
+      fitView={fitView}
+      zoomPctRef={zoomPctRef}
+      displayZoomRef={displayZoomRef}
+      zoomSliderDomRef={zoomSliderDomRef}
+      devUnit={devUnit}
+      setDevUnit={setDevUnit}
+      devColorFormat={devColorFormat}
+      setDevColorFormat={setDevColorFormat}
+      devCodeLang={devCodeLang}
+      setDevCodeLang={setDevCodeLang}
+      onExitDevMode={exitDevMode}
+      onUpdateDoc={(nextDoc: any, nextSelIds?: string[]) => {
+        commit(nextDoc, 'dev-svg-edit');
+        if (Array.isArray(nextSelIds) && nextSelIds.length > 0) {
+          setSel({ objs: new Set(nextSelIds), nodes: new Set() });
+        }
+      }}
+      downloadSvg={downloadSvg}
+      exportSvg={exportSvg}
+    />
+  ) : <EditorRightInspector L={L} lang={prefs && prefs.lang || 'id'} onRecentColor={rememberRecentColor} recentColors={prefs && prefs.recentColors || []} canUndo={canUndo} undo={undo} canRedo={canRedo} redo={redo} zoomBy={zoomBy} zoomPctRef={zoomPctRef} displayZoomRef={displayZoomRef} zoom={zoom} zoomSliderDomRef={zoomSliderDomRef} setZ={setZ} fitView={fitView} selObjs={selObjs} selNodes={selNodes} alignDo={alignDo} xm={xm} xp={xp} setXfPos={setXfPos} xfNodes={xfNodes} setXfDim={setXfDim} lockAR={lockAR} setLockAR={setLockAR} setXfRot={setXfRot} flipXf={flipXf} pin={pin} setPin={setPin} rotPivot={rotPivot} setRotPivot={setRotPivot} scaleStk={scaleStk} setScaleStk={setScaleStk} commitObjs={commitObjs} livePaint={livePaint} commitPaint={commitPaint} docRef={docRef} primary={primary} commit={commit} setSel={setSel} say={say} toggleSelHidden={toggleSelHidden} allSelHidden={allSelHidden} setProp={setProp} indivCornerOpen={indivCornerOpen} activeCorners={activeCorners} detectedCorners={detectedCorners} curR={curR} setRadius={setRadius} setIndivCornerOpen={setIndivCornerOpen} cornerMode={cornerMode} setCornerMode={setCornerMode} applyRadiusToCorners={applyRadiusToCorners} setPickedCornerKeys={setPickedCornerKeys} pickedCornerKeys={pickedCornerKeys} paintObjs={paintObjs} isBgObj={isBgObj} paintTargetIds={paintTargetIds} cp={cp} activeStopId={activeStopId} setActiveStopId={setActiveStopId} activeGradSlot={activeGradSlot} setActiveGradSlot={setActiveGradSlot} activeStrokeStopId={activeStrokeStopId} setActiveStrokeStopId={setActiveStrokeStopId} selectionColors={selectionColors} replaceSelectionColor={replaceSelectionColor} onFrPreviewDoc={frPreviewDoc} onFrCommitPreview={frCommitPreview} onRcPreviewDoc={rcPreviewDoc} onRcCommitPreview={rcCommitPreview} onSelectSame={selectSameCriterion} convertFrameToAutoLayout={convertFrameToAutoLayout} onSeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} onFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} lay={lay} layUpd={layUpd} setLay={setLay} layPad={layPad} layItems={layItems} runLayout={runLayout} doc={doc} committedDoc={hist.current.s[hist.current.p]} padToArtboard={padToArtboard} bg={bg} setBg={setBg} importFiles={importFiles} expFmt={expFmt} setExpFmt={setExpFmt} isRasterFmt={isRasterFmt} expScale={expScale} setExpScale={setExpScale} expQuality={expQuality} setExpQuality={setExpQuality} svgMinify={svgMinify} setSvgMinify={setSvgMinify} pdfBleedMm={pdfBleedMm} setPdfBleedMm={setPdfBleedMm} pdfCropMarks={pdfCropMarks} setPdfCropMarks={setPdfCropMarks} pdfColorSpace={pdfColorSpace} setPdfColorSpace={setPdfColorSpace} exportArea={exportArea} setExportArea={setExportArea} exportSvg={exportSvg} downloadSvg={downloadSvg} batchExport={batchExport} getExportFilename={getExportFilename} onExportBackup={onExportBackup} historyPanelOpen={historyPanelOpen} onToggleHistoryPanel={() => setHistoryPanelOpen(v => !v)} historyPanelNode={historyPanelNode} antialias={!!renderCfg.antialias} setAntialias={on => { updateRenderConfig({ antialias: on }); setPrefs?.(p => ({ ...p, antialias: on })); if (sceneRendererRef.current) sceneRendererRef.current.requestRender(true); }} chartControls={chartControlsNode} textControls={primary && primary.type === 'text' ? (() => {
             void fontCatalogVer;
             const reg = sceneRendererRef.current?.scene?.fontRegistry || null;
             const availFonts = reg && typeof reg.listFamilies === 'function' ? reg.listFamilies().map(f => typeof f === 'string' ? f : f && f.family).filter(Boolean) : ['Geovanta Sans'];
             const pSpec = legacyTextSpec(primary);
-            const isFontAvail = reg ? !!reg.getFace(pSpec.fontFamily, pSpec.fontWeight, pSpec.fontStyle) : pSpec.fontFamily === 'Geovanta Sans';
+            const normFam = String(pSpec.fontFamily || '').split(',')[0].trim().replace(/^['"]+|['"]+$/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const isFontAvail = (reg ? !!reg.getFace(pSpec.fontFamily, pSpec.fontWeight, pSpec.fontStyle) : false) || normFam === 'geovanta sans';
             return <TextInspector
               object={primary}
               lang={prefs?.lang || 'id'}
@@ -9833,8 +10213,46 @@ const VectorEditor = ({
               onImportFont={() => pickFiles('.ttf,.otf,font/ttf,font/otf', fs => importFontFiles(fs))}
               onConvertToPath={convertTextSelectionToPath}
             />;
-          })() : null} tool={tool} blobParams={blobParams} onBlobParams={onBlobParams} weaveParams={weaveParams} onWeaveParams={onWeaveParams} arcParams={arcParams} onArcParams={onArcParams} isMobile={isMobile} mobileTab={mobileInspectorTab} onMobileTabChange={setMobileInspectorTab} /> : null;
-  return <div ref={rootRef} className={'ved-root' + (full ? ' ved-full' : '')}><div className="fig-workspace">{isMobile ? (
+          })() : null} tool={tool} blobParams={blobParams} onBlobParams={onBlobParams} weaveParams={weaveParams} onWeaveParams={onWeaveParams} arcParams={arcParams} onArcParams={onArcParams} isMobile={isMobile} mobileTab={mobileInspectorTab} onMobileTabChange={setMobileInspectorTab} />) : null;
+  return <div ref={rootRef} data-wireframe={wireframeMode ? '1' : '0'} data-dev-mode={devMode ? '1' : '0'} className={'ved-root' + (full ? ' ved-full' : '')}><div className="fig-workspace">
+    {devMode && (
+      <div
+        data-testid="dev-mode-canvas-banner"
+        className="fixed top-3 left-1/2 -translate-x-1/2 z-[65] flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-xs bg-[var(--card)]"
+        style={{ border: '1px solid var(--acc)' }}
+      >
+        <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: 'var(--acc)' }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--acc)' }} />
+          <span>Dev Mode</span>
+        </span>
+        <span className="text-[var(--line)]">|</span>
+        <span className="text-[11px] font-mono mut">
+          {primary
+            ? `${primary.group ? primary.group + ' › ' : ''}${primary.name || primary.type || 'Layer'}`
+            : (prefs?.lang === 'en' ? 'Hover any layer to measure' : 'Arahkan kursor untuk ukur jarak')}
+        </span>
+        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--sub)] mut">
+          Shift+D
+        </span>
+      </div>
+    )}
+    {isolatedGroupId && (
+      <div
+        data-testid="isolation-mode-banner"
+        className="fixed top-3 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-xs font-medium bg-[var(--card)] border border-[var(--acc)]"
+      >
+        <span>{prefs?.lang === 'en' ? 'Isolation Mode' : 'Mode Isolasi'}: <b className="font-mono">{isolatedGroupId}</b></span>
+        <button
+          type="button"
+          data-testid="exit-isolation-btn"
+          data-tip="veExitIsolation"
+          className="ved-pill on text-[11px] py-0.5 px-2"
+          onClick={() => setIsolatedGroupId(null)}
+        >
+          {prefs?.lang === 'en' ? 'Exit (Esc)' : 'Keluar (Esc)'}
+        </button>
+      </div>
+    )}{isMobile ? (
       <>
         <MobileEditorTopBar
           L={L}
@@ -9867,7 +10285,7 @@ const VectorEditor = ({
         />
         {mobileRailOpen && (
           <div className="mob-rail-sheet" data-testid="mobile-rail-sheet" onPointerDown={e => e.stopPropagation()}>
-            <EditorActionRail L={L} renderRailDropdowns={renderRailDropdowns} />
+            <EditorActionRail L={L} lang={prefs && prefs.lang || 'id'} onSettings={onSettings} renderRailDropdowns={renderRailDropdowns} />
           </div>
         )}
         {!mobHintDismissed && !leftOpen && !rightOpen && !ctx && (
@@ -9999,7 +10417,7 @@ const VectorEditor = ({
     ) : (
       <div className="flex h-full min-h-0 relative select-none order-2 lg:order-none" style={{
         ['--lw' as any]: pw.l + 'px'
-      }}><EditorActionRail L={L} renderRailDropdowns={renderRailDropdowns} />{leftSidebarNode}<button type="button" className={'fig-sidebar-edge-toggle' + (leftOpen ? ' on' : '')} data-tip={leftOpen ? 'veSidebarHide' : 'veSidebarShow'} aria-label={leftOpen ? L.edSidebarHide : L.edSidebarShow} aria-expanded={leftOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
+      }}><EditorActionRail L={L} lang={prefs && prefs.lang || 'id'} onSettings={onSettings} renderRailDropdowns={renderRailDropdowns} />{leftSidebarNode}<button type="button" className={'fig-sidebar-edge-toggle' + (leftOpen ? ' on' : '')} data-tip={leftOpen ? 'veSidebarHide' : 'veSidebarShow'} aria-label={leftOpen ? L.edSidebarHide : L.edSidebarShow} aria-expanded={leftOpen} onPointerDown={e => e.stopPropagation()} onClick={e => {
           e.stopPropagation();
           setLeftOpen(o => !o);
         }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="4" width="17" height="16" rx="3.2" /><path d="M9.5 4v16" /><path d={leftOpen ? 'M15 9.5L12.5 12l2.5 2.5' : 'M13 9.5L15.5 12 13 14.5'} /></svg></button></div>
@@ -10238,7 +10656,7 @@ const VectorEditor = ({
                     setActiveStopId={isStroke ? setActiveStrokeStopId : setActiveStopId}
                   />
                 );
-              })()}{activeBox && !isMovingObj && (() => {
+              })()}{!devMode && activeBox && !isMovingObj && (() => {
                 const zNow = Math.max(1e-4, zoomRef.current || zoom || 1);
                 const corners = activeBox.corners();
                 const polyPts = corners.map(p => p.x + ',' + p.y).join(' ');
@@ -10248,7 +10666,22 @@ const VectorEditor = ({
                     const p = activeBox.toDocPt(h.pos(activeBox.rect));
                     return <rect key={'vch-' + h.idx} data-hx={p.x} data-hy={p.y} x={p.x - hHalf} y={p.y - hHalf} width={hs} height={hs} fill="#ffffff" stroke="var(--acc)" strokeWidth="1" vectorEffect="non-scaling-stroke" />;
                   })}</g>;
-              })()}{tool === 'select' && <g data-drag-extra="1"><SelectionRotationAndRedlines zoom={zoom} measureBadge={measureBadge} altMeasure={altMeasure} /></g>}{tool === 'autohandle' && ahHov && (() => {
+              })()}{devMode && (() => {
+                const sbDev = selBoxNow();
+                const hovObj = devHoverObjId ? (doc.objects || []).find(o => o.id === devHoverObjId) : null;
+                const hovBox = hovObj ? VE.tightBBox(hovObj) : null;
+                return (
+                  <DevModeCanvasOverlay
+                    zoom={zoom}
+                    selBox={sbDev}
+                    hoverBox={hovBox}
+                    hoverLabel={hovObj ? (hovObj.name || hovObj.type || 'Layer') : undefined}
+                    devMeasure={devMeasure}
+                    unit={devUnit}
+                    rootFontSize={16}
+                  />
+                );
+              })()}{!devMode && tool === 'select' && <g data-drag-extra="1"><SelectionRotationAndRedlines zoom={zoom} measureBadge={measureBadge} altMeasure={altMeasure} /></g>}{tool === 'autohandle' && ahHov && (() => {
                 const o = doc.objects.find(q => q.id === ahHov.oid);
                 if (!o) return null;
                 const subs = ahHov.spid && ahOpt.scope !== 'obj' ? o.subs.filter(s => s.id === ahHov.spid) : o.subs;
@@ -10497,7 +10930,7 @@ const VectorEditor = ({
                   setRenamingId(null);
                 }} /></div>;
             }
-          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} rulersOn={rulersOn} setRulersOn={setRulersOn} rulerUnit={rulerUnit} setRulerUnit={setRulerUnit} guidesVisible={guidesVisible} setGuidesVisible={setGuidesVisible} guidesLocked={guidesLocked} setGuidesLocked={setGuidesLocked} onClearGuides={() => setGuides([])} onResetRulerOrigin={() => setRulerOrigin({ x: 0, y: 0 })} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} applySeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} applyFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} onOpenCodeInspector={openCodeInspector} isCodeInspectorOpen={isCodeInspectorOpen} />{(() => {
+          })()}<EditorFloatingToolbar L={L} lang={prefs && prefs.lang || 'id'} tool={tool} setOpenGrp={setOpenGrp} setTool={setToolToggle} lastGrpTool={lastGrpTool} openGrp={openGrp} grpBtnRefs={grpBtnRefs} autoSimplifyOn={autoSimplifyOn} toggleAutoSimplify={toggleAutoSimplify} setAutoSimplifyOn={setAutoSimplifyOn} vcSimpRef={vcSimpRef} openVcSimplify={openVcSimplify} say={say} shapeKind={shapeKind} setShapeKind={setShapeKind} snapMenuBtn={snapMenuBtn} snapOn={snapOn} setSnapOn={setSnapOn} snapMenuOpen={snapMenuOpen} setSnapMenuOpen={setSnapMenuOpen} setSnapCfg={setSnapCfg} snapCfg={snapCfg} gridOn={gridOn} setGridOn={setGridOn} rulersOn={rulersOn} setRulersOn={setRulersOn} rulerUnit={rulerUnit} setRulerUnit={setRulerUnit} guidesVisible={guidesVisible} setGuidesVisible={setGuidesVisible} guidesLocked={guidesLocked} setGuidesLocked={setGuidesLocked} onClearGuides={() => setGuides([])} onResetRulerOrigin={() => setRulerOrigin({ x: 0, y: 0 })} mirrorBtn={mirrorBtn} mirrorCur={mirrorCur} selNodes={selNodes} mirrorOpen={mirrorOpen} setMirrorOpen={setMirrorOpen} MIRROR_OPTS={MIRROR_OPTS} curveDragOn={curveDragOn} setCurveDragOn={setCurveDragOn} commitObjs={commitObjs} sel={sel} selHandles={selHandles} applyMirror={applyMirror} onSettings={onSettings} boolOpen={boolOpen} setBoolOpen={setBoolOpen} boolBtn={boolBtn} selObjs={selObjs} applyBoolean={applyBoolean} applyOutlineStroke={applyOutlineStroke} openOffsetStrip={openOffsetStrip} applySeparateIconObjects={applySeparateIconObjects} canSeparateIcon={canSeparateIcon} applyFillEmptySpace={applyFillEmptySpace} canFillEmpty={canFillEmpty} nodeScale={nodeScale} setNodeScale={updateNodeScale} delSel={delSel} applyType={applyType} applySmoothNodes={applySmoothNodes} setClosed={setClosed} applyAutoSmooth={applyAutoSmooth} applyConvertToCurves={applyConvertToCurves} applyJoinNodes={applyJoinNodes} applySplitPath={applySplitPath} applyReversePath={applyReversePath} devMode={devMode} onToggleDevMode={toggleDevMode} wireframeMode={wireframeMode} onToggleWireframe={toggleWireframe} historyPanelOpen={historyPanelOpen} onToggleHistoryPanel={() => setHistoryPanelOpen(v => !v)} />{(() => {
             if (typeof window !== 'undefined') {
               Object.defineProperty(window, '__geovantaAutoSimplifyOn', {
                 get: () => autoSimplifyOnRef.current,
@@ -10507,10 +10940,180 @@ const VectorEditor = ({
               window.__geovantaToggleAutoSimplify = toggleAutoSimplify;
               window.__geovantaAutoSimplifyCanvas = autoSimplifyAllCanvasObjects;
               window.__geovantaEditorApi = {
-                openCodeInspector,
-                closeCodeInspector,
-                toggleCodeInspector,
-                isCodeInspectorOpen: () => isCodeInspectorOpen,
+                enterDevMode,
+                exitDevMode,
+                toggleDevMode,
+                isDevMode: () => devModeRef.current,
+                toggleWireframe,
+                getWireframeMode: () => wireframeMode,
+                setIsolatedGroup: (id: string | null) => setIsolatedGroupId(id),
+                getIsolatedGroup: () => isolatedGroupId,
+                runBoolean: (op: string, ids?: string[]) => {
+                  const selSet = new Set(ids || Array.from(selRef.current?.objs || []));
+                  return VE.booleanDoc(docRef.current, op, selSet);
+                },
+                traceRgbaTest: async (w = 32, h = 32) => {
+                  const rgba = new Uint8ClampedArray(w * h * 4);
+                  for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                      const idx = (y * w + x) * 4;
+                      const inside = x > w * 0.2 && x < w * 0.8 && y > h * 0.2 && y < h * 0.8;
+                      rgba[idx] = inside ? 20 : 240;
+                      rgba[idx + 1] = inside ? 160 : 240;
+                      rgba[idx + 2] = inside ? 90 : 240;
+                      rgba[idx + 3] = 255;
+                    }
+                  }
+                  const res = await VE.traceRgbaBufferToSvgAsync(rgba, w, h, { mode: 'color', colorCount: 4 });
+                  return { svg: res.svg, workerUsed: Boolean(res.stats?.workerUsed) };
+                },
+                makeClippingMask: (ids?: string[]) => {
+                  const selSet = new Set(ids || Array.from(selRef.current?.objs || []));
+                  const r = VE.makeClippingMaskDoc(docRef.current, selSet);
+                  if (r.changed) commit(r.doc, 'clipping-mask');
+                  return r;
+                },
+                releaseClippingMask: (ids?: string[]) => {
+                  const selSet = new Set(ids || Array.from(selRef.current?.objs || []));
+                  const r = VE.releaseClippingMaskDoc(docRef.current, selSet);
+                  if (r.changed) commit(r.doc, 'release-mask');
+                  return r;
+                },
+                serializeSvg: () => VE.serializeDoc(docRef.current, { bg, clipFrames }),
+                parseSvg: (svgStr: string) => VE.parseSVG(svgStr),
+                exportPdfString: (opts?: any) => VE.exportPDF(docRef.current, {
+                  bg,
+                  clipFrames,
+                  area: exportArea,
+                  only: selRef.current.objs,
+                  bleedMm: pdfBleedMm,
+                  cropMarks: pdfCropMarks,
+                  colorSpace: pdfColorSpace,
+                  ...(opts || {})
+                }),
+                knifeCut: (p1: { x: number; y: number }, p2: { x: number; y: number }, ids?: string[]) => {
+                  const r = VE.knifeCutDoc(docRef.current, p1, p2, ids);
+                  if (r.changed) commit(r.doc, 'knife-cut');
+                  return r;
+                },
+                vectorErase: (pts: Array<{ x: number; y: number }>, radius = 10, ids?: string[]) => {
+                  const r = VE.vectorEraseDoc(docRef.current, pts, radius, ids);
+                  if (r.changed) commit(r.doc, 'vector-erase');
+                  return r;
+                },
+                scissorsSplit: (objId: string, pt: { x: number; y: number }) => {
+                  const r = VE.scissorsSplitAtPoint(docRef.current, objId, pt);
+                  if (r.changed) commit(r.doc, 'scissors-split');
+                  return r;
+                },
+                jumpToHistory,
+                saveNamedSnapshot,
+                restoreNamedSnapshot,
+                getArtboards: () => VE.ensureArtboards(docRef.current),
+                addArtboard: (spec?: any) => {
+                  const r = VE.addArtboardDoc(docRef.current, spec);
+                  commit(r.doc, 'artboard-add');
+                  return r.artboard;
+                },
+                setActiveArtboard: (id: string) => {
+                  const next = VE.setActiveArtboardDoc(docRef.current, id);
+                  if (next !== docRef.current) commit(next, 'artboard-switch');
+                  return next;
+                },
+                exportMultiPagePdfString: (opts?: any) => VE.exportMultiPagePDF(docRef.current, { bg, clipFrames, ...(opts || {}) }),
+                attachTextToPath: (textId: string, pathId: string, opts?: any) => {
+                  const r = VE.attachTextToPathDoc(docRef.current, textId, pathId, opts);
+                  if (r.changed) commit(r.doc, 'text-on-path');
+                  return r;
+                },
+                applyRichTextSpan: (textId: string, span: any) => {
+                  const r = VE.applyRichTextSpanDoc(docRef.current, textId, span);
+                  if (r.changed) commit(r.doc, 'rich-text-span');
+                  return r;
+                },
+                applyAutoLayoutV2: (d: any, frameId: string, cfg: any) => VE.applyAutoLayoutV2(d || docRef.current, frameId, cfg),
+                resizeFrameWithConstraints: (d: any, frameId: string, newW: number, newH: number) => VE.resizeFrameWithConstraints(d || docRef.current, frameId, newW, newH),
+                skewSelection: (ids: string[], sx: number, sy: number) => {
+                  const r = VE.skewObjectDoc(docRef.current, ids, sx, sy);
+                  if (r.changed) commit(r.doc, 'skew');
+                  return r;
+                },
+                perspectiveDistort: (ids: string[], quad: any) => {
+                  const r = VE.perspectiveDistortDoc(docRef.current, ids, quad);
+                  if (r.changed) commit(r.doc, 'perspective');
+                  return r;
+                },
+                envelopeWarp: (ids: string[], mode: any, bend: number) => {
+                  const r = VE.envelopeWarpDoc(docRef.current, ids, mode, bend);
+                  if (r.changed) commit(r.doc, 'envelope-warp');
+                  return r;
+                },
+                blendObjects: (idA: string, idB: string, steps: number) => {
+                  const r = VE.blendObjectsDoc(docRef.current, idA, idB, steps);
+                  if (r.changed) commit(r.doc, 'blend');
+                  return r;
+                },
+                applyVariableWidthProfile: (objId: string, profile: any) => {
+                  const r = VE.applyVariableWidthProfileDoc(docRef.current, objId, profile);
+                  if (r.changed) commit(r.doc, 'variable-width');
+                  return r;
+                },
+                createComponentMaster: (objId: string, name?: string) => {
+                  const r = VE.createComponentMasterDoc(docRef.current, objId, name);
+                  if (r.changed) commit(r.doc, 'component-master');
+                  return r;
+                },
+                instantiateComponent: (compId: string, dx = 40, dy = 40) => {
+                  const r = VE.instantiateComponentDoc(docRef.current, compId, dx, dy);
+                  if (r.changed) commit(r.doc, 'component-instance');
+                  return r;
+                },
+                setInstanceOverride: (instId: string, propKey: string, val: any) => {
+                  const r = VE.setInstanceOverrideDoc(docRef.current, instId, propKey, val);
+                  if (r.changed) commit(r.doc, 'component-override');
+                  return r;
+                },
+                updateComponentMaster: (compId: string, patch: any) => {
+                  const r = VE.updateComponentMasterDoc(docRef.current, compId, patch);
+                  if (r.changed) commit(r.doc, 'component-update');
+                  return r;
+                },
+                createTextStyle: (name: string, patch: any) => {
+                  const r = VE.createTextStyleDoc(docRef.current, name, patch);
+                  commit(r.doc, 'text-style-create');
+                  return r;
+                },
+                applyTextStyle: (styleId: string, ids: string[]) => {
+                  const r = VE.applyTextStyleDoc(docRef.current, styleId, ids);
+                  if (r.changed) commit(r.doc, 'text-style-apply');
+                  return r;
+                },
+                createEffectStyle: (name: string, effects: any[]) => {
+                  const r = VE.createEffectStyleDoc(docRef.current, name, effects);
+                  commit(r.doc, 'effect-style-create');
+                  return r;
+                },
+                applyEffectStyle: (styleId: string, ids: string[]) => {
+                  const r = VE.applyEffectStyleDoc(docRef.current, styleId, ids);
+                  if (r.changed) commit(r.doc, 'effect-style-apply');
+                  return r;
+                },
+                captureCanvasScreenshot: () => {
+                  const cv = rootRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+                  if (cv && typeof cv.toDataURL === 'function') {
+                    return cv.toDataURL('image/png');
+                  }
+                  const fallback = document.createElement('canvas');
+                  fallback.width = 1;
+                  fallback.height = 1;
+                  return fallback.toDataURL('image/png');
+                },
+                parseTsvOrCsvText: (raw: string) => VE.parseTsvOrCsvText(raw),
+                syncChartPaletteFromStyles: (cfg: any, styles?: any[]) => VE.syncChartPaletteFromColorStyles(cfg, styles || docRef.current?.styles || []),
+                optimizeDetachedChartObjects: (objs: any[], tol?: number) => VE.optimizeDetachedChartObjects(objs, tol),
+                workspaceExtras: WorkspaceExtras,
+                computeSafeExportScale,
+                shouldRejectPalmEvent,
                 getSelectionColors: () => selectionColors,
                 setSelectionDimension: (axis, v) => setXfDim(axis, v),
                 getSnapCfg: () => snapCfgRef.current,
@@ -10919,18 +11522,50 @@ const VectorEditor = ({
             }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
               <div className="text-[11px] font-semibold uppercase mut">Line Segment</div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[10px] mut flex flex-col gap-0.5">
+                <div className="text-[10px] mut flex flex-col gap-1">
                   <span>Length</span>
-                  <input data-testid="line-size-length" type="number" className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--sub)] text-[11px] text-[var(--ink)]" value={lineSizeDlg.len} onChange={e => setLineSizeDlg(d => d ? { ...d, len: e.target.value } : null)} />
-                </label>
-                <label className="text-[10px] mut flex flex-col gap-0.5">
+                  <div
+                    data-testid="line-size-length"
+                    className="fld px-2 py-1 flex items-center"
+                    style={{ minHeight: 26 }}
+                    onClick={e => {
+                      const el = e.currentTarget.querySelector('[role="textbox"]') as HTMLElement | null;
+                      el?.focus();
+                    }}
+                  >
+                    <CustomTextBox
+                      value={String(lineSizeDlg.len)}
+                      ariaLabel="Line Length"
+                      filterRe={/[^0-9.-]/g}
+                      onChange={v => setLineSizeDlg(d => d ? { ...d, len: v } : null)}
+                      onCommit={v => setLineSizeDlg(d => d ? { ...d, len: v } : null)}
+                    />
+                  </div>
+                </div>
+                <div className="text-[10px] mut flex flex-col gap-1">
                   <span>Angle (°)</span>
-                  <input data-testid="line-size-angle" type="number" className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--sub)] text-[11px] text-[var(--ink)]" value={lineSizeDlg.ang} onChange={e => setLineSizeDlg(d => d ? { ...d, ang: e.target.value } : null)} />
-                </label>
+                  <div
+                    data-testid="line-size-angle"
+                    className="fld px-2 py-1 flex items-center"
+                    style={{ minHeight: 26 }}
+                    onClick={e => {
+                      const el = e.currentTarget.querySelector('[role="textbox"]') as HTMLElement | null;
+                      el?.focus();
+                    }}
+                  >
+                    <CustomTextBox
+                      value={String(lineSizeDlg.ang)}
+                      ariaLabel="Line Angle"
+                      filterRe={/[^0-9.-]/g}
+                      onChange={v => setLineSizeDlg(d => d ? { ...d, ang: v } : null)}
+                      onCommit={v => setLineSizeDlg(d => d ? { ...d, ang: v } : null)}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-end gap-1.5 pt-1">
-                <button type="button" className="ved-pill text-[10px]" onClick={() => setLineSizeDlg(null)}>Batal</button>
-                <button type="button" data-testid="line-size-apply" className="btn pri text-[10px] px-2.5 py-1 rounded-lg" onClick={() => {
+              <div className="flex justify-end gap-2 pt-1.5">
+                <button type="button" className="ved-pill inline-flex items-center justify-center text-[10px] px-2.5 py-1" onClick={() => setLineSizeDlg(null)}>Batal</button>
+                <button type="button" data-testid="line-size-apply" className="btn pri inline-flex items-center justify-center text-[10px] px-3 py-1 rounded-lg" onClick={() => {
                   const len = Math.max(1, Number(lineSizeDlg.len) || 100);
                   const rad = ((Number(lineSizeDlg.ang) || 0) * Math.PI) / 180;
                   const endPt = { x: lineSizeDlg.x + len * Math.cos(rad), y: lineSizeDlg.y + len * Math.sin(rad) };
@@ -10944,7 +11579,7 @@ const VectorEditor = ({
                   }
                 }}>OK</button>
               </div>
-            </div>}<IconifyModal open={tool === 'iconify'} onInsert={onIconifyInsert} onClose={onIconifyClose} L={L} recentIcons={prefs && prefs.recentIcons || []} /><ChartsStudioModal open={tool === 'charts'} initialConfig={chartsEditTarget?.config || null} editingGroupId={chartsEditTarget?.groupId || null} onInsert={onChartInsert} onUpdate={(gid, cfg) => { onChartConfigChange(gid, cfg); onChartsClose(); }} onClose={onChartsClose} googleFonts={GOOGLE_FONTS.families.map(f => f.family)} L={L} lang={prefs && prefs.lang || 'id'} /><SvgCodeInspectorModal isOpen={isCodeInspectorOpen} onClose={() => setIsCodeInspectorOpen(false)} doc={doc} selIds={sel.objs} onUpdateDoc={(newDoc) => commit(newDoc)} lang={prefs && prefs.lang || 'id'} />{importModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
+            </div>}<IconifyModal open={tool === 'iconify'} onInsert={onIconifyInsert} onClose={onIconifyClose} L={L} recentIcons={prefs && prefs.recentIcons || []} /><ChartsStudioModal open={tool === 'charts'} initialConfig={chartsEditTarget?.config || null} editingGroupId={chartsEditTarget?.groupId || null} onInsert={onChartInsert} onUpdate={(gid, cfg) => { onChartConfigChange(gid, cfg); onChartsClose(); }} onClose={onChartsClose} googleFonts={GOOGLE_FONTS.families.map(f => f.family)} L={L} lang={prefs && prefs.lang || 'id'} />{importModalOpen && ReactDOM.createPortal(<div className="ov in" onPointerDown={e => {
       if (e.target === e.currentTarget) setImportModalOpen(false);
     }}><div className="hp" role="dialog" aria-label="Impor Berkas" style={{
         maxWidth: 480
@@ -10993,43 +11628,7 @@ const VectorEditor = ({
                 setPasteSvgDraft('');
                 setImportModalOpen(false);
               } else say('Kode SVG tidak valid');
-            }}>{L.impLoadCode}</button></div></div></div></div>, document.body)}<CtxMenu menu={ctx} items={ctxItems} onClose={() => setCtx(null)} />{!debugOpen && (!isMobile || debugEnabled) && (
-            <button
-              type="button"
-              className="debug-launcher ved-debug-pill btn sec"
-              style={{
-                position: 'fixed',
-                right: 12,
-                bottom: 12,
-                zIndex: 65,
-                fontSize: 11,
-                padding: '5px 12px',
-                borderRadius: 20,
-                background: 'var(--card)',
-                border: '1px solid var(--line)',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                cursor: 'pointer'
-              }}
-              title="Debugging Mode (Ctrl+Shift+D)"
-              aria-label="Debugging Mode (Ctrl+Shift+D)"
-              onClick={toggleDebugMode}
-            >
-              <Ico n="code" size={13} />
-              <span style={{ fontWeight: 600 }}>Debug</span>
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: '50%',
-                  background: debugEnabled ? '#22c55e' : '#94a3b8',
-                  display: 'inline-block'
-                }}
-              />
-            </button>
-          )}<DebugLogPanel open={debugOpen} enabled={debugEnabled} onToggle={toggleDebugMode} onClose={() => setDebugOpen(false)} />{full && lmsg && <div className="ved-toast" role="status" aria-live="polite">{lmsg}{lmsgAct && <button type="button" data-testid="toast-action" style={{pointerEvents: 'auto', marginLeft: 10, padding: '0 2px', font: 'inherit', color: '#fff', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', background: 'transparent', border: 0}} onClick={() => { const a = lmsgAct; clearTimeout(lmT.current); setLmsg(''); setLmsgAct(null); if (a) a.onClick(); }}>{lmsgAct.label}</button>}</div>}</div>;
+            }}>{L.impLoadCode}</button></div></div></div></div>, document.body)}<CtxMenu menu={ctx} items={ctxItems} onClose={() => setCtx(null)} /><DebugLogPanel open={debugOpen} enabled={debugEnabled} onToggle={toggleDebugMode} onClose={() => setDebugOpen(false)} lang={prefs && prefs.lang || 'id'} />{full && lmsg && <div className="ved-toast" role="status" aria-live="polite">{lmsg}{lmsgAct && <button type="button" data-testid="toast-action" style={{pointerEvents: 'auto', marginLeft: 10, padding: '0 2px', font: 'inherit', color: '#fff', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', background: 'transparent', border: 0}} onClick={() => { const a = lmsgAct; clearTimeout(lmT.current); setLmsg(''); setLmsgAct(null); if (a) a.onClick(); }}>{lmsgAct.label}</button>}</div>}</div>;
 };
 /* ============================================================================
    GEOVANTA WORKSPACE — CORE STORAGE & DATA LAYER (PHASE 1, 2, 3, 7, 9, 10, 11)

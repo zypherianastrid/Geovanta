@@ -5,6 +5,7 @@ import {Select} from '../ui/SelectDropdown.tsx';
 import {ensureGoogleFontPreview} from '../../renderer/googleFonts.tsx';
 import {XfField} from '../ui/TransformField.tsx';
 import {ColorField} from '../ui/ColorPickerField.tsx';
+import {ChartSwitch} from './ChartCustomInputs.tsx';
 
 const WEIGHT_OPTIONS = [
   {value: 'normal', label: 'Regular'},
@@ -46,7 +47,13 @@ export function TextInspector({
   const contentCancel = useRef(false);
   const [contentBuf, setContentBuf] = useState(t ? t.content : '');
   useEffect(() => {
-    if (!contentFocused.current) setContentBuf(t ? t.content : '');
+    if (!contentFocused.current) {
+      const next = t ? t.content : '';
+      setContentBuf(next);
+      if (contentRef.current && contentRef.current.textContent !== next) {
+        contentRef.current.textContent = next;
+      }
+    }
   }, [t ? t.content : '', object ? object.id : null]);
   if (!object || object.type !== 'text' || !t) return null;
   const commitContent = () => {
@@ -469,32 +476,42 @@ export function TextInspector({
           </div>
         </div>
 
-        {/* Content — buffer lokal + pratinjau live; commit 1x saat blur.
-            onKeyDown stopPropagation: tombol di sini milik field, bukan shortcut
-            kanvas (dulu: spasi tidak bisa diketik, huruf t/v mengganti tool,
-            Ctrl+A memilih semua objek). */}
-        <label className="block text-[11px]">
+        {/* Content — custom contentEditable textbox (0% native textarea) */}
+        <div className="block text-[11px]">
           <span className="fig-sub-lbl block">{en ? 'Content' : 'Isi Teks'}</span>
-          <textarea
-            ref={contentRef}
-            className="fig-input w-full text-[11px]"
+          <div
+            ref={contentRef as any}
+            role="textbox"
+            aria-multiline="true"
+            aria-label={en ? 'Text content' : 'Isi teks'}
+            data-custom-input="true"
+            data-tip="veTextContent"
+            data-testid="text-inspector-content"
+            contentEditable
+            suppressContentEditableWarning
+            className="fig-input w-full text-[11px] whitespace-pre-wrap break-words focus:outline-none"
             style={{
               padding: '6px 8px',
               borderRadius: 8,
+              minHeight: 48,
+              maxHeight: 140,
+              overflowY: 'auto',
               background: 'var(--sub)',
               border: '1px solid var(--line)',
               color: 'var(--ink)',
-              resize: 'vertical'
+              cursor: 'text',
+              userSelect: 'text'
             }}
-            data-tip="veTextContent"
-            aria-label={en ? 'Text content' : 'Isi teks'}
-            value={contentBuf}
-            onChange={e => {
-              const next = e.target.value;
+            onInput={e => {
+              const next = e.currentTarget.textContent || '';
               setContentBuf(next);
               live({content: next});
             }}
-            onFocus={() => { contentFocused.current = true; contentCancel.current = false; contentStart.current = t.content; }}
+            onFocus={() => {
+              contentFocused.current = true;
+              contentCancel.current = false;
+              contentStart.current = t.content;
+            }}
             onBlur={() => {
               contentFocused.current = false;
               commitContent();
@@ -502,11 +519,10 @@ export function TextInspector({
             onKeyDown={e => {
               e.stopPropagation();
               if (e.key === 'Escape') {
-                // Batal: kembalikan isi ke nilai saat mulai edit (termasuk
-                // pratinjau live di kanvas), lalu blur tanpa commit.
                 e.preventDefault();
                 contentCancel.current = true;
                 setContentBuf(contentStart.current);
+                if (contentRef.current) contentRef.current.textContent = contentStart.current;
                 live({content: contentStart.current});
                 contentRef.current?.blur();
               } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -515,9 +531,8 @@ export function TextInspector({
                 contentRef.current?.blur();
               }
             }}
-            rows={2}
           />
-        </label>
+        </div>
 
         <div className="flex items-center justify-between gap-2">
           <span className="fig-sub-lbl mb-0">{en ? 'Text Color' : 'Warna Teks'}</span>
@@ -535,13 +550,39 @@ export function TextInspector({
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="flex flex-col gap-1">
+            <span className="fig-sub-lbl mb-0">{en ? 'List Style' : 'Daftar'}</span>
+            <Select
+              testId="text-list-style"
+              value={object?.text?.listStyle || 'none'}
+              options={[
+                ['none', en ? 'None' : 'Normal'],
+                ['bullet', '• Bullet'],
+                ['numbered', '1. Numbered'],
+              ]}
+              on={v => update({ listStyle: v })}
+              lang={lang}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--sub)] select-none self-end text-[11px]" style={{ minHeight: 28 }}>
+            <span>{en ? 'Ligatures' : 'Ligatur'}</span>
+            <ChartSwitch
+              testId="text-opentype-ligatures"
+              checked={Boolean(object?.text?.openTypeLigatures)}
+              onChange={v => update({ openTypeLigatures: v })}
+              ariaLabel={en ? 'OpenType Ligatures' : 'Ligatur OpenType'}
+            />
+          </div>
+        </div>
+
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-1.5 pt-1">
+        <div className="grid grid-cols-2 gap-2 pt-1.5">
           <button
             type="button"
             data-action="edit-on-canvas"
             data-tip="veTextEditCanvas"
-            className="btn sec text-[11px] py-1.5 justify-center"
+            className="btn sec text-[11px] py-1.5 inline-flex items-center justify-center gap-1.5"
             onClick={edit}
           >
             {en ? 'Edit on canvas' : 'Edit di kanvas'}
@@ -549,7 +590,7 @@ export function TextInspector({
           {onConvertToPath && (
             <button
               type="button"
-              className="btn pri text-[11px] py-1.5 justify-center"
+              className="btn pri text-[11px] py-1.5 inline-flex items-center justify-center gap-1.5"
               data-tip="veTextToPath"
               onClick={onConvertToPath}
             >

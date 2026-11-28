@@ -7,7 +7,7 @@ import { computeImageParGeometry, makeImageObj, imageMatrix, scaleObj, docBounds
 import { isHittable, hitTestObject, updateSpatialIndexForObjects, tightBBox, segAnalyticBBox, cubicExtrema1D, getDocSpatialIndex, nearOnSeg } from './spatialIndexAndHitTest.tsx';
 import { deleteNonCornerNodes, pruneNonCornerSub, autoRefineGeometry, classifySubpathNodesDynamic } from './autoRefineGeometry.tsx';
 import { VC_HANDLES, affineIdentity, affineTranslate, affineScale, affineRotate, affineMul, affineInverse, affineDet, affinePt, transformRectBbox, normalizeDeg, getObjBboxAngle, transformedAngle, transformObject, createOrientedBox, docBboxAngle, selectionOrientedBox, boxHit, scaleForDrag, rotateForDrag, handleCursor, rotateCursorForPt, arrangeZOrder, measureDistanceGuides } from './affineAndOrientedBox.tsx';
-import { compactGroups, applyAutoLayout, applyFramePadding, applyArtboardPadding, createFrame, frameBounds, listFrames, reparentDroppedObjects, inferFrameAutoLayout } from './figmaAutoLayoutAndFrames.tsx';
+import { compactGroups, applyAutoLayout, applyAutoLayoutV2, resizeFrameWithConstraints, applyFramePadding, applyArtboardPadding, createFrame, frameBounds, listFrames, reparentDroppedObjects, inferFrameAutoLayout } from './figmaAutoLayoutAndFrames.tsx';
 import { selectionMetrics, pinPoint, alignSelection, rotateObjAround, setSelectionPosition, setSelectionDimension, setSelectionRotation, flipSelection, scaleObjXY } from './selectionTransformAndAlign.tsx';
 import { parseSVG } from './svgDocumentParser.tsx';
 import { gradOn, strokeGradOn, isGradOnSlot, getGradForSlot, mapGrad, ensureGradModel, updateGradStops, sampleGradAt, simplifyGradStops, simplifyGradStopsTo, gradAngleDeg, setGradAngleDeg, projectPointToGrad, gradPointAt, compileGradStops } from './gradientEngine.tsx';
@@ -30,7 +30,8 @@ import { fillEmptySpaceDoc } from './fillEmptySpaceEngine.tsx';
 import { outlineStrokeDoc, offsetDoc, alignedStrokeOutlineSubs } from './pathOffset.tsx';
 import { isLegacyText, legacyTextSpec, normalizeTextObject, normalizeTextDocument, applyTextCase, legacyTextBounds } from './legacyText.tsx';
 import { textToPathObject, convertDocumentTextToPaths } from './textToPath.tsx';
-import { hasVisibleStroke, parseDasharray, formatDasharray, toSkiaDashIntervals, dashPresetValues, detectDashPreset, effectiveStrokeAlign, strokeOutwardExtent } from './strokeStyles.tsx';
+import { hasVisibleStroke, parseDasharray, formatDasharray, toSkiaDashIntervals, dashPresetValues, detectDashPreset, effectiveStrokeAlign, strokeOutwardExtent, getSubpathEndpointTangents, buildMarkerPolygonPoints, buildMarkerSvgDef } from './strokeStyles.tsx';
+import { knifeCutDoc, vectorEraseDoc, scissorsSplitAtPoint } from './pathCutEngine.ts';
 import { BLEND_MODE_GROUPS, BLEND_MODE_OPTIONS, VALID_BLEND_MODES, normalizeBlendMode, toCanvasKitBlendMode } from './blendModes.tsx';
 import {
   distanceFilter,
@@ -45,6 +46,22 @@ import {
   generateExportCode,
   prettifyXml
 } from './svgOptimizer.tsx';
+import { makeClippingMaskDoc, releaseClippingMaskDoc } from './maskingEngine.ts';
+import { exportPDF, exportMultiPagePDF, rgbHexToCmyk } from './pdfVectorExporter.ts';
+import { ensureArtboards, addArtboardDoc, setActiveArtboardDoc, deleteArtboardDoc } from './artboardEngine.ts';
+import { attachTextToPathDoc, applyRichTextSpanDoc, formatListTextContent } from './textOnPathEngine.ts';
+import { skewObjectDoc, perspectiveDistortDoc, envelopeWarpDoc, blendObjectsDoc, applyVariableWidthProfileDoc } from './warpAndBlendEngine.ts';
+import {
+  createComponentMasterDoc,
+  instantiateComponentDoc,
+  setInstanceOverrideDoc,
+  updateComponentMasterDoc,
+  createTextStyleDoc,
+  applyTextStyleDoc,
+  createEffectStyleDoc,
+  applyEffectStyleDoc
+} from './componentSymbolEngine.ts';
+import { parseTsvOrCsvText, syncChartPaletteFromColorStyles, optimizeDetachedChartObjects } from './charts/chartV2Helpers.ts';
 import {
   DEFAULT_AUTO_TRACE_OPTIONS,
   getSvgPeakVmt,
@@ -102,6 +119,8 @@ const VE = {
   setSelectionRotation,
   flipSelection,
   applyAutoLayout,
+  applyAutoLayoutV2,
+  resizeFrameWithConstraints,
   applyFramePadding,
   applyArtboardPadding,
   createFrame,
@@ -247,6 +266,40 @@ const VE = {
   optimizeSvg,
   generateExportCode,
   prettifyXml,
+  makeClippingMaskDoc,
+  releaseClippingMaskDoc,
+  exportPDF,
+  exportMultiPagePDF,
+  rgbHexToCmyk,
+  ensureArtboards,
+  addArtboardDoc,
+  setActiveArtboardDoc,
+  deleteArtboardDoc,
+  attachTextToPathDoc,
+  applyRichTextSpanDoc,
+  formatListTextContent,
+  skewObjectDoc,
+  perspectiveDistortDoc,
+  envelopeWarpDoc,
+  blendObjectsDoc,
+  applyVariableWidthProfileDoc,
+  createComponentMasterDoc,
+  instantiateComponentDoc,
+  setInstanceOverrideDoc,
+  updateComponentMasterDoc,
+  createTextStyleDoc,
+  applyTextStyleDoc,
+  createEffectStyleDoc,
+  applyEffectStyleDoc,
+  parseTsvOrCsvText,
+  syncChartPaletteFromColorStyles,
+  optimizeDetachedChartObjects,
+  knifeCutDoc,
+  vectorEraseDoc,
+  scissorsSplitAtPoint,
+  getSubpathEndpointTangents,
+  buildMarkerPolygonPoints,
+  buildMarkerSvgDef,
   DEFAULT_AUTO_TRACE_OPTIONS,
   getSvgPeakVmt,
   getSvgPeakVe,
@@ -277,6 +330,40 @@ export {
   optimizeSvg,
   generateExportCode,
   prettifyXml,
+  makeClippingMaskDoc,
+  releaseClippingMaskDoc,
+  exportPDF,
+  exportMultiPagePDF,
+  rgbHexToCmyk,
+  ensureArtboards,
+  addArtboardDoc,
+  setActiveArtboardDoc,
+  deleteArtboardDoc,
+  attachTextToPathDoc,
+  applyRichTextSpanDoc,
+  formatListTextContent,
+  skewObjectDoc,
+  perspectiveDistortDoc,
+  envelopeWarpDoc,
+  blendObjectsDoc,
+  applyVariableWidthProfileDoc,
+  createComponentMasterDoc,
+  instantiateComponentDoc,
+  setInstanceOverrideDoc,
+  updateComponentMasterDoc,
+  createTextStyleDoc,
+  applyTextStyleDoc,
+  createEffectStyleDoc,
+  applyEffectStyleDoc,
+  parseTsvOrCsvText,
+  syncChartPaletteFromColorStyles,
+  optimizeDetachedChartObjects,
+  knifeCutDoc,
+  vectorEraseDoc,
+  scissorsSplitAtPoint,
+  getSubpathEndpointTangents,
+  buildMarkerPolygonPoints,
+  buildMarkerSvgDef,
   DEFAULT_AUTO_TRACE_OPTIONS,
   getSvgPeakVmt,
   getSvgPeakVe,

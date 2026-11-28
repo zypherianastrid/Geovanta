@@ -66,8 +66,10 @@ export interface UseEditorShortcutsOptions {
   toggleDebugMode: () => void;
   say: (msg: string, action?: any) => void;
   figmaKeys: (e: KeyboardEvent) => boolean;
-  toggleCodeInspector?: () => void;
-  isCodeInspectorOpen?: boolean;
+  devMode?: boolean;
+  toggleDevMode?: () => void;
+  toggleWireframe?: () => void;
+  exitIsolation?: () => boolean;
 }
 
 export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
@@ -129,8 +131,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     toggleDebugMode,
     say,
     figmaKeys,
-    toggleCodeInspector,
-    isCodeInspectorOpen
+    devMode,
+    toggleDevMode,
+    toggleWireframe,
+    exitIsolation
   } = options;
 
   const kbHandlersRef = useRef<{
@@ -145,22 +149,71 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     const mod = e.ctrlKey || e.metaKey,
       k = e.key.toLowerCase();
 
-    // Ctrl+Alt+C: Toggle SvgCodeInspectorModal
-    if (mod && e.altKey && (k === 'c' || e.code === 'KeyC')) {
-      if (toggleCodeInspector) {
+    const t = e.target as HTMLElement | null;
+    if (t && t.closest && t.closest('[data-custom-input="true"],[role="textbox"],[contenteditable="true"],input,select,textarea')) return;
+    if (document.querySelector('.ov, [role="dialog"]')) return;
+
+    // Shift+D (without Ctrl/Cmd/Alt): Toggle Figma Dev Mode
+    if (!mod && e.shiftKey && k === 'd' && !e.altKey) {
+      if (toggleDevMode) {
         e.preventDefault();
-        toggleCodeInspector();
+        toggleDevMode();
         return;
       }
     }
 
-    const t = e.target as HTMLElement | null;
-    if (t && t.closest && t.closest('[data-custom-input="true"],[role="textbox"],[contenteditable="true"],input,select,textarea')) return;
-    if (document.querySelector('.ov, [role="dialog"]')) return;
+    // Read-only guard when Dev Mode is active
+    if (devMode) {
+      if (!mod && e.shiftKey && k === 'o' && !e.altKey) {
+        e.preventDefault();
+        toggleWireframe?.();
+        return;
+      }
+      if (mod && e.shiftKey && k === 'd' && !e.altKey) {
+        e.preventDefault();
+        toggleDebugMode();
+        return;
+      }
+      if (mod && k === 'c' && !e.shiftKey && !e.altKey) {
+        if (selRef.current.objs.size) {
+          e.preventDefault();
+          copySel();
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        setSel({ objs: new Set(), nodes: new Set() });
+        return;
+      }
+      if (!mod && !e.altKey && !e.shiftKey) {
+        if (k === 'v') { setTool('select'); return; }
+        if (k === 'h') { setTool('hand'); return; }
+      }
+      if (mod && (k === '=' || k === '+' || k === '-' || k === '0' || k === '1')) {
+        // allow zoom shortcuts
+      } else {
+        // Block all edit/draw/delete shortcuts in Dev Mode
+        if (e.key === 'Delete' || e.key === 'Backspace' || mod || (!mod && !e.altKey && /^[a-z]$/.test(k))) {
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+
     if (figmaKeys(e)) return;
     if (mod && k === 'z') {
       e.preventDefault();
       e.shiftKey ? redo() : undo();
+      return;
+    }
+    if (mod && e.shiftKey && k === 'y' && !e.altKey) {
+      e.preventDefault();
+      toggleWireframe?.();
+      return;
+    }
+    if (!mod && e.shiftKey && k === 'o' && !e.altKey) {
+      e.preventDefault();
+      toggleWireframe?.();
       return;
     }
     if (mod && k === 'y') {
@@ -328,6 +381,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         setTool('select');
       }
     } else if (e.key === 'Escape') {
+      if (exitIsolation && exitIsolation()) return;
       setSel({
         objs: new Set(),
         nodes: new Set()

@@ -8,6 +8,7 @@ import { DATA_KIND_BY_TYPE } from '../../engine/charts/chartCatalog.ts';
 import { chartDataToCsv, parseCsvToChartData } from '../../engine/charts/echartsOptionBuilder.ts';
 import { registerCustomGeoMap, listRegisteredGeoMaps } from '../../engine/charts/builtInGeoMaps.ts';
 import { getEChartsInstanceModule } from '../../engine/charts/chartVectorRenderer.ts';
+import { parseTsvOrCsvText } from '../../engine/charts/chartV2Helpers.ts';
 import { pickFiles } from '../../utils/presenceAndFilePicker.tsx';
 import { ChartTextInput, ChartNumberInput, ChartSelect, ChartCodeBox } from './ChartCustomInputs.tsx';
 
@@ -128,9 +129,36 @@ export const ChartDataEditor: React.FC<ChartDataEditorProps> = ({
             ariaLabel="CSV Data"
             minHeight={compact ? 110 : 180}
           />
-          <button type="button" className="btn pri text-[11px] w-full py-1 rounded-lg" onClick={applyCsv}>
-            {isEn ? 'Apply CSV' : 'Terapkan CSV'}
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              data-testid="chart-import-csv-file"
+              className="btn sec text-[11px] flex-1 py-1 rounded-lg"
+              onClick={() => {
+                pickFiles('.csv,.tsv,text/csv,text/tab-separated-values', (files: FileList | File[]) => {
+                  const file = files && files[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const normalized = parseTsvOrCsvText(String(reader.result || ''));
+                    setCsvText(normalized);
+                    try {
+                      onChange(parseCsvToChartData(normalized, config.chartType, d));
+                      setErrMsg('');
+                    } catch (e: any) {
+                      setErrMsg(e?.message || 'CSV/TSV error');
+                    }
+                  };
+                  reader.readAsText(file);
+                });
+              }}
+            >
+              {isEn ? 'Import CSV/TSV' : 'Impor CSV/TSV'}
+            </button>
+            <button type="button" className="btn pri text-[11px] flex-1 py-1 rounded-lg" onClick={applyCsv}>
+              {isEn ? 'Apply CSV' : 'Terapkan CSV'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -150,6 +178,54 @@ export const ChartDataEditor: React.FC<ChartDataEditorProps> = ({
 
       {mode === 'table' && kind === 'tabular' && (
         <div className="space-y-2">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              data-testid="chart-data-sort-asc"
+              className="ved-pill text-[9px] px-1.5 py-0.5 flex-1"
+              onClick={() => {
+                const order = d.categories.map((_, i) => i).sort((a, b) => (d.series[0]?.data[a] ?? 0) - (d.series[0]?.data[b] ?? 0));
+                onChange({
+                  ...d,
+                  categories: order.map(i => d.categories[i]),
+                  series: d.series.map(sr => ({ ...sr, data: order.map(i => sr.data[i] ?? 0) })),
+                });
+              }}
+            >
+              {isEn ? 'Sort ↑' : 'Urut ↑'}
+            </button>
+            <button
+              type="button"
+              data-testid="chart-data-sort-desc"
+              className="ved-pill text-[9px] px-1.5 py-0.5 flex-1"
+              onClick={() => {
+                const order = d.categories.map((_, i) => i).sort((a, b) => (d.series[0]?.data[b] ?? 0) - (d.series[0]?.data[a] ?? 0));
+                onChange({
+                  ...d,
+                  categories: order.map(i => d.categories[i]),
+                  series: d.series.map(sr => ({ ...sr, data: order.map(i => sr.data[i] ?? 0) })),
+                });
+              }}
+            >
+              {isEn ? 'Sort ↓' : 'Urut ↓'}
+            </button>
+            <button
+              type="button"
+              data-testid="chart-data-transpose"
+              className="ved-pill text-[9px] px-1.5 py-0.5 flex-1"
+              onClick={() => {
+                if (!d.categories.length || !d.series.length) return;
+                const nextCats = d.series.map(s => s.name);
+                const nextSeries = d.categories.map((cat, ci) => ({
+                  name: cat,
+                  data: d.series.map(s => s.data[ci] ?? 0),
+                }));
+                onChange({ ...d, categories: nextCats, series: nextSeries });
+              }}
+            >
+              {isEn ? 'Swap' : 'Tukar'}
+            </button>
+          </div>
           <div className="overflow-x-auto max-h-56 overflow-y-auto border border-[var(--line)] rounded-lg">
             <table className="w-full text-[11px] border-collapse">
               <thead>
@@ -282,6 +358,24 @@ export const ChartDataEditor: React.FC<ChartDataEditorProps> = ({
         };
         return (
           <div className="space-y-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                data-testid="chart-data-sort-asc"
+                className="ved-pill text-[9px] px-1.5 py-0.5 flex-1"
+                onClick={() => updateList([...list].sort((a, b) => a.value - b.value))}
+              >
+                {isEn ? 'Sort ↑' : 'Urut ↑'}
+              </button>
+              <button
+                type="button"
+                data-testid="chart-data-sort-desc"
+                className="ved-pill text-[9px] px-1.5 py-0.5 flex-1"
+                onClick={() => updateList([...list].sort((a, b) => b.value - a.value))}
+              >
+                {isEn ? 'Sort ↓' : 'Urut ↓'}
+              </button>
+            </div>
             {kind === 'map' && (
               <div className="flex items-center justify-between gap-1.5">
                 <span className="text-[11px] mut">{isEn ? 'Region Map' : 'Peta Wilayah'}</span>

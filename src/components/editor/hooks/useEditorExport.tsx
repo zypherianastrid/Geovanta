@@ -18,6 +18,12 @@ export interface EditorExportOptions {
   selRef: React.MutableRefObject<{ objs: Set<string>; nodes: Set<string> }>;
   expFmt: string;
   expScale: number;
+  expQuality?: number;
+  svgMinify?: boolean;
+  pdfBleedMm?: number;
+  pdfCropMarks?: boolean;
+  pdfColorSpace?: 'rgb' | 'cmyk';
+  projectName?: string;
   exportArea: string;
   bg: any;
   clipFrames: boolean;
@@ -31,10 +37,34 @@ export interface EditorExportOptions {
 export interface EditorExportApi {
   exportSvg: () => Promise<void>;
   downloadSvg: () => Promise<void>;
-  triggerDl: (blob: Blob, ext: string) => void;
+  batchExport: (scales?: number[]) => Promise<void>;
+  getExportFilename: (fmtOverride?: string, suffix?: string) => string;
+  triggerDl: (blob: Blob, ext: string, filenameOverride?: string) => void;
   isRasterFmt: (fmt: string) => boolean;
   hasImgs: () => boolean;
   expOk: () => boolean;
+}
+
+export function sanitizeExportBaseName(rawName: string | undefined | null): string {
+  const cleaned = String(rawName || '')
+    .replace(/[/\\:*?"<>|]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+  return cleaned || 'geovanta-edit';
+}
+
+export function buildExportFilename(
+  projectName: string | undefined | null,
+  exportArea: string,
+  selectedObjects: any[],
+  ext: string,
+  suffix = ''
+): string {
+  const useLayerName = exportArea === 'sel' && Array.isArray(selectedObjects) && selectedObjects.length === 1 && selectedObjects[0]?.name;
+  const base = sanitizeExportBaseName(useLayerName ? selectedObjects[0].name : projectName);
+  const safeExt = String(ext || 'svg').replace(/^\.+/, '').toLowerCase();
+  return base + suffix + '.' + safeExt;
 }
 
 export function useEditorExport(options: EditorExportOptions): EditorExportApi {
@@ -43,6 +73,12 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
     selRef,
     expFmt,
     expScale,
+    expQuality = 0.92,
+    svgMinify = false,
+    pdfBleedMm = 0,
+    pdfCropMarks = false,
+    pdfColorSpace = 'rgb',
+    projectName = 'Untitled Project',
     exportArea,
     bg,
     clipFrames,
@@ -56,9 +92,26 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
   const hasImgs = () => (docRef.current?.objects || []).some((o: any) => o.img);
   const expOk = () => exportArea !== 'sel' || selRef.current.objs.size > 0 || (say('Pilih objek yang akan diekspor'), false);
 
-  const triggerDl = (blob: Blob, ext: string) => {
+  const getExportFilename = (fmtOverride?: string, suffix = '') => {
+    const objs = docRef.current?.objects || [];
+    const selIds = selRef.current?.objs || new Set();
+    const selectedObjects = objs.filter((o: any) => selIds.has(o.id));
+    return buildExportFilename(projectName, exportArea, selectedObjects, fmtOverride || expFmt, suffix);
+  };
+
+  const serializeSvgOutput = (d: any, opt: any) => {
+    const rawSvg = VE.serializeDoc(d, opt);
+    if (!svgMinify) return rawSvg;
+    if (typeof VE.optimizeSvg === 'function') {
+      return VE.optimizeSvg(rawSvg).svg;
+    }
+    return rawSvg.replace(/>\s+</g, '><').trim();
+  };
+
+  const triggerDl = (blob: Blob, ext: string, filenameOverride?: string) => {
+    const filename = filenameOverride || getExportFilename(ext);
     if (isNativeAndroid()) {
-      exportBlobNative(blob, 'geovanta-edit.' + ext, 'Geovanta Export')
+      exportBlobNative(blob, filename, 'Geovanta Export')
         .then(ok => {
           if (ok) say('File siap dibagikan / disimpan');
         })
@@ -70,7 +123,7 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
     const u = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = u;
-    a.download = 'geovanta-edit.' + ext;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -125,17 +178,19 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
         return say('Gambar PNG (' + expScale + 'x) disalin' + (expFmt !== 'png' ? ' · clipboard hanya mendukung PNG' : ''));
       }
 
-      if ((expFmt === 'ai' || expFmt === 'eps') && exportDoc.objects.some(isLegacyText)) {
+      if ((expFmt === 'ai' || expFmt === 'eps' || expFmt === 'pdf') && exportDoc.objects.some(isLegacyText)) {
         exportDoc = await VE.convertDocumentTextToPaths(exportDoc, {
           registry: sceneRendererRef.current?.scene?.fontRegistry || null,
         });
       }
 
-      const txt = expFmt === 'ai'
-        ? VE.exportAI(exportDoc, opt)
-        : expFmt === 'eps'
-          ? VE.exportEPS(exportDoc, opt)
-          : VE.serializeDoc(exportDoc, opt);
+      const txt = expFmt === 'pdf'
+        ? VE.exportPDF(exportDoc, { ...opt, bleedMm: pdfBleedMm, cropMarks: pdfCropMarks, colorSpace: pdfColorSpace })
+        : expFmt === 'ai'
+          ? VE.exportAI(exportDoc, opt)
+          : expFmt === 'eps'
+            ? VE.exportEPS(exportDoc, opt)
+            : serializeSvgOutput(exportDoc, opt);
 
       const lb = expFmt.toUpperCase() + ' disalin' + (
         expFmt === 'svg' && docHasBackgroundBlur({ objects: resolveExportArea(exportDoc, opt).objects })
@@ -172,14 +227,22 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
         : sourceDoc;
 
       if (isRasterFmt(expFmt)) {
-        triggerDl((await VE.exportRaster(d, opt, expFmt, expScale)) as Blob, expFmt);
+        const rasterOpt = { ...opt, quality: expQuality };
+        triggerDl((await VE.exportRaster(d, rasterOpt, expFmt, expScale, expQuality)) as Blob, expFmt);
         return say('Diunduh sebagai .' + expFmt.toUpperCase() + ' (' + expScale + 'x)');
       }
 
-      if ((expFmt === 'ai' || expFmt === 'eps') && d.objects.some(isLegacyText)) {
+      if ((expFmt === 'ai' || expFmt === 'eps' || expFmt === 'pdf') && d.objects.some(isLegacyText)) {
         d = await VE.convertDocumentTextToPaths(d, {
           registry: sceneRendererRef.current?.scene?.fontRegistry || null,
         });
+      }
+
+      if (expFmt === 'pdf') {
+        triggerDl(new Blob([VE.exportPDF(d, { ...opt, bleedMm: pdfBleedMm, cropMarks: pdfCropMarks, colorSpace: pdfColorSpace })], {
+          type: 'application/pdf',
+        }), 'pdf');
+        return say('Diunduh sebagai Vector .PDF' + (pdfColorSpace === 'cmyk' ? ' (CMYK)' : ''));
       }
 
       if (expFmt === 'ai') {
@@ -196,7 +259,7 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
         return say('Diunduh sebagai Encapsulated PostScript (.EPS)' + note);
       }
 
-      triggerDl(new Blob([VE.serializeDoc(d, opt)], {
+      triggerDl(new Blob([serializeSvgOutput(d, opt)], {
         type: 'image/svg+xml',
       }), 'svg');
 
@@ -206,9 +269,37 @@ export function useEditorExport(options: EditorExportOptions): EditorExportApi {
     }
   };
 
+  const batchExport = async (scales: number[] = [1, 2]) => {
+    if (!expOk()) return;
+    const opt = {
+      bg,
+      clipFrames,
+      area: exportArea,
+      only: selRef.current.objs,
+      isRaster: false,
+    };
+    try {
+      const sourceDoc = documentForExport(docRef.current);
+      const d = typeof AssetManager !== 'undefined' && projectId
+        ? await AssetManager.resolveDocForStandaloneExport(projectId, sourceDoc)
+        : sourceDoc;
+      triggerDl(new Blob([serializeSvgOutput(d, opt)], { type: 'image/svg+xml' }), 'svg', getExportFilename('svg'));
+      for (const sc of scales) {
+        await new Promise(r => setTimeout(r, 140));
+        const blob = (await VE.exportRaster(d, { ...opt, isRaster: true, quality: expQuality }, 'png', sc, expQuality)) as Blob;
+        triggerDl(blob, 'png', getExportFilename('png', `@${sc}x`));
+      }
+      say('Batch export selesai (SVG + PNG ' + scales.map(s => s + 'x').join(', ') + ')');
+    } catch (e: any) {
+      say('Gagal batch export: ' + (e && e.message || 'kesalahan tak dikenal'));
+    }
+  };
+
   return {
     exportSvg,
     downloadSvg,
+    batchExport,
+    getExportFilename,
     triggerDl,
     isRasterFmt,
     hasImgs,

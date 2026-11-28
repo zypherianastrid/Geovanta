@@ -144,7 +144,7 @@ const CtxMenu = ({
             <button
               type="button"
               className="mob-top-btn"
-              aria-label="Tutup"
+              aria-label="Close"
               onClick={() => onCloseRef.current()}
             >
               <Ico n="x" size={14} />

@@ -65,6 +65,7 @@ export interface TextSpec {
 }
 
 export type StrokeAlign = 'center' | 'inside' | 'outside';
+export type StrokeMarkerKind = 'none' | 'arrow' | 'stealth' | 'dot' | 'diamond' | 'bar';
 
 export type BlendModeName =
   | 'normal'
@@ -84,6 +85,23 @@ export type BlendModeName =
   | 'color'
   | 'luminosity';
 
+export interface PaintSlot {
+  id: string;
+  color: string;
+  opacity?: number;
+  pattern?: 'none' | 'dots' | 'stripes' | 'grid' | 'checker';
+  imageHref?: string;
+  disabled?: boolean;
+}
+
+export interface StrokeSlot {
+  id: string;
+  color: string;
+  width: number;
+  opacity?: number;
+  disabled?: boolean;
+}
+
 export interface VectorObject {
   id: string;
   name?: string;
@@ -97,11 +115,15 @@ export interface VectorObject {
   strokeDasharray?: number[] | null;
   strokeDashoffset?: number;
   strokeAlign?: StrokeAlign;
+  strokeMarkerStart?: StrokeMarkerKind;
+  strokeMarkerEnd?: StrokeMarkerKind;
   paintOrder?: string;
   opacity?: number;
   blendMode?: BlendModeName;
   strokeGrad?: GradModel | null;
   fillRule?: 'nonzero' | 'evenodd';
+  extraFills?: PaintSlot[];
+  extraStrokes?: StrokeSlot[];
   group?: string | null;
   locked?: boolean;
   hidden?: boolean;
@@ -119,10 +141,24 @@ export interface VectorObject {
   [key: string]: any;
 }
 
+export interface ArtboardSpec {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface VectorDocument {
   viewBox: [number, number, number, number] | number[];
+  artboards?: ArtboardSpec[];
+  activeArtboardId?: string;
   objects: VectorObject[];
   styles?: any[];
+  components?: any[];
+  textStyles?: any[];
+  effectStyles?: any[];
   defs?: any[];
   [key: string]: any;
 }

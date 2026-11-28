@@ -8,7 +8,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const distAssets = path.join(root, 'dist', 'assets');
 const webDir = path.join(root, 'web');
-const assetNames = ['geovanta.bundle.js', 'canvaskit.js', 'canvaskit.wasm', 'canvaskit-runtime.js', 'canvaskit-LICENSE.txt',
+const assetNames = ['geovanta.bundle.js', 'vmt-worker.js', 'canvaskit.js', 'canvaskit.wasm', 'canvaskit-runtime.js', 'canvaskit-LICENSE.txt',
   'text-font-runtime.js', 'Geovanta-Sans-LICENSE.txt', 'IBM-Plex-LICENSE.txt'];
 
 function findEsbuild() {
@@ -116,6 +116,16 @@ async function build() {
         '__GEOVANTA_FONT_RUNTIME_VER__': JSON.stringify(fontRuntimeVer)
       }
     });
+    const vmtWorkerEntry = path.join(root, 'src', 'engine', 'svgpeak', 'vmtWorker.ts');
+    if (fs.existsSync(vmtWorkerEntry)) {
+      await esbuild.build({
+        entryPoints: [vmtWorkerEntry],
+        outfile: path.join(distAssets, 'vmt-worker.js'),
+        bundle: true,
+        minify: true,
+        format: 'iife',
+      });
+    }
     const engineEntry = path.join(root, 'scripts', 'mcp-server', 'engineBundleEntry.ts');
     if (fs.existsSync(engineEntry)) {
       await esbuild.build({

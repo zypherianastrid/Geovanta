@@ -37,40 +37,11 @@ def test_color_guide_border_radius_and_solid_to_gradient_100_presets(editor_page
     assert has_grad is True
 
 
-def test_svg_code_inspector_selection_scope_and_hover_contrast(editor_page):
+def test_dev_mode_replaces_svg_code_inspector(editor_page):
     page = editor_page
-    page.evaluate(
-        """() => {
-            const api = window.__geovantaEditorApi;
-            api.setDoc({ viewBox: [0, 0, 800, 600], objects: [], styles: [] });
-            api.createTestShape('rect', 50, 50, 100, 80);
-            api.createTestShape('ellipse', 250, 150, 120, 90);
-            const objs = api.getDoc().objects;
-            // Select ONLY the first object (rect)
-            api.setSel({ objs: [objs[0].id], nodes: [] });
-        }"""
-    )
-
-    # Open SVG Code Inspector with 1 selected object
-    page.locator('[data-testid="toolbar-code"]').click()
-    modal = page.locator('[data-testid="code-inspector-modal"]')
-    expect(modal).to_be_visible()
-
-    ta = page.locator('[data-testid="code-inspector-modal"] textarea')
-    val_selected = ta.input_value()
-    # Should contain the selected object (1 path) and NOT both objects
-    assert val_selected.count("<path") == 1
-
-    # Hover an inactive tab and verify text color stays readable (not near-white on light bg)
-    tab = page.locator('[data-testid="tab-react-jsx"]')
-    tab.hover()
-    tab_color = tab.evaluate("el => getComputedStyle(el).color")
-    assert tab_color != "rgb(226, 232, 240)"
-
-    # Close, clear selection, and reopen -> should show ALL objects (2 paths)
-    page.locator('[data-testid="btn-close"]').click()
-    page.evaluate("() => window.__geovantaEditorApi.setSel({ objs: [], nodes: [] })")
-    page.locator('[data-testid="toolbar-code"]').click()
-    expect(modal).to_be_visible()
-    val_all = ta.input_value()
-    assert val_all.count("<path") == 2
+    assert page.locator('[data-testid="toolbar-code"]').count() == 0
+    assert page.locator('[data-testid="inspector-code-btn"]').count() == 0
+    page.locator('[data-testid="toggle-dev-mode"]').click()
+    expect(page.locator('[data-testid="dev-mode-inspector"]')).to_be_visible()
+    page.locator('[data-testid="dev-mode-exit-btn"]').click()
+    expect(page.locator('[data-testid="dev-mode-inspector"]')).to_have_count(0)

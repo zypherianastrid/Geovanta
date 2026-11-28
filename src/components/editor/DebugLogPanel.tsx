@@ -44,8 +44,30 @@ const DebugLogPanel = ({
   open,
   enabled,
   onToggle,
-  onClose
+  onClose,
+  embedded = false,
+  lang = 'id'
+}: {
+  open: boolean;
+  enabled: boolean;
+  onToggle: () => void;
+  onClose?: () => void;
+  embedded?: boolean;
+  lang?: string;
 }) => {
+  const isEn = lang === 'en';
+  const categoryOptions = isEn ? [
+    ['all', 'All Categories', 'layers'],
+    ['tool', 'tool (Tools)', 'wand'],
+    ['selection', 'selection (Selection)', 'shapes'],
+    ['pointer', 'pointer (Cursor)', 'eye'],
+    ['canvas', 'canvas (Canvas)', 'grid'],
+    ['edit', 'edit (Transform)', 'sliders'],
+    ['document', 'document (Document)', 'objects'],
+    ['shortcut', 'shortcut (Shortcuts)', 'keyboard'],
+    ['error', 'error (Errors)', 'x'],
+    ['perf', 'perf (Telemetry)', 'bolt']
+  ] : CATEGORY_OPTIONS;
   const [entries, setEntries] = useState(() => DEBUG_LOG.getEntries());
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -113,7 +135,19 @@ const DebugLogPanel = ({
   return (
     <div
       className="ved-debug-panel"
-      style={isConsole ? {
+      style={embedded ? {
+        position: 'static',
+        width: '100%',
+        height: 460,
+        maxHeight: '62vh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--card)',
+        color: 'var(--ink)',
+        border: '1px solid var(--line)',
+        borderRadius: 12,
+        overflow: 'hidden'
+      } : isConsole ? {
         position: 'fixed',
         right: 0,
         top: 0,
@@ -151,7 +185,7 @@ const DebugLogPanel = ({
         overflow: 'hidden'
       }}
       role="complementary"
-      aria-label="Panel Debugging Mode"
+      aria-label={isEn ? 'Debugging Mode Panel' : 'Panel Debugging Mode'}
     >
       {/* Header */}
       <div
@@ -178,26 +212,31 @@ const DebugLogPanel = ({
           <span>Debugging Mode</span>
         </strong>
         <span style={{ fontSize: 11, opacity: 0.65 }}>
-          {entries.length} entri{paused ? ' · paused' : ''}
+          {entries.length} {isEn ? 'entries' : 'entri'}{paused ? ' · paused' : ''}
         </span>
         <span style={{ flex: 1 }} />
         <button
           type="button"
+          data-testid="debug-mode-toggle"
+          data-tip="dbgToggle"
           className={'btn ' + (enabled ? 'pri' : 'sec')}
           style={{ fontSize: 11, padding: '2px 8px' }}
           onClick={onToggle}
         >
-          {enabled ? 'Matikan' : 'Nyalakan'}
+          {enabled ? (isEn ? 'Turn Off' : 'Matikan') : (isEn ? 'Turn On' : 'Nyalakan')}
         </button>
-        <button
-          type="button"
-          className="btn sec"
-          style={{ fontSize: 11, padding: '2px 8px' }}
-          aria-label="Tutup panel debug"
-          onClick={onClose}
-        >
-          ✕
-        </button>
+        {!embedded && onClose && (
+          <button
+            type="button"
+            data-tip="closeDlg"
+            className="btn sec"
+            style={{ fontSize: 11, padding: '2px 8px' }}
+            aria-label={isEn ? 'Close debug panel' : 'Tutup panel debug'}
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -210,19 +249,20 @@ const DebugLogPanel = ({
           background: 'color-mix(in srgb, var(--sub) 45%, var(--card))'
         }}
         role="tablist"
-        aria-label="Tab panel debug"
+        aria-label={isEn ? 'Debug panel tabs' : 'Tab panel debug'}
       >
         {[
-          ['log', 'Log Live', 'layers'],
-          ['console', 'Konsol Fungsi', 'code'],
-          ['engine', 'Engine & Visual', 'shapes']
-        ].map(([k, label, ic]) => {
+          ['log', isEn ? 'Live Log' : 'Log Live', 'layers', 'dbgTabLog'],
+          ['console', isEn ? 'Function Console' : 'Konsol Fungsi', 'code', 'dbgTabConsole'],
+          ['engine', 'Engine & Visual', 'shapes', 'dbgTabEngine']
+        ].map(([k, label, ic, tip]) => {
           const active = tab === k;
           return (
             <button
               key={k}
               type="button"
               role="tab"
+              data-tip={tip}
               aria-selected={active}
               className={'ved-pill text-xs flex items-center gap-1.5' + (active ? ' on' : '')}
               style={{
@@ -255,7 +295,7 @@ const DebugLogPanel = ({
             <div style={{ width: 140, flexShrink: 0 }}>
               <Select
                 value={filter}
-                options={CATEGORY_OPTIONS}
+                options={categoryOptions}
                 on={v => setFilter(v)}
                 tip="veDebugCategoryFilter"
               />
@@ -264,18 +304,19 @@ const DebugLogPanel = ({
               <CustomTextBox
                 value={query}
                 onChange={v => setQuery(v)}
-                placeholder="Cari fungsi / aksi / file…"
-                ariaLabel="Cari log"
+                placeholder={isEn ? 'Search function / action / file…' : 'Cari fungsi / aksi / file…'}
+                ariaLabel={isEn ? 'Search logs' : 'Cari log'}
                 cls="w-full text-xs"
               />
             </div>
             {query && (
               <button
                 type="button"
+                data-tip="dbgClearSearch"
                 className="btn sec"
                 style={{ fontSize: 10, padding: '2px 6px', flexShrink: 0 }}
                 onClick={() => setQuery('')}
-                title="Hapus pencarian"
+                aria-label={isEn ? 'Clear search' : 'Hapus pencarian'}
               >
                 Clear
               </button>
@@ -296,12 +337,12 @@ const DebugLogPanel = ({
           >
             {!enabled && (
               <div style={{ opacity: 0.7, padding: '8px 0' }}>
-                Mode mati — nyalakan untuk mulai mencatat. Log lama tetap tampil sampai dihapus.
+                {isEn ? 'Mode is off — turn on to start recording. Older logs remain visible until cleared.' : 'Mode mati — nyalakan untuk mulai mencatat. Log lama tetap tampil sampai dihapus.'}
               </div>
             )}
             {enabled && !shown.length && (
               <div style={{ opacity: 0.7, padding: '8px 0' }}>
-                Belum ada entri untuk filter ini. Lakukan interaksi di kanvas (ganti tool, klik objek, zoom, dsb).
+                {isEn ? 'No entries for this filter yet. Interact with the canvas (switch tools, click objects, zoom, etc.).' : 'Belum ada entri untuk filter ini. Lakukan interaksi di kanvas (ganti tool, klik objek, zoom, dsb).'}
               </div>
             )}
             {shown.slice(-300).map(e => (
@@ -338,14 +379,16 @@ const DebugLogPanel = ({
           >
             <button
               type="button"
+              data-tip="dbgPause"
               className="btn sec"
               style={{ fontSize: 11, padding: '3px 8px' }}
               onClick={togglePause}
             >
-              {paused ? 'Lanjutkan' : 'Pause'}
+              {paused ? (isEn ? 'Resume' : 'Lanjutkan') : 'Pause'}
             </button>
             <button
               type="button"
+              data-tip="dbgClear"
               className="btn sec"
               style={{ fontSize: 11, padding: '3px 8px' }}
               onClick={() => {
@@ -358,26 +401,28 @@ const DebugLogPanel = ({
             <span style={{ flex: 1 }} />
             <button
               type="button"
+              data-tip="dbgExportJson"
               className="btn sec"
               style={{ fontSize: 11, padding: '3px 8px' }}
               onClick={() => DEBUG_LOG.download('json')}
             >
-              Unduh JSON
+              {isEn ? 'Download JSON' : 'Unduh JSON'}
             </button>
             <button
               type="button"
+              data-tip="dbgExportMd"
               className="btn pri"
               style={{ fontSize: 11, padding: '3px 8px' }}
               onClick={() => DEBUG_LOG.download('md')}
             >
-              Unduh MD
+              {isEn ? 'Download MD' : 'Unduh MD'}
             </button>
           </div>
         </React.Fragment>
       )}
 
       {/* Tab: Konsol Fungsi */}
-      {tab === 'console' && <DebugFunctionConsole entries={entries} />}
+      {tab === 'console' && <DebugFunctionConsole entries={entries} lang={lang} />}
 
       {/* Tab: Engine & Visual Debug */}
       {tab === 'engine' && (
@@ -395,13 +440,14 @@ const DebugLogPanel = ({
           <div>
             <div className="flex items-center gap-1.5 mb-1.5 font-semibold text-[11px] mut">
               <Ico n="layers" size={13} />
-              <span>Geometri Render & Mesh Overlay</span>
+              <span>{isEn ? 'Render Geometry & Mesh Overlay' : 'Geometri Render & Mesh Overlay'}</span>
             </div>
             <div className="flex flex-wrap gap-1">
               {OVERLAY_OPTIONS.map(([k, lb]) => (
                 <button
                   key={k}
                   type="button"
+                  data-tip="dbgOverlayMode"
                   className={'ved-pill text-[11px]' + (renderCfg.debugMode === k ? ' on' : '')}
                   onClick={() => {
                     const next = updateRenderConfig({
@@ -429,7 +475,7 @@ const DebugLogPanel = ({
             <div className="flex items-center justify-between mb-2">
               <span className="font-semibold text-[11px] flex items-center gap-1">
                 <Ico n="chip" size={13} />
-                <span>Telemetri GPU & Pipeline</span>
+                <span>{isEn ? 'GPU & Pipeline Telemetry' : 'Telemetri GPU & Pipeline'}</span>
               </span>
               <span className="font-mono text-[10px]" style={{ color: 'var(--acc)' }}>
                 {snap.activeBackend}
@@ -447,25 +493,28 @@ const DebugLogPanel = ({
           <div>
             <div className="flex items-center gap-1.5 mb-1.5 font-semibold text-[11px] mut">
               <Ico n="shapes" size={13} />
-              <span>Skenario Uji Render Benchmark</span>
+              <span>{isEn ? 'Render Benchmark Test Scenarios' : 'Skenario Uji Render Benchmark'}</span>
             </div>
             <div className="flex flex-wrap gap-1">
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestSvg(GEOVANTA_BENCHMARK_SUITE.buildCircleSvg(), 'Lingkaran')}
               >
-                Lingkaran
+                {isEn ? 'Circles' : 'Lingkaran'}
               </button>
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestSvg(GEOVANTA_BENCHMARK_SUITE.buildBezierSvg(), 'Bézier Ekstrem')}
               >
-                Bézier Ekstrem
+                {isEn ? 'Extreme Bézier' : 'Bézier Ekstrem'}
               </button>
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestSvg(GEOVANTA_BENCHMARK_SUITE.buildDiagonalSvg(), 'Garis Diagonal')}
               >
@@ -473,6 +522,7 @@ const DebugLogPanel = ({
               </button>
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestSvg(GEOVANTA_BENCHMARK_SUITE.buildCompoundSvg(), 'Compound Path')}
               >
@@ -480,31 +530,35 @@ const DebugLogPanel = ({
               </button>
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestDoc(GEOVANTA_BENCHMARK_SUITE.buildNodeDensityDoc(1000), '1K Nodes')}
               >
-                1.000 Nodes
+                {isEn ? '1,000 Nodes' : '1.000 Nodes'}
               </button>
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestDoc(GEOVANTA_BENCHMARK_SUITE.buildNodeDensityDoc(10000), '10K Nodes')}
               >
-                10.000 Nodes
+                {isEn ? '10,000 Nodes' : '10.000 Nodes'}
               </button>
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestDoc(GEOVANTA_BENCHMARK_SUITE.buildExtremeCoordinateDoc(100000000), 'Ekstrem Koordinat')}
               >
-                Ekstrem Koordinat
+                {isEn ? 'Extreme Coords' : 'Ekstrem Koordinat'}
               </button>
               <button
                 type="button"
+                data-tip="dbgTestScenario"
                 className="ved-pill text-[11px]"
                 onClick={() => loadTestDoc(GEOVANTA_BENCHMARK_SUITE.buildSeamMosaicDoc(240), 'Mozaik 240')}
               >
-                Mozaik 240
+                {isEn ? '240 Mosaic' : 'Mozaik 240'}
               </button>
             </div>
           </div>
@@ -513,11 +567,12 @@ const DebugLogPanel = ({
           <div className="pt-1">
             <button
               type="button"
+              data-tip="dbgRunBench"
               className="btn pri text-[11px] py-1.5 px-3 flex items-center gap-1.5"
               onClick={runBenchmarks}
             >
               <Ico n="play" size={12} />
-              <span>Jalankan Benchmark Otomatis</span>
+              <span>{isEn ? 'Run Automated Benchmarks' : 'Jalankan Benchmark Otomatis'}</span>
             </button>
           </div>
           {benchResults && (
@@ -530,7 +585,7 @@ const DebugLogPanel = ({
                 overflowY: 'auto'
               }}
             >
-              <div className="font-bold text-[11px] mb-1" style={{ color: 'var(--acc)' }}>Hasil Benchmark Otomatis:</div>
+              <div className="font-bold text-[11px] mb-1" style={{ color: 'var(--acc)' }}>{isEn ? 'Automated Benchmark Results:' : 'Hasil Benchmark Otomatis:'}</div>
               {benchResults.map((r, idx) => (
                 <div key={idx} className="flex items-center justify-between py-0.5 border-b border-[var(--line)]">
                   <span>{r.name}</span>

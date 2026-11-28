@@ -6,7 +6,7 @@ import { isLegacyText, legacyTextSpec } from '../engine/legacyText.tsx';
 import { affineInverse, affinePt, textRotationMatrix } from '../engine/affineAndOrientedBox.tsx';
 import { TextFontRegistry } from './textFontRegistry.tsx';
 import { makeTextLayout, caretOffsetForPoint, caretSegmentForLayout } from './textLayout.tsx';
-import { toSkiaDashIntervals, effectiveStrokeAlign, strokeOutwardExtent, hasVisibleStroke } from '../engine/strokeStyles.tsx';
+import { toSkiaDashIntervals, effectiveStrokeAlign, strokeOutwardExtent, hasVisibleStroke, getSubpathEndpointTangents, buildMarkerPolygonPoints } from '../engine/strokeStyles.tsx';
 import { toCanvasKitBlendMode } from '../engine/blendModes.tsx';
 import { strokeGradOn, gradOn } from '../engine/gradientEngine.tsx';
 
@@ -618,6 +618,7 @@ export class CanvasKitScene {
   }
 
   drawVector(canvas, o, path, x, y, zoom, fill, stroke, opacity, smoothEdges) {
+    const { kit } = this;
     const aa = Boolean(smoothEdges);
     if (this._paintAA !== aa) {
       this.paint.setAntiAlias(aa);
@@ -630,6 +631,39 @@ export class CanvasKitScene {
       if (fill) {
         this.withPaint(o.fill, VE.gradOn(o) ? o.grad : null, opacity, x, y, paint => canvas.drawPath(path, paint));
         calls++;
+      }
+      if (Array.isArray(o.extraFills) && o.extraFills.length) {
+        for (const ef of o.extraFills) {
+          if (!ef || ef.disabled) continue;
+          const efOp = opacity * (ef.opacity ?? 1);
+          if (ef.pattern && ef.pattern !== 'none') {
+            canvas.save();
+            canvas.clipPath(path, kit.ClipOp.Intersect, smoothEdges);
+            const b = path.getBounds();
+            this.paint.setStyle(kit.PaintStyle.Fill);
+            this.paint.setColor(this.color(ef.color || '#000000', efOp));
+            const step = 12;
+            const x0 = Math.floor(b[0] / step) * step;
+            const y0 = Math.floor(b[1] / step) * step;
+            for (let py = y0; py < b[3]; py += step) {
+              for (let px = x0; px < b[2]; px += step) {
+                if (ef.pattern === 'dots') canvas.drawOval([px + 2, py + 2, px + 6, py + 6], this.paint);
+                else if (ef.pattern === 'stripes') canvas.drawRect([px, py, px + 4, py + step], this.paint);
+                else if (ef.pattern === 'grid') {
+                  canvas.drawRect([px, py, px + step, py + 1.5], this.paint);
+                  canvas.drawRect([px, py, px + 1.5, py + step], this.paint);
+                } else if (ef.pattern === 'checker' && ((Math.round(px / step) + Math.round(py / step)) % 2 === 0)) {
+                  canvas.drawRect([px, py, px + step / 2, py + step / 2], this.paint);
+                }
+              }
+            }
+            canvas.restore();
+            calls++;
+          } else if (hasPaint(ef.color)) {
+            this.withPaint(ef.color, null, efOp, x, y, paint => canvas.drawPath(path, paint));
+            calls++;
+          }
+        }
       }
     };
     const drawStroke = () => {
@@ -727,7 +761,53 @@ export class CanvasKitScene {
             }
           }
         });
+        // Render Start / End Line Markers (Arrowheads, Dots, Diamonds, Bars)
+        if ((o.strokeMarkerStart && o.strokeMarkerStart !== 'none') || (o.strokeMarkerEnd && o.strokeMarkerEnd !== 'none')) {
+          this.withPaint(o.stroke, VE.strokeGradOn(o) ? o.strokeGrad : null, opacity, x, y, mPaint => {
+            mPaint.setStyle(kit.PaintStyle.Fill);
+            for (const sp of o.subs || []) {
+              if (!sp || sp.closed) continue;
+              const tangents = getSubpathEndpointTangents(sp);
+              if (!tangents) continue;
+              const drawMarkerAt = (kind, pt) => {
+                const pts = buildMarkerPolygonPoints(kind, effW);
+                if (!pts || !pts.length) return;
+                const mp = new kit.Path();
+                try {
+                  mp.moveTo(pts[0][0], pts[0][1]);
+                  for (let i = 1; i < pts.length; i++) mp.lineTo(pts[i][0], pts[i][1]);
+                  mp.close();
+                  canvas.save();
+                  canvas.translate(pt.x - x, pt.y - y);
+                  canvas.rotate((pt.angle * 180) / Math.PI, 0, 0);
+                  canvas.drawPath(mp, mPaint);
+                  canvas.restore();
+                } finally {
+                  mp.delete();
+                }
+              };
+              if (o.strokeMarkerStart && o.strokeMarkerStart !== 'none') {
+                drawMarkerAt(o.strokeMarkerStart, tangents.start);
+              }
+              if (o.strokeMarkerEnd && o.strokeMarkerEnd !== 'none') {
+                drawMarkerAt(o.strokeMarkerEnd, tangents.end);
+              }
+            }
+          });
+        }
         calls++;
+      }
+      if (Array.isArray(o.extraStrokes) && o.extraStrokes.length) {
+        for (const es of o.extraStrokes) {
+          if (!es || es.disabled || !es.width || !hasPaint(es.color)) continue;
+          const esOp = opacity * (es.opacity ?? 1);
+          const esW = o.nonScalingStroke ? es.width / zoom : es.width;
+          this.withPaint(es.color, null, esOp, x, y, paint => {
+            this.stroke(paint, o, esW);
+            canvas.drawPath(path, paint);
+          });
+          calls++;
+        }
       }
     };
 
@@ -1182,7 +1262,7 @@ export class CanvasKitScene {
     const dropMicroSeam = Boolean(interacting && !options.preserveAntiSeam);
     const cull = view.cullRect || view;
     const cx0 = cull.x, cy0 = cull.y, cx1 = cull.x + cull.width, cy1 = cull.y + cull.height;
-    const {frameRects, frameBackgrounds, drag, editingTextId} = options;
+    const {frameRects, frameBackgrounds, drag, editingTextId, wireframeMode = false, isolatedGroupId = null} = options;
     const stats = {visibleObjects: 0, culledObjects: 0, drawCalls: 0, totalVertices: 0, hasGradient: false};
     this._frameHasGradient = false;
     const aa = Boolean(smoothEdges);
@@ -1274,9 +1354,34 @@ export class CanvasKitScene {
         stats.totalVertices += n;
         const fid = !isMovingPass && !isFrameBackground(o) && o.group;
         const hasFrameClip = Boolean(fid && frameRects?.has(fid));
-        const opacity = alpha(o.opacity) * (withinGroup ? 1 : alpha(o.groupOpacity));
+        const isoDim = isolatedGroupId && o.group !== isolatedGroupId && o.id !== isolatedGroupId ? 0.18 : 1;
+        const opacity = alpha(o.opacity) * (withinGroup ? 1 : alpha(o.groupOpacity)) * isoDim;
         const ckBlend = toCanvasKitBlendMode(kit, o.blendMode);
         const innerOpacity = ckBlend ? 1 : opacity;
+
+        if (wireframeMode) {
+          exitWorldSpace();
+          resetSolidBatch();
+          this.paint.setStyle(kit.PaintStyle.Stroke);
+          this.paint.setBlendMode(kit.BlendMode.SrcOver);
+          this.paint.setStrokeWidth(1 / Math.max(zoom, 0.05));
+          this.paint.setColor(this.color('#2563eb', isoDim));
+          this.paint.setPathEffect(null);
+          if (isLegacyText(o) || o.img) {
+            canvas.drawRect([bb[0] - x + dx, bb[1] - y + dy, bb[2] - x + dx, bb[3] - y + dy], this.paint);
+            stats.drawCalls++;
+          } else {
+            const entry = this.path(o);
+            if (entry?.path) {
+              canvas.save();
+              canvas.translate(entry.x - x + dx, entry.y - y + dy);
+              canvas.drawPath(entry.path, this.paint);
+              canvas.restore();
+              stats.drawCalls++;
+            }
+          }
+          return;
+        }
 
         if (!hasFrameClip && bgR <= 0 && layerR <= 0 && !shadows.length && !o.img && !isLegacyText(o)) {
           const iconSt = !o.text && o.isIconFrame && o.group && !o.isFrameBg && !o.isAutoFrame ? iconFrameState?.get(o.group) : null;
@@ -1460,8 +1565,65 @@ export class CanvasKitScene {
               canvas.saveLayer(this.layerPaint);
             }
             if (o.img) stats.drawCalls += this.drawImage(canvas, o, entry.x, entry.y, innerOpacity);
-            else if (entry.path) stats.drawCalls += this.drawVector(canvas, o, entry.path, entry.x, entry.y, zoom,
-              ownFill, stroke, needsLayer ? 1 : innerOpacity, smoothEdges);
+            else if (entry.path) {
+              // Outer Glow (rendered behind path)
+              if (hasEffects && this.hasDropShadowOnly) {
+                for (const fx of o.effects) {
+                  if (!fx || fx.disabled || fx.type !== 'outerGlow') continue;
+                  const gBlur = Math.max(0.5, (fx.blur || 0) + (fx.spread || 0));
+                  this.shadowPaint.setAlphaf(1);
+                  this.shadowPaint.setImageFilter(kit.ImageFilter.MakeDropShadowOnly(
+                    0, 0, gBlur, gBlur, this.color(fx.color || '#ffffff', (fx.opacity ?? 0.8) * innerOpacity), null
+                  ));
+                  canvas.drawPath(entry.path, this.shadowPaint);
+                  this.shadowPaint.setImageFilter(null);
+                  stats.drawCalls++;
+                }
+              }
+              stats.drawCalls += this.drawVector(canvas, o, entry.path, entry.x, entry.y, zoom,
+                ownFill, stroke, needsLayer ? 1 : innerOpacity, smoothEdges);
+              // Inner Shadow, Inner Glow & Noise Grain (clipped inside path)
+              if (hasEffects) {
+                const innerFxs = o.effects.filter(fx => fx && !fx.disabled && (fx.type === 'innerShadow' || fx.type === 'innerGlow' || fx.type === 'noiseGrain'));
+                if (innerFxs.length) {
+                  canvas.save();
+                  canvas.clipPath(entry.path, kit.ClipOp.Intersect, smoothEdges);
+                  for (const fx of innerFxs) {
+                    if (fx.type === 'innerShadow' || fx.type === 'innerGlow') {
+                      const sw = Math.max(2, (fx.blur || 4) + (fx.spread || 0) * 2);
+                      this.paint.setStyle(kit.PaintStyle.Stroke);
+                      this.paint.setStrokeWidth(sw);
+                      this.paint.setColor(this.color(fx.color || '#000000', (fx.opacity ?? 0.5) * innerOpacity));
+                      this.paint.setPathEffect(null);
+                      if (fx.type === 'innerShadow') {
+                        canvas.save();
+                        canvas.translate(fx.dx || 0, fx.dy || 0);
+                        canvas.drawPath(entry.path, this.paint);
+                        canvas.restore();
+                      } else {
+                        canvas.drawPath(entry.path, this.paint);
+                      }
+                      stats.drawCalls++;
+                    } else if (fx.type === 'noiseGrain' && fx.amount > 0) {
+                      const step = Math.max(2, Math.round((fx.size || 2) * 3));
+                      const bw = Math.min(400, Math.max(10, bb[2] - bb[0]));
+                      const bh = Math.min(400, Math.max(10, bb[3] - bb[1]));
+                      this.paint.setStyle(kit.PaintStyle.Fill);
+                      this.paint.setColor(this.color('#000000', fx.amount * 0.25 * innerOpacity));
+                      for (let gy = 0; gy < bh; gy += step) {
+                        for (let gx = (gy % (step * 2) === 0 ? 0 : Math.floor(step / 2)); gx < bw; gx += step) {
+                          if (((gx * 73 + gy * 151) % 7) < 3) {
+                            canvas.drawRect([bb[0] - entry.x + gx, bb[1] - entry.y + gy, bb[0] - entry.x + gx + 1, bb[1] - entry.y + gy + 1], this.paint);
+                          }
+                        }
+                      }
+                      stats.drawCalls++;
+                    }
+                  }
+                  canvas.restore();
+                }
+              }
+            }
             if (needsLayer) canvas.restore();
             canvas.restore();
           }

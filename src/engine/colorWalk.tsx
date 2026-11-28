@@ -7,7 +7,7 @@
  * atas doc.objects mencakup group/frame. Dipakai Select Same, Find & Replace,
  * Recolor (Task 4-7). Murni: tidak memutasi doc input.
  */
-import { cssToHex } from '../utils/colorParserAndFormatter.tsx';
+import { cssToHex, parseColorWithAlpha, formatColorWithAlpha } from '../utils/colorParserAndFormatter.tsx';
 import { gradOn, strokeGradOn, updateGradStops } from './gradientEngine.tsx';
 
 /* Normalisasi stop gradien ke bentuk rawStops [{id, offset, color, op, mid}].
@@ -120,9 +120,50 @@ function mapDocumentColors(doc, fn, scope) {
     if (!(scope.ids instanceof Set)) throw new TypeError("scope.ids harus berupa Set (kind 'selection')");
     sel = scope.ids;
   }
+  const withOrigAlpha = (origVal, nextHex) => {
+    if (nextHex === 'none') return 'none';
+    const p = parseColorWithAlpha(origVal);
+    return p && !p.isNone && p.a < 0.999 ? formatColorWithAlpha(nextHex, p.a) : nextHex;
+  };
   let changed = 0,
     unlinked = 0,
     anyChange = false;
+  const affectedChartGids = new Set<string>();
+  const syncChartConfigColors = (o, cfg) => {
+    let cfgChanged = false;
+    const mapCfgHex = (c) => {
+      if (!c || c === 'none' || c === 'transparent') return c;
+      const hex = cssToHex(c);
+      const mapped = fn({ kind: 'fill', hex, obj: o });
+      if (mapped != null && mapped !== 'none') {
+        const nextHex = cssToHex(mapped);
+        if (nextHex !== hex) {
+          cfgChanged = true;
+          return withOrigAlpha(c, nextHex);
+        }
+      }
+      return c;
+    };
+    const nextColors = Array.isArray(cfg.colors) ? cfg.colors.map(mapCfgHex) : cfg.colors;
+    const nextBg = mapCfgHex(cfg.backgroundColor);
+    const nextCard = cfg.card ? {
+      ...cfg.card,
+      backgroundColor: mapCfgHex(cfg.card.backgroundColor),
+      borderColor: mapCfgHex(cfg.card.borderColor),
+    } : cfg.card;
+    if (!cfgChanged) return null;
+    return {
+      ...o.gen,
+      config: {
+        ...cfg,
+        themeId: undefined,
+        paletteId: 'custom',
+        colors: nextColors,
+        backgroundColor: nextBg,
+        card: nextCard,
+      }
+    };
+  };
   const objects = ((doc && doc.objects) || []).map(o => {
     if (!inScope(o, sel)) return o;
     let next = null;
@@ -135,20 +176,22 @@ function mapDocumentColors(doc, fn, scope) {
       if (nextHex === slot.hex) continue;
       if (!next) next = { ...o };
       if (slot.kind === 'fill') {
-        next.fill = nextHex;
+        next.fill = withOrigAlpha(o.fill, nextHex);
         if (next.fillStyleId) {
           delete next.fillStyleId;
           unlinked++;
         }
       } else if (slot.kind === 'stroke') {
-        next.stroke = nextHex;
+        next.stroke = withOrigAlpha(o.stroke, nextHex);
         if (next.strokeStyleId) {
           delete next.strokeStyleId;
           unlinked++;
         }
       } else if (slot.kind === 'text') {
-        next.text = { ...next.text, fill: nextHex };
-        if (typeof next.fill === 'string') next.fill = nextHex;
+        const origTxtFill = (o.text && o.text.fill && o.text.fill !== 'none') ? o.text.fill : o.fill;
+        const nextTxtVal = withOrigAlpha(origTxtFill, nextHex);
+        next.text = { ...next.text, fill: nextTxtVal };
+        if (typeof next.fill === 'string') next.fill = nextTxtVal;
         if (next.fillStyleId) {
           delete next.fillStyleId;
           unlinked++;
@@ -167,18 +210,42 @@ function mapDocumentColors(doc, fn, scope) {
     if (fillGradEdits) {
       const raw = normalizedRawStops(next.grad).map((st, i) => (fillGradEdits.has(i) ? { ...st, color: fillGradEdits.get(i) } : st));
       next = updateGradStops(next, raw, null, 'fill');
+      if (raw[0] && raw[0].color && next.fill && next.fill !== 'none') {
+        next.fill = raw[0].color;
+      }
     }
     if (strokeGradEdits) {
       const raw = normalizedRawStops(next.strokeGrad).map((st, i) => (strokeGradEdits.has(i) ? { ...st, color: strokeGradEdits.get(i) } : st));
       next = updateGradStops(next, raw, null, 'stroke');
     }
+    if (o.gen && o.gen.kind === 'chart' && o.gen.config) {
+      const nextGen = syncChartConfigColors(o, o.gen.config);
+      if (nextGen) {
+        if (!next) next = { ...o };
+        next.gen = nextGen;
+      }
+    }
     if (next) {
       anyChange = true;
+      if (o.gen && (o.gen.kind === 'chart' || o.gen.kind === 'chart-member') && (o.gen.chartGroupId || o.group)) {
+        affectedChartGids.add(o.gen.chartGroupId || o.group);
+      }
       return next;
     }
     return o;
   });
-  return { doc: anyChange ? { ...doc, objects } : doc, changed, unlinked };
+  const finalObjects = (sel && affectedChartGids.size > 0)
+    ? objects.map(o => {
+        if (!o || o.locked || !o.gen || o.gen.kind !== 'chart' || !o.gen.config) return o;
+        const gid = o.gen.chartGroupId || o.group;
+        if (!gid || !affectedChartGids.has(gid) || sel.has(o.id)) return o;
+        const nextGen = syncChartConfigColors(o, o.gen.config);
+        if (!nextGen) return o;
+        anyChange = true;
+        return { ...o, gen: nextGen };
+      })
+    : objects;
+  return { doc: anyChange ? { ...doc, objects: finalObjects } : doc, changed, unlinked };
 }
 
 /* Klasifikasi tipe objek untuk Select Same: 'path' | 'text' | 'image' | 'frame'.

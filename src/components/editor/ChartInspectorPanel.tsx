@@ -7,6 +7,8 @@ import {
   ChartConfig,
   ChartFontStyle,
   CHART_PALETTES,
+  CHART_THEMES,
+  applyChartTheme,
   EChartsSeriesType,
 } from '../../engine/charts/chartTypes.ts';
 import {
@@ -14,6 +16,12 @@ import {
   CHART_CATEGORIES,
   convertChartConfigType,
 } from '../../engine/charts/chartCatalog.ts';
+import {
+  CHART_STYLES,
+  CHART_STYLE_CATEGORIES,
+  ChartStyleCategoryId,
+  applyChartStyle,
+} from '../../engine/charts/chartStyles.ts';
 import { ChartDataEditor } from './ChartDataEditor.tsx';
 import {
   ChartTextInput,
@@ -55,6 +63,7 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
   const isEn = lang === 'en';
   const [tab, setTab] = useState<InspectorTab>('type');
   const [catFilter, setCatFilter] = useState<string>('all');
+  const [styleCatFilter, setStyleCatFilter] = useState<ChartStyleCategoryId>('all');
   const [fontTarget, setFontTarget] = useState<FontTarget>('global');
   const [jsonDraft, setJsonDraft] = useState(config.customOptionJson || '');
   const [jsonErr, setJsonErr] = useState('');
@@ -67,11 +76,15 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
 
   const commitPatch = (patch: Partial<ChartConfig>, coalesceKey?: string) => {
     const next: ChartConfig = { ...config, ...patch };
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     if (coalesceKey) {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
         onChangeConfig(next, { coalesce: coalesceKey });
-      }, 90);
+      }, 45);
     } else {
       onChangeConfig(next);
     }
@@ -136,7 +149,7 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
 
   const TABS: Array<{ id: InspectorTab; label: string }> = [
     { id: 'type', label: isEn ? 'Type' : 'Tipe' },
-    { id: 'components', label: isEn ? 'Components' : 'Komponen' },
+    { id: 'components', label: isEn ? 'Elements' : 'Elemen' },
     { id: 'data', label: 'Data' },
     { id: 'color', label: isEn ? 'Color' : 'Warna' },
     { id: 'font', label: 'Font' },
@@ -199,7 +212,7 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
               aria-selected={active}
               data-testid={`chart-tab-${t.id}`}
               className={
-                'text-[10px] py-1 px-1.5 rounded-lg text-center transition-all truncate ' +
+                'text-[10px] py-1 px-1 rounded-lg text-center transition-all ' +
                 (active
                   ? 'bg-[var(--card)] text-[var(--ink)] font-semibold shadow-sm'
                   : 'text-[var(--mut)] hover:text-[var(--ink)] font-medium')
@@ -221,7 +234,7 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
             onChange={v => setCatFilter(v)}
             lang={lang}
           />
-          <div className="grid grid-cols-2 gap-1.5 max-h-60 overflow-y-auto pr-0.5">
+          <div className="space-y-1 max-h-64 overflow-y-auto pr-0.5">
             {filteredCatalog.map(item => {
               const active = config.presetId === item.id || (config.chartType === item.chartType && !config.presetId);
               return (
@@ -230,7 +243,7 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
                   type="button"
                   data-testid={`chart-inspector-type-${item.id}`}
                   className={
-                    'flex items-center gap-1.5 p-1.5 rounded-lg border text-left transition-colors ' +
+                    'w-full flex items-center gap-2 p-1.5 rounded-lg border text-left transition-colors ' +
                     (active
                       ? 'border-[var(--acc)] bg-[color-mix(in_srgb,var(--acc)_14%,var(--card))]'
                       : 'border-[var(--line)] bg-[var(--card)] hover:border-[var(--acc)]')
@@ -243,7 +256,7 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                     <path d={item.iconPath} />
                   </svg>
-                  <span className="text-[10px] font-medium truncate">
+                  <span className="text-[11px] font-medium flex-1">
                     {isEn ? item.labelEn : item.labelId}
                   </span>
                 </button>
@@ -264,6 +277,18 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
             </div>
             {config.card.show && (
               <>
+                <div>
+                  <div className="text-[10px] mut mb-0.5">{isEn ? 'Elevation' : 'Bayangan Kartu'}</div>
+                  <Seg
+                    o={[
+                      ['none', isEn ? 'Flat' : 'Datar'],
+                      ['soft', isEn ? 'Soft' : 'Halus'],
+                      ['elevated', isEn ? 'Deep' : 'Tinggi'],
+                    ]}
+                    v={config.card.shadow ?? 'soft'}
+                    on={v => updateCard({ shadow: v as any })}
+                  />
+                </div>
                 <Range
                   l={isEn ? 'Corner Radius' : 'Radius Sudut'}
                   v={config.card.borderRadius}
@@ -359,13 +384,22 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
               <ChartSwitch testId="chart-comp-pills" checked={config.periodPills.show} onChange={v => updatePills({ show: v })} />
             </div>
             {config.periodPills.show && (
-              <ChartTextInput
-                value={config.periodPills.items.join(', ')}
-                placeholder="Monthly, Yearly"
-                onCommit={val =>
-                  updatePills({ items: val.split(',').map(s => s.trim()).filter(Boolean) })
-                }
-              />
+              <div className="space-y-1.5">
+                <ChartTextInput
+                  value={config.periodPills.items.join(', ')}
+                  placeholder="Monthly, Yearly"
+                  onCommit={val =>
+                    updatePills({ items: val.split(',').map(s => s.trim()).filter(Boolean) })
+                  }
+                />
+                {config.periodPills.items.length > 1 && (
+                  <Seg
+                    o={config.periodPills.items.slice(0, 4).map((lbl, idx) => [String(idx), lbl])}
+                    v={String(config.periodPills.activeIndex || 0)}
+                    on={v => updatePills({ activeIndex: Number(v) || 0 })}
+                  />
+                )}
+              </div>
             )}
           </div>
 
@@ -498,6 +532,27 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
       {/* TAB: COLOR */}
       {tab === 'color' && (
         <div className="space-y-2.5">
+          <div>
+            <div className="fig-sub-lbl mb-1">{isEn ? '1-Click Themes' : 'Tema 1-Klik'}</div>
+            <div className="grid grid-cols-2 gap-1">
+              {CHART_THEMES.map(th => (
+                <button
+                  key={th.id}
+                  type="button"
+                  data-testid={`chart-theme-${th.id}`}
+                  className={
+                    'flex items-center gap-1.5 p-1.5 rounded-lg border text-left ' +
+                    (config.themeId === th.id ? 'border-[var(--acc)] bg-[var(--sub)]' : 'border-[var(--line)]')
+                  }
+                  onClick={() => onChangeConfig(applyChartTheme(config, th.id))}
+                >
+                  <span className="w-3.5 h-3.5 rounded border shrink-0" style={{ background: th.cardBg, borderColor: th.cardBorder }} />
+                  <span className="text-[10px] font-medium truncate">{isEn ? th.name : th.nameId}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <div className="fig-sub-lbl mb-1">{isEn ? 'Color Palettes' : 'Palet Warna'}</div>
             <div className="grid grid-cols-2 gap-1 max-h-40 overflow-y-auto">
@@ -676,6 +731,43 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
       {/* TAB: STYLE */}
       {tab === 'style' && (
         <div className="space-y-2.5">
+          <div>
+            <div className="fig-sub-lbl mb-1">{isEn ? '25 Chart Styles' : '25 Style Chart (Geometri)'}</div>
+            <ChartSelect
+              value={styleCatFilter}
+              options={CHART_STYLE_CATEGORIES.map(c => [c.id, isEn ? c.labelEn : c.labelId])}
+              onChange={v => setStyleCatFilter(v as ChartStyleCategoryId)}
+              lang={lang}
+            />
+            <div className="space-y-1 max-h-48 overflow-y-auto pr-0.5 mt-1.5">
+              {CHART_STYLES.filter(st => styleCatFilter === 'all' || st.category === styleCatFilter).map(st => {
+                const active = (config.chartStyleId || 'saas-clean') === st.id;
+                return (
+                  <button
+                    key={st.id}
+                    type="button"
+                    data-testid={`chart-style-${st.id}`}
+                    className={
+                      'w-full flex items-center gap-2 p-1.5 rounded-lg border text-left transition-colors ' +
+                      (active
+                        ? 'border-[var(--acc)] bg-[color-mix(in_srgb,var(--acc)_14%,var(--card))]'
+                        : 'border-[var(--line)] bg-[var(--card)] hover:border-[var(--acc)]')
+                    }
+                    onClick={() => onChangeConfig(applyChartStyle(config, st.id))}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                      <path d={st.iconPath} />
+                    </svg>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10.5px] font-semibold truncate">{isEn ? st.labelEn : st.labelId}</div>
+                      <div className="text-[9px] mut truncate">{isEn ? st.descEn : st.descId}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="pt-1.5 border-t border-[var(--line)] space-y-2.5">
           {config.chartType === 'line' && (
             <>
               <div className="flex items-center justify-between">
@@ -782,6 +874,30 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
                   on={v => updateSeriesStyle({ pieRoseType: v === 'off' ? false : (v as any) })}
                 />
               </div>
+              {config.seriesStyle.pieInnerRadius >= 30 && (
+                <div className="pt-1.5 border-t border-[var(--line)] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] mut">{isEn ? 'Donut Center Metric' : 'Angka Tengah Donat'}</span>
+                    <ChartSwitch checked={config.seriesStyle.showDonutCenter !== false} onChange={v => updateSeriesStyle({ showDonutCenter: v })} />
+                  </div>
+                  {config.seriesStyle.showDonutCenter !== false && (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <ChartTextInput
+                        value={config.seriesStyle.donutCenterValue || ''}
+                        placeholder={isEn ? 'Auto sum' : 'Otomatis'}
+                        onCommit={val => updateSeriesStyle({ donutCenterValue: val })}
+                        onChange={val => updateSeriesStyle({ donutCenterValue: val }, 'chart-param')}
+                      />
+                      <ChartTextInput
+                        value={config.seriesStyle.donutCenterLabel ?? 'Total'}
+                        placeholder="Total"
+                        onCommit={val => updateSeriesStyle({ donutCenterLabel: val })}
+                        onChange={val => updateSeriesStyle({ donutCenterLabel: val }, 'chart-param')}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -864,6 +980,7 @@ export const ChartInspectorPanel: React.FC<ChartInspectorPanelProps> = ({
             f={v => v + '%'}
             on={(v, m) => updateSeriesStyle({ opacity: v / 100 }, m?.live ? 'chart-param' : undefined)}
           />
+          </div>
         </div>
       )}
 

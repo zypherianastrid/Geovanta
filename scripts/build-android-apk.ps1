@@ -58,7 +58,7 @@ if (-not (Test-Path $srcApk)) {
 
 $outDir = Join-Path $root 'dist\android'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$outApk = Join-Path $outDir 'Geovanta-v1.3.2-android.apk'
+$outApk = Join-Path $outDir 'Geovanta-v1.4.0-android.apk'
 Copy-Item -Path $srcApk -Destination $outApk -Force
 
 $sizeMb = [Math]::Round((Get-Item $outApk).Length / 1MB, 2)

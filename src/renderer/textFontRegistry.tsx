@@ -2,6 +2,16 @@ const MAX_FONT_BYTES = 16 * 1024 * 1024;
 import opentype from 'opentype.js';
 import { AssetManager } from '../workspace/assetManager.tsx';
 
+export function normalizeFontFamily(family: any): string {
+  const first = String(family ?? '')
+    .split(',')[0]
+    .trim()
+    .replace(/^['"]+|['"]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return first;
+}
+
 export function faceKey(weight, style) {
   const bold = weight === 'bold' || Number(weight) >= 600;
   const italic = style === 'italic' || style === 'oblique';
@@ -116,25 +126,27 @@ export class TextFontRegistry {
   }
 
   addFamily(family, faces, assetId = null) {
+    const cleanFamily = normalizeFontFamily(family) || String(family || '').trim();
     const normalized = {};
     for (const key of ['regular', 'bold', 'italic', 'boldItalic']) {
       const bytes = faces?.[key];
       if (!bytes) continue;
       normalized[key] = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-      this.provider?.registerFont(normalized[key], family);
-      registerBrowserFontFace(family, key, normalized[key]);
+      this.provider?.registerFont(normalized[key], cleanFamily);
+      registerBrowserFontFace(cleanFamily, key, normalized[key]);
     }
     if (!Object.keys(normalized).length) throw new Error('Face font diperlukan');
-    const prev = this.families.get(String(family).toLowerCase());
-    this.families.set(String(family).toLowerCase(), {
-      family,
+    const lookupKey = cleanFamily.toLowerCase();
+    const prev = this.families.get(lookupKey);
+    this.families.set(lookupKey, {
+      family: cleanFamily,
       faces: {...(prev?.faces || {}), ...normalized},
       assetId: assetId ?? prev?.assetId ?? null
     });
   }
 
   getFace(family, weight = 'normal', style = 'normal') {
-    const entry = this.families.get(String(family).toLowerCase());
+    const entry = this.families.get(normalizeFontFamily(family).toLowerCase());
     if (!entry) return null;
     const key = faceKey(weight, style);
     return entry.faces[key] || entry.faces.regular || Object.values(entry.faces)[0] || null;
@@ -148,13 +160,13 @@ export class TextFontRegistry {
   // - textToPath: konversi harus memakai face yang sama dengan teksnya.
   // getFace() di atas tetap dipakai makeTextLayout (keputusan fallback keluarga).
   getExactFace(family, weight = 'normal', style = 'normal') {
-    const entry = this.families.get(String(family).toLowerCase());
+    const entry = this.families.get(normalizeFontFamily(family).toLowerCase());
     if (!entry) return null;
     return entry.faces[faceKey(weight, style)] || null;
   }
 
   getFamily(family) {
-    return this.families.get(String(family).toLowerCase()) || null;
+    return this.families.get(normalizeFontFamily(family).toLowerCase()) || null;
   }
 
   listFamilies() {

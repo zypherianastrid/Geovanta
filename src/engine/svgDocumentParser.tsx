@@ -162,7 +162,7 @@ function parseSVG(str) {
     if (!d) return [];
     return parsePath(d, localM, noteWarn);
   };
-  svg.querySelectorAll('clipPath').forEach(ce => {
+  svg.querySelectorAll('clipPath, mask').forEach(ce => {
     const cid = ce.getAttribute('id');
     if (!cid) return;
     const cSubs = collectClipSubs(ce, [1, 0, 0, 1, 0, 0], 0, new Set());
@@ -170,7 +170,7 @@ function parseSVG(str) {
       clipDefs.set(cid, {
         subs: cSubs,
         d: cSubs.map(sp => serializeSub(sp)).join(' '),
-        units: ce.getAttribute('clipPathUnits') || 'userSpaceOnUse'
+        units: ce.getAttribute('clipPathUnits') || ce.getAttribute('maskContentUnits') || 'userSpaceOnUse'
       });
     }
   });
@@ -617,7 +617,12 @@ function parseSVG(str) {
       const mScale = Math.hypot(m[0], m[1]) || 1;
       const rawFs = parseFloat(prop(el, 'font-size') || el.getAttribute('font-size') || '16') || 16;
       const fontSize = Math.max(1, rd(rawFs * mScale));
-      const rawFam = (prop(el, 'font-family') || el.getAttribute('font-family') || 'Geovanta Sans').replace(/^['"]+|['"]+$/g, '').split(',')[0].trim() || 'Geovanta Sans';
+      const rawFam = (prop(el, 'font-family') || el.getAttribute('font-family') || 'Geovanta Sans')
+        .split(',')[0]
+        .trim()
+        .replace(/^['"]+|['"]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim() || 'Geovanta Sans';
       const fontWeight = prop(el, 'font-weight') || el.getAttribute('font-weight') || 'normal';
       const fontStyle = prop(el, 'font-style') || el.getAttribute('font-style') || 'normal';
       const textAnchor = prop(el, 'text-anchor') || el.getAttribute('text-anchor') || cur['text-anchor'] || 'start';
@@ -708,8 +713,9 @@ function parseSVG(str) {
       syDir = Math.hypot(m[2], m[3]);
     const strokeScaleXY = Math.abs(sxDir - syDir) > 1e-3 ? [rd(sxDir), rd(syDir)] : undefined;
     let clipPathD = cur._symClipD || undefined;
-    if (cur['clip-path']) {
-      const cm = /^url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/.exec(cur['clip-path']);
+    const clipOrMaskRef = cur['clip-path'] || cur['mask'];
+    if (clipOrMaskRef) {
+      const cm = /^url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/.exec(clipOrMaskRef);
       if (cm && clipDefs.has(cm[1])) {
         const cd = clipDefs.get(cm[1]);
         let clipMat = m;

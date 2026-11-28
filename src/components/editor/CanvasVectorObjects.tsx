@@ -63,9 +63,11 @@ const LayerSvgPreview = React.memo<LayerSvgPreviewProps>(({
   const vbSize = maxDim + pad * 2;
   const vx = cx - vbSize * 0.5;
   const vy = cy - vbSize * 0.5;
-  const hasFill = o.fill && o.fill !== 'none' && o.fill !== 'transparent';
+  const gradFirst = o.grad && o.grad.type && o.grad.type !== 'none' && Array.isArray(o.grad.stops) && o.grad.stops.length > 0 ? o.grad.stops[0].color : null;
+  const effFill = gradFirst || o.fill;
+  const hasFill = effFill && effFill !== 'none' && effFill !== 'transparent';
   const hasStroke = o.stroke && o.stroke !== 'none' && o.stroke !== 'transparent' && (o.strokeWidth || 0) > 0;
-  const fillCol = hasFill ? o.fill : 'none';
+  const fillCol = hasFill ? effFill : 'none';
   const strokeCol = hasStroke ? o.stroke : !hasFill ? 'currentColor' : 'none';
   const sw = hasStroke ? Math.min(2.2, Math.max(1.1, o.strokeWidth ? 1.35 : 1.2)) : !hasFill ? 1.4 : 0;
   const swVb = sw > 0 ? sw * (vbSize / 16) : 0;

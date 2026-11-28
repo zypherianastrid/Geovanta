@@ -32,6 +32,7 @@ import { BLEND_MODE_OPTIONS } from '../../engine/blendModes.tsx';
 import { cssToHex, parseColorWithAlpha } from '../../utils/colorParserAndFormatter.tsx';
 import { pickFiles } from '../../utils/presenceAndFilePicker.tsx';
 import { copySolidPaint, readPaintClipboard, applyGradientPayloadToObj, useCopyFeedback } from '../../utils/colorClipboard.tsx';
+import { ExportInspectorSection } from './inspector/ExportInspectorSection.tsx';
 
 /* Keputusan user 3A + peringatan review Task 2: edit langsung fill/stroke
    objek tertaut melepas tautan slot itu dalam commit yang sama. Delegasi
@@ -140,10 +141,22 @@ const EditorRightInspector = ({
   isRasterFmt,
   expScale,
   setExpScale,
+  expQuality = 0.92,
+  setExpQuality,
+  svgMinify = false,
+  setSvgMinify,
+  pdfBleedMm = 0,
+  setPdfBleedMm,
+  pdfCropMarks = false,
+  setPdfCropMarks,
+  pdfColorSpace = 'rgb',
+  setPdfColorSpace,
   exportArea,
   setExportArea,
   exportSvg,
   downloadSvg,
+  batchExport,
+  getExportFilename,
   onExportBackup,
   chartControls,
   textControls,
@@ -156,7 +169,9 @@ const EditorRightInspector = ({
   onArcParams,
   antialias,
   setAntialias,
-  onOpenCodeInspector,
+  historyPanelOpen = false,
+  onToggleHistoryPanel,
+  historyPanelNode = null,
   isMobile = false,
   mobileTab = 'style',
   onMobileTabChange = null
@@ -191,12 +206,16 @@ const EditorRightInspector = ({
      onRcPreviewDoc/onRcCommitPreview (rcPreviewDoc/rcCommitPreview di
      VectorEditor). */
   const [rcOpen, setRcOpen] = React.useState(false);
+  const [rcPending, setRcPending] = React.useState(false);
+  React.useEffect(() => {
+    if (!rcOpen) setRcPending(false);
+  }, [rcOpen]);
   const [dashCustomOpen, setDashCustomOpen] = React.useState(false);
   const [showAdvancedTrace, setShowAdvancedTrace] = React.useState(false);
   const AT_PRESETS = [
     { id: 'logo', name: 'Logo / Flat', icon: 'shapes', cfg: { mode: 'color', adaptiveProfileMode: 'flat', colorCount: 8, smoothness: 1.0, ignoreWhite: true } },
-    { id: 'bw', name: 'Sketsa / B&W', icon: 'pen', cfg: { mode: 'bw', threshold: 128, smoothness: 0.8, ignoreWhite: true } },
-    { id: 'photo', name: 'Foto / Detail', icon: 'sparkle', cfg: { mode: 'color', adaptiveProfileMode: 'photo', colorCount: 24, smoothness: 0.5, ignoreWhite: false } }
+    { id: 'bw', name: lang === 'en' ? 'Sketch / B&W' : 'Sketsa / B&W', icon: 'pen', cfg: { mode: 'bw', threshold: 128, smoothness: 0.8, ignoreWhite: true } },
+    { id: 'photo', name: lang === 'en' ? 'Photo / Detail' : 'Foto / Detail', icon: 'sparkle', cfg: { mode: 'color', adaptiveProfileMode: 'photo', colorCount: 24, smoothness: 0.5, ignoreWhite: false } }
   ];
   const [traceOpts, setTraceOpts] = React.useState<any>({
     mode: 'ultra',
@@ -312,6 +331,46 @@ const EditorRightInspector = ({
   .fig-right-sidebar .fig-input { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; caret-color: var(--acc); }
   .fig-right-sidebar .fig-input:focus { border-color: var(--acc) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent) !important; background: color-mix(in srgb, var(--acc) 5%, var(--sub)) !important; outline: none; }
   .fig-right-sidebar button:disabled { cursor: not-allowed; }
+  .fig-right-sidebar .ved-pill:not(.flex-col),
+  .fig-right-sidebar .btn:not(.flex-col),
+  .fig-right-sidebar .fig-cta-btn:not(.flex-col),
+  .fig-right-sidebar .seg button:not(.flex-col),
+  .fig-right-sidebar .gch button:not(.flex-col),
+  .fig-right-sidebar .fig-flow-bar button:not(.flex-col),
+  .fig-right-sidebar .c-chk,
+  .fig-right-sidebar button:not(.flex-col):has(> svg),
+  .fig-right-sidebar span:not(.flex-col):has(> svg) {
+    align-items: center !important;
+  }
+  .fig-right-sidebar .ved-pill:not(.flex-col):has(> svg) {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+  .fig-right-sidebar .btn:not(.flex-col):has(> svg),
+  .fig-right-sidebar .fig-cta-btn:not(.flex-col):has(> svg) {
+    padding-top: 9px !important;
+    padding-bottom: 9px !important;
+  }
+  .fig-right-sidebar .seg button:not(.flex-col):has(> svg),
+  .fig-right-sidebar .gch button:not(.flex-col):has(> svg),
+  .fig-right-sidebar .fig-flow-bar button:not(.flex-col):has(> svg) {
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+  }
+  .fig-right-sidebar button:not(.flex-col):has(> svg) > svg,
+  .fig-right-sidebar span:not(.flex-col):has(> svg) > svg {
+    display: block !important;
+    flex: none !important;
+  }
+  .fig-right-sidebar button:not(.flex-col):has(> svg) > svg + span,
+  .fig-right-sidebar span:not(.flex-col):has(> svg) > svg + span {
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+  }
+  .fig-right-sidebar .fig-cta-btn:not(.flex-col) > svg + span {
+    line-height: 1.2 !important;
+  }
 `}</style>{isMobile ? (
   <div className="mob-insp-tabs" data-testid="mobile-inspector-tabs" role="tablist">
     {MOB_TABS.map(([tabId, tabLabel]) => {
@@ -332,7 +391,7 @@ const EditorRightInspector = ({
     })}
   </div>
 ) : (
-  <div className="fig-r-topbar space-y-2"><div className="flex items-center justify-between gap-1 min-w-0"><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" disabled={!canUndo} data-tip="veUndo" aria-label={(lang === 'en' ? TIPS_EN : TIPS).veUndo.t} onClick={undo}><Vi d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13" s={15} /></button><button type="button" className="fig-ibtn" disabled={!canRedo} data-tip="veRedo" aria-label={(lang === 'en' ? TIPS_EN : TIPS).veRedo.t} onClick={redo}><Vi d="M21 7v6h-6M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13" s={15} /></button></div><div className="flex items-center gap-1 min-w-0"><button type="button" className="fig-ibtn" data-tip="veZoomOut" aria-label={(lang === 'en' ? TIPS_EN : TIPS).veZoomOut.t} onClick={() => zoomBy(1 / 1.25)}><Ico n="zoomOut" size={14} /></button><span ref={zoomPctRef} className="text-[11px] font-semibold tabular-nums text-center" data-tip="veZoomPct" style={{
+  <div className="fig-r-topbar space-y-2">{onToggleHistoryPanel && <button type="button" className={'ved-pill w-full text-[11px] inline-flex items-center justify-center gap-1.5' + (historyPanelOpen ? ' on' : '')} style={{ padding: '6px 10px' }} data-testid="toggle-history-panel" data-tip="veHistoryPanel" aria-pressed={historyPanelOpen} aria-label={lang === 'en' ? 'Version History' : 'Riwayat Versi'} onClick={onToggleHistoryPanel}><Vi d="M12 8v4l3 2 M3 12a9 9 0 1 0 3-6.7L3 8 M3 3v5h5" s={14} /><span>{lang === 'en' ? 'Version History' : 'Riwayat Versi'}</span></button>}{historyPanelNode}<div className="flex items-center justify-between gap-1 min-w-0"><div className="flex items-center gap-1"><button type="button" className="fig-ibtn" disabled={!canUndo} data-tip="veUndo" aria-label={(lang === 'en' ? TIPS_EN : TIPS).veUndo.t} onClick={undo}><Vi d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13" s={15} /></button><button type="button" className="fig-ibtn" disabled={!canRedo} data-tip="veRedo" aria-label={(lang === 'en' ? TIPS_EN : TIPS).veRedo.t} onClick={redo}><Vi d="M21 7v6h-6M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13" s={15} /></button></div><div className="flex items-center gap-1 min-w-0"><button type="button" className="fig-ibtn" data-tip="veZoomOut" aria-label={(lang === 'en' ? TIPS_EN : TIPS).veZoomOut.t} onClick={() => zoomBy(1 / 1.25)}><Ico n="zoomOut" size={14} /></button><span ref={zoomPctRef} className="text-[11px] font-semibold tabular-nums text-center" data-tip="veZoomPct" style={{
           minWidth: 56,
           display: 'inline-block',
           fontVariantNumeric: 'tabular-nums'
@@ -344,7 +403,42 @@ const EditorRightInspector = ({
         justifyContent: 'center',
         textAlign: 'center'
       }} data-tip="veZoomFit" onClick={fitView}>{L.riFit}</button></div></div>
-)}<div className="fig-r-scroll-wrap"><div className="fig-r-scroll" ref={rScrollRef}>{showTools && chartControls}{showTools && textControls}{showTools && (() => {
+)}<div className="fig-r-scroll-wrap"><div className="fig-r-scroll" ref={rScrollRef}>{rcOpen && rcPending && (
+  <div
+    data-testid="rc-pending-banner"
+    className="flex items-center justify-between gap-2 px-3 py-2 text-[11px]"
+    style={{
+      position: 'sticky',
+      top: 0,
+      zIndex: 5,
+      background: 'color-mix(in srgb, var(--acc) 14%, var(--card))',
+      borderBottom: '1px solid color-mix(in srgb, var(--acc) 35%, var(--line))',
+      color: 'var(--ink)'
+    }}
+  >
+    <span className="font-semibold truncate">{lang === 'en' ? 'Recolor preview active' : 'Pratinjau Recolor aktif'}</span>
+    <div className="flex items-center gap-1 flex-none">
+      <button
+        type="button"
+        className="ved-pill text-[10px]"
+        style={{ padding: '3px 7px' }}
+        data-testid="rc-pending-show"
+        onClick={() => document.querySelector('[data-testid="rc-section"]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+      >
+        {lang === 'en' ? 'Show' : 'Lihat'}
+      </button>
+      <button
+        type="button"
+        className="ved-pill text-[10px]"
+        style={{ padding: '3px 7px' }}
+        data-testid="rc-pending-discard"
+        onClick={() => setRcOpen(false)}
+      >
+        {lang === 'en' ? 'Discard' : 'Batal'}
+      </button>
+    </div>
+  </div>
+)}{showTools && chartControls}{showTools && textControls}{showTools && (() => {
   /* Seksi "Parameter tool" (Task 2): switch per tool — Task 3 (Weave) dan
      Task 5 (Arc) menambahkan cabang mereka sendiri di sini. Tool AKTIF menang
      atas fallback seleksi (fix round 1 Task 3): bila tool adalah generator,
@@ -416,7 +510,7 @@ const EditorRightInspector = ({
         }}><div className="flex items-center justify-between gap-1"><span className="text-[11px] font-semibold">Individual Radius ({detectedCorners.length} {lang === 'en' ? 'corners' : 'sudut'})</span></div><Seg v={cornerMode} on={m => {
             setCornerMode(m);
             if (activeCorners.length) applyRadiusToCorners(activeCorners, curR, 'cr-mode');
-          }} o={[['circular', 'Circular'], ['bezier', 'Squircle'], ['chamfer', 'Bevel']]} tip="veCornerMode" />{detectedCorners.length === 0 ? <div className="text-[11px] mut">{L.riNoCorners}</div> : <div className="space-y-2"><div className="flex flex-wrap gap-1"><button type="button" className={'ved-pill text-[10px]' + (activeCorners.length === detectedCorners.length ? ' on' : '')} onClick={() => setPickedCornerKeys(new Set(detectedCorners.map(c => c.key)))}>{L.riAllN.replace('{n}', detectedCorners.length)}</button><button type="button" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 0).map(c => c.key)))}>{L.riOdd}</button><button type="button" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 1).map(c => c.key)))}>{L.riEven}</button><button type="button" className="ved-pill text-[10px]" onClick={() => applyRadiusToCorners(activeCorners.length ? activeCorners : detectedCorners, 0, 'cr-reset')}>{L.riSharpen}</button></div><div className="text-[11px] mut">{L.riCornerPick}</div><div className="grid grid-cols-3 gap-1.5" style={{
+          }} o={[['circular', 'Circular'], ['bezier', 'Squircle'], ['chamfer', 'Bevel']]} tip="veCornerMode" />{detectedCorners.length === 0 ? <div className="text-[11px] mut">{L.riNoCorners}</div> : <div className="space-y-2"><div className="flex flex-wrap gap-1"><button type="button" data-tip="veCornerSelectAll" className={'ved-pill text-[10px]' + (activeCorners.length === detectedCorners.length ? ' on' : '')} onClick={() => setPickedCornerKeys(new Set(detectedCorners.map(c => c.key)))}>{L.riAllN.replace('{n}', detectedCorners.length)}</button><button type="button" data-tip="veCornerSelectOdd" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 0).map(c => c.key)))}>{L.riOdd}</button><button type="button" data-tip="veCornerSelectEven" className="ved-pill text-[10px]" onClick={() => setPickedCornerKeys(new Set(detectedCorners.filter((_, i) => i % 2 === 1).map(c => c.key)))}>{L.riEven}</button><button type="button" data-tip="veCornerSharpen" className="ved-pill text-[10px]" onClick={() => applyRadiusToCorners(activeCorners.length ? activeCorners : detectedCorners, 0, 'cr-reset')}>{L.riSharpen}</button></div><div className="text-[11px] mut">{L.riCornerPick}</div><div className="grid grid-cols-3 gap-1.5" style={{
               maxHeight: 132,
               overflowY: 'auto'
             }}>{detectedCorners.map(c => {
@@ -438,7 +532,7 @@ const EditorRightInspector = ({
             }}>{detectedCorners.map(c => <XfField key={'xf-' + c.key} label={'#' + c.idx + c.dir} value={c.r} min={0} step={1} on={v => applyRadiusToCorners([c], v, 'cr-one-' + c.key)} />)}</div></div>}</div>}{!primary.img && <div><div className="fig-sub-lbl" data-tip="veFillRule">{L.riFillRule}</div><Seg o={[['nonzero', 'Nonzero'], ['evenodd', 'Even-odd']]} v={primary.fillRule || 'nonzero'} on={v => setProp('fillRule', v)} tip="veFillRule" tips={{
             nonzero: 'veFillNonzero',
             evenodd: 'veFillEvenodd'
-          }} /></div>}<div><div className="fig-sub-lbl" data-tip="veBlendMode">{L.blendMode || (lang === 'en' ? 'Blend Mode' : 'Mode Campur')}</div><Select testId="blend-mode-select" value={primary.blendMode || 'normal'} options={BLEND_MODE_OPTIONS as any} on={v => setProp('blendMode', v === 'normal' ? undefined : v)} /></div>{canSeparateIcon && onSeparateIconObjects && <div className="pt-1.5"><button type="button" className="btn sec fig-cta-btn w-full" data-testid="separate-icon-btn" data-tip="veSeparateIcon" onClick={onSeparateIconObjects}><Ico n="shapes" size={14} /><span>{L.edSeparateIcon || (lang === 'en' ? 'Separate Icon Objects' : 'Pisahkan Objek Ikon')}</span></button></div>}{canFillEmpty && onFillEmptySpace && <div className="pt-1.5"><button type="button" className="btn sec fig-cta-btn w-full" data-testid="fill-empty-btn" data-tip="veFillEmpty" onClick={onFillEmptySpace}><Ico n="shapes" size={14} /><span>{L.edFillEmpty || (lang === 'en' ? 'Fill Empty Space' : 'Isi Ruang Kosong')}</span></button></div>}</div> : <div className="text-[11px] mut">{L.riHintStyle}</div>}</div>}{showTools && selImages.length > 0 && <div className="fig-isec fade" data-testid="auto-trace-section" data-tip="veAutoTrace"><div className="fig-isec-title"><span>{L.atTitle || (lang === 'en' ? 'Auto Trace Image to SVG' : 'Auto Trace Gambar ke SVG')}</span><span className="fig-badge" data-testid="auto-trace-hw-badge">{(traceOpts.useGpu !== false && gpuInfo.gpuAvailable) ? 'GPU WebGL2' : 'CPU Fallback'}</span></div><div className="space-y-2.5"><div><div className="fig-sub-lbl mb-1">{L.atPresets || 'Preset Cepat'}</div><div className="grid grid-cols-3 gap-1.5 mb-2" data-testid="auto-trace-presets">{AT_PRESETS.map(p => <button key={p.id} type="button" className="btn sec text-[11px] flex flex-col items-center justify-center py-2 px-1 rounded-xl" data-testid={`at-preset-${p.id}`} onClick={() => setTraceOpts((prev: any) => ({ ...prev, ...p.cfg }))}><Ico n={p.icon as any} size={15} /><span className="font-medium mt-1 truncate">{p.name}</span></button>)}</div><button type="button" className="btn sec w-full flex items-center justify-between text-[11px] py-1.5 px-3 rounded-xl mb-1.5" data-testid="at-advanced-toggle" onClick={() => setShowAdvancedTrace(v => !v)}><span className="font-semibold flex items-center gap-1.5"><Ico n="cog" size={13} /> {L.atAdvanced || 'Pengaturan Lanjutan'}</span><span className="text-[10px] mut">{showAdvancedTrace ? '▲ Sembunyikan' : '▼ Tampilkan'}</span></button>{showAdvancedTrace && <div className="space-y-2.5 pt-1 border-t border-[var(--line)]" data-testid="at-advanced-content"><div><div className="fig-sub-lbl" data-tip="veAutoTraceMode">{L.atMode || (lang === 'en' ? 'Trace Mode' : 'Mode Trace')}</div><Seg wrap cls="flex-wrap" testId="auto-trace-mode" o={[['color', L.atModeColor || (lang === 'en' ? 'Color (CIE-Lab)' : 'Warna (CIE-Lab)')], ['bw', L.atModeBw || (lang === 'en' ? 'Black & White' : 'Hitam Putih')], ['unlimited', L.atModeUnlimited || 'Unlimited'], ['ultra', L.atModeUltra || 'Ultra 99%+']]} v={traceOpts.mode} on={m => setTraceOpts((p: any) => ({ ...p, mode: m, colorCount: m === 'ultra' ? 32 : (p.colorCount > 32 ? 16 : p.colorCount) }))} tip="veAutoTraceMode" /></div><div><div className="fig-sub-lbl" data-tip="veAutoTraceProfile">{L.atProfile || (lang === 'en' ? 'Adaptive Profile (8-Stage)' : 'Profil Adaptif (8-Tahap)')}</div><Seg testId="auto-trace-profile" o={[['auto', L.atProfileAuto || 'Auto'], ['flat', L.atProfileFlat || 'Logo/Flat'], ['illustration', L.atProfileIllus || (lang === 'en' ? 'Illustration' : 'Ilustrasi')], ['photo', L.atProfilePhoto || (lang === 'en' ? 'Photo' : 'Foto')]]} v={traceOpts.adaptiveProfileMode || 'auto'} on={pm => setTraceOpts((p: any) => ({ ...p, adaptiveProfileMode: pm }))} tip="veAutoTraceProfile" /></div>{traceOpts.mode !== 'bw' && <div><div className="fig-sub-lbl" data-tip="veAutoTraceGradient">{L.atGradientMode || (lang === 'en' ? 'SVG Gradient Mode' : 'Mode Gradien SVG')}</div><Seg testId="auto-trace-gradient" o={[['auto', L.atGradAuto || 'Auto'], ['on', L.atGradOn || (lang === 'en' ? 'On' : 'Aktif')], ['off', L.atGradOff || 'Flat']]} v={traceOpts.gradientMode || 'auto'} on={gm => setTraceOpts((p: any) => ({ ...p, gradientMode: gm }))} tip="veAutoTraceGradient" /></div>}{traceOpts.mode === 'bw' ? <div data-testid="auto-trace-threshold"><Range l={L.atThreshold || (lang === 'en' ? 'Luminance Threshold' : 'Ambang Kecerahan (Threshold)')} v={traceOpts.threshold} min={8} max={248} step={1} on={v => setTraceOpts((p: any) => ({ ...p, threshold: v }))} tip="veAutoTraceThreshold" f={v => String(v)} /></div> : <div data-testid="auto-trace-colors"><Range l={L.atColors || (lang === 'en' ? 'Max Color Layers' : 'Maks. Layer Warna')} v={traceOpts.colorCount} min={2} max={traceOpts.mode === 'ultra' ? 64 : 32} step={1} on={v => setTraceOpts((p: any) => ({ ...p, colorCount: v }))} tip="veAutoTraceColors" f={v => String(v)} /></div>}<div data-testid="auto-trace-smoothness"><Range l={L.atSmoothness || (lang === 'en' ? 'Curve Smoothing' : 'Kehalusan Kurva Bézier')} v={Math.round(traceOpts.smoothness * 100)} min={0} max={135} step={5} on={v => setTraceOpts((p: any) => ({ ...p, smoothness: v / 100 }))} tip="veAutoTraceSmooth" f={v => v + '%'} /></div><div data-testid="auto-trace-corner"><Range l={L.atCornerAngle || (lang === 'en' ? 'Corner Threshold' : 'Ambang Sudut Tajam')} v={traceOpts.cornerThreshold} min={20} max={140} step={4} on={v => setTraceOpts((p: any) => ({ ...p, cornerThreshold: v }))} tip="veAutoTraceCorner" f={v => v + '°'} /></div><div data-testid="auto-trace-despeckle"><Range l={L.atDespeckle || (lang === 'en' ? 'Despeckle (Min Area)' : 'Hapus Bintik (Despeckle)')} v={traceOpts.despeckle} min={1} max={64} step={1} on={v => setTraceOpts((p: any) => ({ ...p, despeckle: v }))} tip="veAutoTraceDespeckle" f={v => v + ' px'} /></div><div className="space-y-1.5 pt-0.5"><button type="button" role="checkbox" aria-checked={traceOpts.useGpu !== false} data-testid="auto-trace-use-gpu" data-tip="veAutoTraceGpu" className={'c-chk' + (traceOpts.useGpu !== false ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, useGpu: p.useGpu === false }))}><span className="c-chk-box">{traceOpts.useGpu !== false && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atUseGpu || (lang === 'en' ? 'GPU Acceleration (CPU Fallback)' : 'Akselerasi GPU (Fallback CPU)')}</span></button><button type="button" role="checkbox" aria-checked={traceOpts.ignoreWhite} data-testid="auto-trace-ignore-white" data-tip="veAutoTraceIgnoreWhite" className={'c-chk' + (traceOpts.ignoreWhite ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, ignoreWhite: !p.ignoreWhite }))}><span className="c-chk-box">{traceOpts.ignoreWhite && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atIgnoreWhite || (lang === 'en' ? 'Ignore White Background' : 'Abaikan Latar Putih')}</span></button><button type="button" role="checkbox" aria-checked={traceOpts.keepOriginalImage} data-testid="auto-trace-keep-img" data-tip="veAutoTraceKeepImg" className={'c-chk' + (traceOpts.keepOriginalImage ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, keepOriginalImage: !p.keepOriginalImage }))}><span className="c-chk-box">{traceOpts.keepOriginalImage && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atKeepOriginal || (lang === 'en' ? 'Keep Original Image' : 'Pertahankan Gambar Asli')}</span></button></div></div>}</div>{tracingBusy && traceStageInfo && <div className="text-[10.5px] mut font-mono truncate px-2 py-1 rounded bg-[var(--sub)]" data-testid="auto-trace-progress">{traceStageInfo}</div>}<button type="button" className="btn pri fig-cta-btn w-full mt-2" data-testid="auto-trace-run-btn" data-tip="veAutoTraceRun" disabled={tracingBusy} onClick={runAutoTrace}><Ico n="wand" size={14} /><span>{tracingBusy ? (L.atTracing || (lang === 'en' ? 'Running SVGPeak VMT…' : 'Memproses SVGPeak VMT…')) : (L.atRunBtn || (lang === 'en' ? 'Trace Image to SVG (SVGPeak)' : 'Trace Gambar ke SVG (SVGPeak)'))}</span></button></div></div>}{showStyle && (() => {
+          }} /></div>}<div><div className="fig-sub-lbl" data-tip="veBlendMode">{L.blendMode || (lang === 'en' ? 'Blend Mode' : 'Mode Campur')}</div><Select testId="blend-mode-select" value={primary.blendMode || 'normal'} options={BLEND_MODE_OPTIONS as any} on={v => setProp('blendMode', v === 'normal' ? undefined : v)} /></div>{canSeparateIcon && onSeparateIconObjects && <div className="pt-1.5"><button type="button" className="btn sec fig-cta-btn w-full" data-testid="separate-icon-btn" data-tip="veSeparateIcon" onClick={onSeparateIconObjects}><Ico n="shapes" size={14} /><span>{L.edSeparateIcon || (lang === 'en' ? 'Separate Icon Objects' : 'Pisahkan Objek Ikon')}</span></button></div>}{canFillEmpty && onFillEmptySpace && <div className="pt-1.5"><button type="button" className="btn sec fig-cta-btn w-full" data-testid="fill-empty-btn" data-tip="veFillEmpty" onClick={onFillEmptySpace}><Ico n="shapes" size={14} /><span>{L.edFillEmpty || (lang === 'en' ? 'Fill Empty Space' : 'Isi Ruang Kosong')}</span></button></div>}</div> : <div className="text-[11px] mut">{L.riHintStyle}</div>}</div>}{showTools && selImages.length > 0 && <div className="fig-isec fade" data-testid="auto-trace-section" data-tip="veAutoTrace"><div className="fig-isec-title"><span>{L.atTitle || (lang === 'en' ? 'Auto Trace Image to SVG' : 'Auto Trace Gambar ke SVG')}</span><span className="fig-badge" data-testid="auto-trace-hw-badge">{(traceOpts.useGpu !== false && gpuInfo.gpuAvailable) ? 'GPU WebGL2' : 'CPU Fallback'}</span></div><div className="space-y-2.5"><div><div className="fig-sub-lbl mb-1">{L.atPresets || 'Preset Cepat'}</div><div className="grid grid-cols-3 gap-1.5 mb-2" data-testid="auto-trace-presets">{AT_PRESETS.map(p => <button key={p.id} type="button" data-tip="veTracePreset" className="btn sec text-[11px] flex flex-col items-center justify-center py-2 px-1 rounded-xl" data-testid={`at-preset-${p.id}`} onClick={() => setTraceOpts((prev: any) => ({ ...prev, ...p.cfg }))}><Ico n={p.icon as any} size={15} /><span className="font-medium mt-1 truncate">{p.name}</span></button>)}</div><button type="button" data-tip="veTraceAdvanced" className="btn sec w-full flex items-center justify-between text-[11px] py-1.5 px-3 rounded-xl mb-1.5" data-testid="at-advanced-toggle" onClick={() => setShowAdvancedTrace(v => !v)}><span className="font-semibold flex items-center gap-1.5"><Ico n="cog" size={13} /><span>{L.atAdvanced || (lang === 'en' ? 'Advanced Settings' : 'Pengaturan Lanjutan')}</span></span><span className="text-[10px] mut">{showAdvancedTrace ? (lang === 'en' ? '▲ Hide' : '▲ Sembunyikan') : (lang === 'en' ? '▼ Show' : '▼ Tampilkan')}</span></button>{showAdvancedTrace && <div className="space-y-2.5 pt-1 border-t border-[var(--line)]" data-testid="at-advanced-content"><div><div className="fig-sub-lbl" data-tip="veAutoTraceMode">{L.atMode || (lang === 'en' ? 'Trace Mode' : 'Mode Trace')}</div><Seg wrap cls="flex-wrap" testId="auto-trace-mode" o={[['color', L.atModeColor || (lang === 'en' ? 'Color (CIE-Lab)' : 'Warna (CIE-Lab)')], ['bw', L.atModeBw || (lang === 'en' ? 'Black & White' : 'Hitam Putih')], ['unlimited', L.atModeUnlimited || 'Unlimited'], ['ultra', L.atModeUltra || 'Ultra 99%+']]} v={traceOpts.mode} on={m => setTraceOpts((p: any) => ({ ...p, mode: m, colorCount: m === 'ultra' ? 32 : (p.colorCount > 32 ? 16 : p.colorCount) }))} tip="veAutoTraceMode" /></div><div><div className="fig-sub-lbl" data-tip="veAutoTraceProfile">{L.atProfile || (lang === 'en' ? 'Adaptive Profile (8-Stage)' : 'Profil Adaptif (8-Tahap)')}</div><Seg testId="auto-trace-profile" o={[['auto', L.atProfileAuto || 'Auto'], ['flat', L.atProfileFlat || 'Logo/Flat'], ['illustration', L.atProfileIllus || (lang === 'en' ? 'Illustration' : 'Ilustrasi')], ['photo', L.atProfilePhoto || (lang === 'en' ? 'Photo' : 'Foto')]]} v={traceOpts.adaptiveProfileMode || 'auto'} on={pm => setTraceOpts((p: any) => ({ ...p, adaptiveProfileMode: pm }))} tip="veAutoTraceProfile" /></div>{traceOpts.mode !== 'bw' && <div><div className="fig-sub-lbl" data-tip="veAutoTraceGradient">{L.atGradientMode || (lang === 'en' ? 'SVG Gradient Mode' : 'Mode Gradien SVG')}</div><Seg testId="auto-trace-gradient" o={[['auto', L.atGradAuto || 'Auto'], ['on', L.atGradOn || (lang === 'en' ? 'On' : 'Aktif')], ['off', L.atGradOff || 'Flat']]} v={traceOpts.gradientMode || 'auto'} on={gm => setTraceOpts((p: any) => ({ ...p, gradientMode: gm }))} tip="veAutoTraceGradient" /></div>}{traceOpts.mode === 'bw' ? <div data-testid="auto-trace-threshold"><Range l={L.atThreshold || (lang === 'en' ? 'Luminance Threshold' : 'Ambang Kecerahan (Threshold)')} v={traceOpts.threshold} min={8} max={248} step={1} on={v => setTraceOpts((p: any) => ({ ...p, threshold: v }))} tip="veAutoTraceThreshold" f={v => String(v)} /></div> : <div data-testid="auto-trace-colors"><Range l={L.atColors || (lang === 'en' ? 'Max Color Layers' : 'Maks. Layer Warna')} v={traceOpts.colorCount} min={2} max={traceOpts.mode === 'ultra' ? 64 : 32} step={1} on={v => setTraceOpts((p: any) => ({ ...p, colorCount: v }))} tip="veAutoTraceColors" f={v => String(v)} /></div>}<div data-testid="auto-trace-smoothness"><Range l={L.atSmoothness || (lang === 'en' ? 'Curve Smoothing' : 'Kehalusan Kurva Bézier')} v={Math.round(traceOpts.smoothness * 100)} min={0} max={135} step={5} on={v => setTraceOpts((p: any) => ({ ...p, smoothness: v / 100 }))} tip="veAutoTraceSmooth" f={v => v + '%'} /></div><div data-testid="auto-trace-corner"><Range l={L.atCornerAngle || (lang === 'en' ? 'Corner Threshold' : 'Ambang Sudut Tajam')} v={traceOpts.cornerThreshold} min={20} max={140} step={4} on={v => setTraceOpts((p: any) => ({ ...p, cornerThreshold: v }))} tip="veAutoTraceCorner" f={v => v + '°'} /></div><div data-testid="auto-trace-despeckle"><Range l={L.atDespeckle || (lang === 'en' ? 'Despeckle (Min Area)' : 'Hapus Bintik (Despeckle)')} v={traceOpts.despeckle} min={1} max={64} step={1} on={v => setTraceOpts((p: any) => ({ ...p, despeckle: v }))} tip="veAutoTraceDespeckle" f={v => v + ' px'} /></div><div className="space-y-1.5 pt-0.5"><button type="button" role="checkbox" aria-checked={traceOpts.useGpu !== false} data-testid="auto-trace-use-gpu" data-tip="veAutoTraceGpu" className={'c-chk' + (traceOpts.useGpu !== false ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, useGpu: p.useGpu === false }))}><span className="c-chk-box">{traceOpts.useGpu !== false && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atUseGpu || (lang === 'en' ? 'GPU Acceleration (CPU Fallback)' : 'Akselerasi GPU (Fallback CPU)')}</span></button><button type="button" role="checkbox" aria-checked={traceOpts.ignoreWhite} data-testid="auto-trace-ignore-white" data-tip="veAutoTraceIgnoreWhite" className={'c-chk' + (traceOpts.ignoreWhite ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, ignoreWhite: !p.ignoreWhite }))}><span className="c-chk-box">{traceOpts.ignoreWhite && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atIgnoreWhite || (lang === 'en' ? 'Ignore White Background' : 'Abaikan Latar Putih')}</span></button><button type="button" role="checkbox" aria-checked={traceOpts.keepOriginalImage} data-testid="auto-trace-keep-img" data-tip="veAutoTraceKeepImg" className={'c-chk' + (traceOpts.keepOriginalImage ? ' on' : '')} onClick={() => setTraceOpts((p: any) => ({ ...p, keepOriginalImage: !p.keepOriginalImage }))}><span className="c-chk-box">{traceOpts.keepOriginalImage && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{L.atKeepOriginal || (lang === 'en' ? 'Keep Original Image' : 'Pertahankan Gambar Asli')}</span></button></div></div>}</div>{tracingBusy && traceStageInfo && <div className="text-[10.5px] mut font-mono truncate px-2 py-1 rounded bg-[var(--sub)]" data-testid="auto-trace-progress">{traceStageInfo}</div>}<button type="button" className="btn pri fig-cta-btn w-full mt-2" data-testid="auto-trace-run-btn" data-tip="veAutoTraceRun" disabled={tracingBusy} onClick={runAutoTrace}><Ico n="wand" size={14} /><span>{tracingBusy ? (L.atTracing || (lang === 'en' ? 'Running SVGPeak VMT…' : 'Memproses SVGPeak VMT…')) : (L.atRunBtn || (lang === 'en' ? 'Trace Image to SVG (SVGPeak)' : 'Trace Gambar ke SVG (SVGPeak)'))}</span></button></div></div>}{showStyle && (() => {
   const styles = doc && Array.isArray(doc.styles) ? doc.styles : [];
   const recents = Array.isArray(recentColors) ? recentColors : [];
   const srcHex = primary && primary.type === 'text' && primary.text ? primary.text.fill : cp && cp.fill;
@@ -503,7 +597,7 @@ const EditorRightInspector = ({
     }, 'fill', styles) : o, 'p:fill');
     if (onRecentColor) onRecentColor(hex);
   };
-  return <div className="fig-isec fade" data-testid="color-styles-section" data-tip="veColorStyles" style={{ padding: '20px 18px' }}><div className="fig-isec-title"><span style={{ whiteSpace: 'nowrap' }}>{L.riColorStyles}</span></div><div className="flex flex-wrap gap-1.5 pb-1.5"><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="veStyleCreate" disabled={!canCreate} onClick={createStyleFromSelection}><Ico n="plus" size={11} /> {L.riStyleCreate}</button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="frOpen" data-testid="fr-open-styles" onClick={() => { setRcOpen(false); setFrOpen(v => !v); }}><Ico n="refresh" size={11} /> {L.frOpenBtn}</button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="rcOpen" data-testid="rc-open-styles" onClick={() => { setFrOpen(false); setRcOpen(v => !v); }}><Ico n="palette" size={11} /> {L.rcOpenBtn}</button></div>{styles.length === 0 ? <div className="text-[11px] mut">{L.riStyleEmpty}</div> : <div className="space-y-1.5">{styles.map(s => {
+  return <div className="fig-isec fade" data-testid="color-styles-section" data-tip="veColorStyles" style={{ padding: '20px 18px' }}><div className="fig-isec-title"><span style={{ whiteSpace: 'nowrap' }}>{L.riColorStyles}</span></div><div className="flex flex-wrap gap-1.5 pb-1.5"><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }} data-tip="veStyleCreate" disabled={!canCreate} onClick={createStyleFromSelection}><Ico n="plus" size={11} /><span>{L.riStyleCreate}</span></button><button type="button" className={'ved-pill text-[10px]' + (frOpen ? ' on' : '')} style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, ...(frOpen ? { borderColor: 'var(--acc)', background: 'color-mix(in srgb, var(--acc) 16%, var(--card))', color: 'var(--fig-sel-ink)' } : {}) }} data-tip="frOpen" data-testid="fr-open-styles" onClick={() => { setRcOpen(false); setFrOpen(v => !v); }}><Ico n="refresh" size={11} /><span>{L.frOpenBtn}</span></button><button type="button" className={'ved-pill text-[10px]' + (rcOpen ? ' on' : '')} style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, ...(rcOpen ? { borderColor: 'var(--acc)', background: 'color-mix(in srgb, var(--acc) 16%, var(--card))', color: 'var(--fig-sel-ink)' } : {}) }} data-tip="rcOpen" data-testid="rc-open-styles" onClick={() => { setFrOpen(false); setRcOpen(v => !v); }}><Ico n="palette" size={11} /><span>{L.rcOpenBtn}</span></button></div>{styles.length === 0 ? <div className="text-[11px] mut">{L.riStyleEmpty}</div> : <div className="space-y-1.5">{styles.map(s => {
     const linkedCount = (doc.objects || []).filter(o => o.fillStyleId === s.id || o.strokeStyleId === s.id).length;
     return <div key={s.id} className="flex items-center gap-2 p-1.5 rounded-xl" style={{ background: 'var(--sub)' }} data-testid="style-row" data-style-id={s.id}><button type="button" className="swatch" style={{ background: s.hex }} data-tip="veStyleApply" data-style-id={s.id} aria-label={L.riStyleApply + ': ' + s.name} onClick={() => applyStyle(s.id)} /><ColorField L={L} tip="veStyleHex" value={s.hex} on={(v, meta) => editStyleHex(s, v, meta)} /><div className="flex-1 min-w-0"><CustomTextBox value={s.name} ariaLabel={L.riStyleRename} onCommit={v => renameStyleById(s, v)} /></div><span className="fig-badge">{L.riStyleCount.replace('{n}', String(linkedCount))}</span><button type="button" className="ved-pill text-[10px]" style={{ padding: '2px 6px' }} data-tip="veStyleDelete" onClick={() => deleteStyleById(s)}>×</button></div>;
   })}</div>}{recents.length > 0 && <div className="pt-2"><div className="fig-sub-lbl">{L.riRecentColors}</div><div className="flex flex-wrap gap-1.5" data-testid="recent-colors">{recents.map(c => <button key={c} type="button" className="swatch" style={{ background: c, width: 22, height: 22 }} data-tip="veRecentColor" data-color={c} aria-label={c} disabled={!paintTargetIds.size} onClick={() => applyRecentColor(c)} />)}</div></div>}</div>;
@@ -688,7 +782,33 @@ const EditorRightInspector = ({
               setDashCustomOpen(true);
             }
           }} />{(dashCustomOpen || activePreset === 'custom') && <div className="space-y-2 pt-2"><div><div className="fig-sub-lbl mb-1">{L.dashPattern || 'Pola Garis Putus'}</div><div data-testid="stroke-dasharray-input" className="fld px-2.5 py-1.5" onClick={e => { const el = e.currentTarget.querySelector('[role="textbox"]') as HTMLElement; el?.focus(); }}><CustomTextBox value={VE.formatDasharray(strokeCp.strokeDasharray)} placeholder="8 4" ariaLabel={L.dashPattern || 'Pola Garis Putus'} filterRe={/[^0-9\s.,]/g} onCommit={txt => { const arr = VE.parseDasharray(txt); commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeDasharray: arr } : o, 'p:dash'); }} /></div></div><div data-testid="stroke-dashoffset-range"><Range tip="veStrokeDashOffset" l={L.dashOffset || 'Offset'} v={strokeCp.strokeDashoffset || 0} min={-100} max={100} step={1} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeDashoffset: v } : o, 'p:dashoffset')} f={v => v + ' px'} /></div></div>}</>;
-        })()}</div></div>}</div></div>}{showStyle && (() => {
+        })()}</div><div className="grid grid-cols-2 gap-2 pt-2"><div><div className="fig-sub-lbl">{lang === 'en' ? 'Start Marker' : 'Marker Awal'}</div><Select testId="stroke-marker-start" value={strokeCp.strokeMarkerStart || 'none'} options={[['none', 'None'], ['arrow', 'Arrow'], ['stealth', 'Stealth'], ['dot', 'Dot'], ['diamond', 'Diamond'], ['bar', 'Bar']]} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeMarkerStart: v } : o, 'p:mstart')} lang={lang} /></div><div><div className="fig-sub-lbl">{lang === 'en' ? 'End Marker' : 'Marker Akhir'}</div><Select testId="stroke-marker-end" value={strokeCp.strokeMarkerEnd || 'none'} options={[['none', 'None'], ['arrow', 'Arrow'], ['stealth', 'Stealth'], ['dot', 'Dot'], ['diamond', 'Diamond'], ['bar', 'Bar']]} on={v => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, strokeMarkerEnd: v } : o, 'p:mend')} lang={lang} /></div></div>
+        <div className="pt-2.5 border-t border-[var(--line)] space-y-2" data-testid="appearance-stack-section">
+          <div className="flex items-center justify-between gap-2">
+            <span className="fig-sub-lbl mb-0">{lang === 'en' ? 'Extra Fills & Strokes' : 'Fill & Stroke Tambahan'}</span>
+            <div className="flex items-center gap-1.5">
+              <button type="button" data-testid="add-extra-fill-btn" data-tip="veAddExtraFill" className="ved-pill inline-flex items-center justify-center gap-1 text-[10px] py-1 px-2" onClick={() => commitObjs(o => paintTargetIds.has(o.id) ? { ...o, extraFills: [...(o.extraFills || []), { id: VE.uid(), color: '#000000', opacity: 0.35, pattern: 'none' }] } : o, 'p:efill-add')}>+ Fill</button>
+              <button type="button" data-testid="add-extra-stroke-btn" data-tip="veAddExtraStroke" className="ved-pill inline-flex items-center justify-center gap-1 text-[10px] py-1 px-2" onClick={() => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, extraStrokes: [...(o.extraStrokes || []), { id: VE.uid(), color: '#2563eb', width: 2, opacity: 1 }] } : o, 'p:estroke-add')}>+ Stroke</button>
+            </div>
+          </div>
+          {Array.isArray(cp?.extraFills) && cp.extraFills.map((ef: any, idx: number) => (
+            <div key={ef.id || idx} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--sub)] text-[11px]">
+              <ColorField L={L} value={ef.color} on={(v: string) => commitObjs(o => paintTargetIds.has(o.id) ? { ...o, extraFills: (o.extraFills || []).map((x: any, j: number) => j === idx ? { ...x, color: v } : x) } : o, 'p:efill-col')} />
+              <div className="flex-1 min-w-0">
+                <Select testId={`extra-fill-pattern-${idx}`} value={ef.pattern || 'none'} options={[['none', 'Solid'], ['dots', 'Dots'], ['stripes', 'Stripes'], ['grid', 'Grid'], ['checker', 'Checker']]} on={v => commitObjs(o => paintTargetIds.has(o.id) ? { ...o, extraFills: (o.extraFills || []).map((x: any, j: number) => j === idx ? { ...x, pattern: v } : x) } : o, 'p:efill-pat')} lang={lang} />
+              </div>
+              <button type="button" data-tip="veRemoveExtraPaint" className="fig-ibtn inline-flex items-center justify-center text-xs shrink-0" onClick={() => commitObjs(o => paintTargetIds.has(o.id) ? { ...o, extraFills: (o.extraFills || []).filter((_: any, j: number) => j !== idx) } : o, 'p:efill-del')}>×</button>
+            </div>
+          ))}
+          {Array.isArray(cp?.extraStrokes) && cp.extraStrokes.map((es: any, idx: number) => (
+            <div key={es.id || idx} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--sub)] text-[11px]">
+              <ColorField L={L} value={es.color} on={(v: string) => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, extraStrokes: (o.extraStrokes || []).map((x: any, j: number) => j === idx ? { ...x, color: v } : x) } : o, 'p:estroke-col')} />
+              <span className="flex-1 truncate font-mono">{es.width}px</span>
+              <button type="button" data-tip="veRemoveExtraPaint" className="fig-ibtn inline-flex items-center justify-center text-xs shrink-0" onClick={() => commitObjs(o => strokeTargetIds.has(o.id) ? { ...o, extraStrokes: (o.extraStrokes || []).filter((_: any, j: number) => j !== idx) } : o, 'p:estroke-del')}>×</button>
+            </div>
+          ))}
+        </div>
+        </div>}</div></div>}{showStyle && (() => {
   const fxList = (cp && cp.effects) || [];
   const fxApply = (fn, key) => commitObjs(o => paintTargetIds.has(o.id) ? fn(o) : o, key);
   const fxLive = fn => { if (livePaint) livePaint(o => paintTargetIds.has(o.id) ? fn(o) : o, { previewOnly: true }); };
@@ -699,28 +819,66 @@ const EditorRightInspector = ({
   };
   const fxAdd = type => {
     setFxMenuOpen(false);
-    if (type === 'dropShadow') fxApply(o => addEffect(o, { type: 'dropShadow', dx: 12, dy: 12, blur: 4, color: '#000000', opacity: 0.8 }), 'fx:add');
+    if (type === 'dropShadow') fxApply(o => addEffect(o, { type: 'dropShadow', dx: 12, dy: 12, blur: 4, spread: 0, color: '#000000', opacity: 0.8 }), 'fx:add');
+    else if (type === 'innerShadow') fxApply(o => addEffect(o, { type: 'innerShadow', dx: 4, dy: 4, blur: 6, spread: 0, color: '#000000', opacity: 0.55 }), 'fx:add');
+    else if (type === 'outerGlow') fxApply(o => addEffect(o, { type: 'outerGlow', blur: 12, spread: 0, color: '#38bdf8', opacity: 0.75 }), 'fx:add');
+    else if (type === 'innerGlow') fxApply(o => addEffect(o, { type: 'innerGlow', blur: 10, spread: 0, color: '#38bdf8', opacity: 0.65 }), 'fx:add');
     else if (type === 'layerBlur') fxApply(o => addEffect(o, { type: 'layerBlur', radius: 8 }), 'fx:add');
     else if (type === 'backgroundBlur') fxApply(o => addEffect(o, { type: 'backgroundBlur', radius: 12 }), 'fx:add');
+    else if (type === 'noiseGrain') fxApply(o => addEffect(o, { type: 'noiseGrain', amount: 0.35, size: 2 }), 'fx:add');
+  };
+  const fxLabel = type => {
+    const isEn = lang === 'en';
+    if (type === 'dropShadow') return L.fxDropShadow;
+    if (type === 'innerShadow') return 'Inner Shadow';
+    if (type === 'outerGlow') return 'Outer Glow';
+    if (type === 'innerGlow') return 'Inner Glow';
+    if (type === 'layerBlur') return L.fxLayerBlur;
+    if (type === 'backgroundBlur') return L.fxBackgroundBlur;
+    if (type === 'noiseGrain') return isEn ? 'Noise / Grain' : 'Noise / Grain';
+    return type;
   };
   return primary && <div className="fig-isec fade" data-testid="fx-section" data-tip="veFx">
   <div className="fig-isec-title"><span>{L.fxTitle}{fxList.length ? ' (' + fxList.length + ')' : ''}</span></div>
   <div className="flex flex-wrap gap-1.5 pb-1.5"><button type="button" ref={fxAddBtnRef} className="ved-pill text-[10px]" style={{ padding: '6px 12px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="veFxAdd" data-testid="fx-add" aria-expanded={fxMenuOpen} onClick={() => setFxMenuOpen(o => !o)}>+ {L.fxAdd}</button></div>
-  <Float anchor={fxAddBtnRef} open={fxMenuOpen} onClose={() => setFxMenuOpen(false)} w={220} cls="cp" preferUp={true}><div className="space-y-1"><button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-shadow" data-tip="veFxAddShadow" onClick={() => fxAdd('dropShadow')}>{L.fxDropShadow}</button><button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-layerblur" data-tip="veFxAddLayerBlur" onClick={() => fxAdd('layerBlur')}>{L.fxLayerBlur}</button><button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-bgblur" data-tip="veFxAddBgBlur" onClick={() => fxAdd('backgroundBlur')}>{L.fxBackgroundBlur}</button></div></Float>
+  <Float anchor={fxAddBtnRef} open={fxMenuOpen} onClose={() => setFxMenuOpen(false)} w={220} cls="cp" preferUp={true}><div className="space-y-1">
+    <button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-shadow" data-tip="veFxAddShadow" onClick={() => fxAdd('dropShadow')}>{L.fxDropShadow}</button>
+    <button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-innerShadow" data-tip="veFxAddInnerShadow" onClick={() => fxAdd('innerShadow')}>Inner Shadow</button>
+    <button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-outerGlow" data-tip="veFxAddOuterGlow" onClick={() => fxAdd('outerGlow')}>Outer Glow</button>
+    <button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-innerGlow" data-tip="veFxAddInnerGlow" onClick={() => fxAdd('innerGlow')}>Inner Glow</button>
+    <button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-layerblur" data-tip="veFxAddLayerBlur" onClick={() => fxAdd('layerBlur')}>{L.fxLayerBlur}</button>
+    <button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-bgblur" data-tip="veFxAddBgBlur" onClick={() => fxAdd('backgroundBlur')}>{L.fxBackgroundBlur}</button>
+    <button type="button" className="ved-pill w-full" style={{ padding: '6px 12px' }} data-testid="fx-add-noiseGrain" data-tip="veFxAddNoiseGrain" onClick={() => fxAdd('noiseGrain')}>Noise / Grain</button>
+  </div></Float>
   {fxList.length === 0 ? (
     <div className="text-[11px] mut">{L.fxEmpty}</div>
   ) : (
     <div className="space-y-2">
       {fxList.map((fx, i) => (
         <div key={i} data-testid="fx-row" data-fx-idx={i} data-fx-type={fx.type} className="space-y-2" style={fx.disabled ? { opacity: 0.45 } : undefined}>
-          <div className="flex items-center gap-1.5"><span className="text-[11px] font-medium flex-1 truncate">{fx.type === 'dropShadow' ? L.fxDropShadow : fx.type === 'layerBlur' ? L.fxLayerBlur : L.fxBackgroundBlur}</span><button type="button" className="fig-ibtn" data-tip="veFxToggle" data-testid="fx-toggle" aria-pressed={!fx.disabled} onClick={() => fxApply(o => toggleEffect(o, i), 'fx:toggle')}><Ico n={fx.disabled ? 'eyeOff' : 'eye'} size={14} /></button><button type="button" className="fig-ibtn" data-tip="veFxDelete" data-testid="fx-del" onClick={() => fxApply(o => removeEffect(o, i), 'fx:del')}>×</button></div>
-          {fx.type === 'dropShadow' && (
+          <div className="flex items-center gap-1.5"><span className="text-[11px] font-medium flex-1 truncate">{fxLabel(fx.type)}</span><button type="button" className="fig-ibtn" data-tip="veFxToggle" data-testid="fx-toggle" aria-pressed={!fx.disabled} onClick={() => fxApply(o => toggleEffect(o, i), 'fx:toggle')}><Ico n={fx.disabled ? 'eyeOff' : 'eye'} size={14} /></button><button type="button" className="fig-ibtn" data-tip="veFxDelete" data-testid="fx-del" onClick={() => fxApply(o => removeEffect(o, i), 'fx:del')}>×</button></div>
+          {(fx.type === 'dropShadow' || fx.type === 'innerShadow') && (
             <div className="space-y-2">
               <div data-testid="fx-dx"><Range l={L.fxDx} v={fx.dx} min={-100} max={100} step={1} on={fxNum(i, v => ({ dx: v }))} tip="veFxDx" /></div>
               <div data-testid="fx-dy"><Range l={L.fxDy} v={fx.dy} min={-100} max={100} step={1} on={fxNum(i, v => ({ dy: v }))} tip="veFxDy" /></div>
               <div data-testid="fx-blur"><Range l={L.fxBlur} v={fx.blur} min={0} max={100} step={1} on={fxNum(i, v => ({ blur: v }))} tip="veFxBlur" /></div>
+              <div data-testid="fx-spread"><Range l="Spread" v={fx.spread || 0} min={0} max={60} step={1} on={fxNum(i, v => ({ spread: v }))} /></div>
               <div className="flex items-center gap-2"><ColorField L={L} tip="veFxColor" value={fx.color} on={(v, meta) => { if (v === 'none') return; const fn = o => updateEffect(o, i, { color: v }); if (meta && meta.isLive) fxLive(fn); else fxApply(fn, 'fx-color'); }} /><span className="text-[11px] font-mono flex-1 truncate">{String(fx.color || '').toUpperCase()}</span></div>
               <div data-testid="fx-opacity"><Range l={L.fxOpacity} v={Math.round((fx.opacity ?? 1) * 100)} min={0} max={100} step={1} on={fxNum(i, v => ({ opacity: v / 100 }))} tip="veFxOpacity" f={v => v + '%' } /></div>
+            </div>
+          )}
+          {(fx.type === 'outerGlow' || fx.type === 'innerGlow') && (
+            <div className="space-y-2">
+              <div data-testid="fx-blur"><Range l={L.fxBlur} v={fx.blur} min={0} max={100} step={1} on={fxNum(i, v => ({ blur: v }))} /></div>
+              <div data-testid="fx-spread"><Range l="Spread" v={fx.spread || 0} min={0} max={60} step={1} on={fxNum(i, v => ({ spread: v }))} /></div>
+              <div className="flex items-center gap-2"><ColorField L={L} tip="veFxColor" value={fx.color} on={(v, meta) => { if (v === 'none') return; const fn = o => updateEffect(o, i, { color: v }); if (meta && meta.isLive) fxLive(fn); else fxApply(fn, 'fx-color'); }} /><span className="text-[11px] font-mono flex-1 truncate">{String(fx.color || '').toUpperCase()}</span></div>
+              <div data-testid="fx-opacity"><Range l={L.fxOpacity} v={Math.round((fx.opacity ?? 1) * 100)} min={0} max={100} step={1} on={fxNum(i, v => ({ opacity: v / 100 }))} f={v => v + '%' } /></div>
+            </div>
+          )}
+          {fx.type === 'noiseGrain' && (
+            <div className="space-y-2">
+              <Range l={lang === 'en' ? 'Amount' : 'Intensitas'} v={Math.round((fx.amount ?? 0.35) * 100)} min={0} max={100} step={1} on={fxNum(i, v => ({ amount: v / 100 }))} f={v => v + '%'} />
+              <Range l={lang === 'en' ? 'Grain Size' : 'Ukuran Grain'} v={fx.size || 2} min={1} max={8} step={1} on={fxNum(i, v => ({ size: v }))} />
             </div>
           )}
           {(fx.type === 'layerBlur' || fx.type === 'backgroundBlur') && (
@@ -730,7 +888,7 @@ const EditorRightInspector = ({
       ))}
     </div>
   )}
-</div>; })()}{showStyle && selectionColors.length > 0 && <div className="fig-isec fade" data-testid="selection-colors-section"><div className="fig-isec-title"><span>Selection colors ({selectionColors.length})</span><span className="text-[10px] mut font-normal">{L.riSelColorHint}</span></div><div className="flex flex-wrap gap-1.5 pb-1.5"><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="rcOpen" data-testid="rc-open-selcolors" onClick={() => { setFrOpen(false); setRcOpen(v => !v); }}><Ico n="palette" size={11} /> {L.rcOpenBtn}</button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} data-tip="frOpen" data-testid="fr-open-selcolors" onClick={() => { setRcOpen(false); setFrOpen(v => !v); }}><Ico n="refresh" size={11} /> {L.frOpenBtn}</button></div><div className="flex flex-wrap items-center gap-1.5 pb-1.5"><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="veSelSameFill" data-testid="sel-same-fill" onClick={() => onSelectSame('fill')}><Ico n="drop" size={11} /> {L.edCtxSelSameFill}</button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="veSelSameStroke" data-testid="sel-same-stroke" onClick={() => onSelectSame('stroke')}><Ico n="pencil" size={11} /> {L.edCtxSelSameStroke}</button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }} data-tip="veSelSameType" data-testid="sel-same-type" onClick={() => onSelectSame('type')}><Ico n="shapes" size={11} /> {L.edCtxSelSameType}</button></div><div className="sel-col-list space-y-1.5">{selectionColors.slice(0, 40).map(sc => <div key={sc.stableKey} className="flex items-center gap-2 p-1.5 rounded-xl" style={{
+</div>; })()}{showStyle && selectionColors.length > 0 && <div className="fig-isec fade" data-testid="selection-colors-section"><div className="fig-isec-title"><span>Selection colors ({selectionColors.length})</span><span className="text-[10px] mut font-normal">{L.riSelColorHint}</span></div><div className="flex flex-wrap gap-1.5 pb-1.5"><button type="button" className={'ved-pill text-[10px]' + (rcOpen ? ' on' : '')} style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, ...(rcOpen ? { borderColor: 'var(--acc)', background: 'color-mix(in srgb, var(--acc) 16%, var(--card))', color: 'var(--fig-sel-ink)' } : {}) }} data-tip="rcOpen" data-testid="rc-open-selcolors" onClick={() => { setFrOpen(false); setRcOpen(v => !v); }}><Ico n="palette" size={11} /><span>{L.rcOpenBtn}</span></button><button type="button" className={'ved-pill text-[10px]' + (frOpen ? ' on' : '')} style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, ...(frOpen ? { borderColor: 'var(--acc)', background: 'color-mix(in srgb, var(--acc) 16%, var(--card))', color: 'var(--fig-sel-ink)' } : {}) }} data-tip="frOpen" data-testid="fr-open-selcolors" onClick={() => { setRcOpen(false); setFrOpen(v => !v); }}><Ico n="refresh" size={11} /><span>{L.frOpenBtn}</span></button></div><div className="flex flex-wrap items-center gap-1.5 pb-1.5"><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }} data-tip="veSelSameFill" data-testid="sel-same-fill" onClick={() => onSelectSame('fill')}><Ico n="drop" size={11} /><span>{L.edCtxSelSameFill}</span></button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }} data-tip="veSelSameStroke" data-testid="sel-same-stroke" onClick={() => onSelectSame('stroke')}><Ico n="pencil" size={11} /><span>{L.edCtxSelSameStroke}</span></button><button type="button" className="ved-pill text-[10px]" style={{ padding: '6px 10px', flex: 1, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }} data-tip="veSelSameType" data-testid="sel-same-type" onClick={() => onSelectSame('type')}><Ico n="shapes" size={11} /><span>{L.edCtxSelSameType}</span></button></div><div className="sel-col-list space-y-1.5">{selectionColors.slice(0, 40).map(sc => <div key={sc.stableKey} className="flex items-center gap-2 p-1.5 rounded-xl" style={{
           background: 'var(--sub)'
         }}><ColorField L={L} tip="veSelColor" value={sc.raw || sc.hex} on={(v, meta) => replaceSelectionColor(sc, v, meta)} /><span className="text-[11px] font-mono flex-1 truncate">{(sc.raw || sc.hex).toUpperCase()}</span><span className="fig-badge">{sc.kind === 'grad' ? L.riKindGrad : sc.kind === 'fill' ? 'Fill' : 'Stroke'} · {sc.ids.length}</span><button type="button" className="ved-pill text-[10px]" style={{
             padding: '2px 6px'
@@ -740,7 +898,7 @@ const EditorRightInspector = ({
               nodes: new Set()
             });
             say(sc.ids.length + ' objek ' + sc.hex.toUpperCase() + ' dipilih');
-          }}>◎</button></div>)}</div></div>}{(showStyle || showTools) && <FindReplaceSection open={frOpen} onClose={() => setFrOpen(false)} committedDoc={committedDoc} selIds={new Set(selObjs.map(o => o.id))} onPreviewDoc={onFrPreviewDoc} onCommitPreview={onFrCommitPreview} say={say} L={L} onRecentColor={onRecentColor} />}{(showStyle || showTools) && <RecolorSection open={rcOpen} onClose={() => setRcOpen(false)} committedDoc={committedDoc} selIds={new Set(selObjs.map(o => o.id))} onPreviewDoc={onRcPreviewDoc} onCommitPreview={onRcCommitPreview} say={say} L={L} />}{showTransform && <div className="fig-isec" data-tip="veLayPanel"><div className="fig-isec-title"><span>Auto layout</span><div className="flex items-center gap-1"><button type="button" className="ved-pill text-[10px]" style={{
+          }}>◎</button></div>)}</div></div>}{(showStyle || showTools) && <FindReplaceSection open={frOpen} onClose={() => setFrOpen(false)} committedDoc={committedDoc} selIds={new Set(selObjs.map(o => o.id))} onPreviewDoc={onFrPreviewDoc} onCommitPreview={onFrCommitPreview} say={say} L={L} onRecentColor={onRecentColor} />}{(showStyle || showTools) && <RecolorSection open={rcOpen} onClose={() => setRcOpen(false)} committedDoc={committedDoc} selIds={new Set(selObjs.map(o => o.id))} onPreviewDoc={onRcPreviewDoc} onCommitPreview={onRcCommitPreview} onPendingChange={setRcPending} say={say} L={L} />}{showTransform && <div className="fig-isec" data-tip="veLayPanel"><div className="fig-isec-title"><span>Auto layout</span><div className="flex items-center gap-1"><button type="button" className="ved-pill text-[10px]" style={{
             padding: '2px 6px'
           }} data-tip="veFrameAuto" disabled={!selObjs.some(o => o.group)} onClick={() => convertFrameToAutoLayout()}>{L.riFrameToAuto}</button></div></div><div className="fig-sub-lbl" data-tip="veLayDir">Flow</div><div className="fig-flow-bar mb-2.5"><button type="button" className={lay.dir === 'row' ? 'on' : ''} data-tip="veLayRow" onClick={() => layUpdD({
           dir: 'row'
@@ -787,15 +945,36 @@ const EditorRightInspector = ({
           })} /></div><div className="pt-1.5" data-tip="veAntialias"><div className="fig-sub-lbl">{(lang === 'en' ? TIPS_EN : TIPS).veAntialias.t}</div><Seg o={[['off', (lang === 'en' ? TIPS_EN : TIPS).veAntialiasOff.t], ['on', (lang === 'en' ? TIPS_EN : TIPS).veAntialiasOn.t]]} v={antialias ? 'on' : 'off'} on={v => setAntialias && setAntialias(v === 'on')} tip="veAntialias" tips={{
             off: 'veAntialiasOff',
             on: 'veAntialiasOn'
-          }} /></div></div></div>}{showExport && <div className="fig-isec" data-tip="veExpFmt"><div className="fig-isec-title"><span>{L.riExportImport}</span><button type="button" className="fig-ibtn" data-tip="veImport" aria-label={(lang === 'en' ? TIPS_EN : TIPS).veImport.t} onClick={() => pickFiles('.svg,.ai,.ps,.eps,.pdf,.png,.jpg,.jpeg,.webp,.gif,.ttf,.otf,image/*,font/*,application/postscript,application/pdf', fs => importFiles(fs))}><Ico n="upload" size={14} /></button></div><div className="space-y-2"><div><div className="fig-sub-lbl">{L.riExportFmt}</div><div className="ved-pills">{[['svg', 'SVG'], ['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['ai', 'AI'], ['eps', 'EPS']].map(([k, lb]) => <button key={k} type="button" data-tip={'veExp_' + k} className={'ved-pill' + (expFmt === k ? ' on' : '')} onClick={() => setExpFmt(k)}>{lb}</button>)}</div></div>{isRasterFmt(expFmt) && <div className="fade"><div className="fig-sub-lbl" data-tip="veExpScale">{L.riScaleRes}</div><Seg o={[[1, '1x'], [2, '2x (HD)'], [4, '4x (Ultra)']]} v={expScale} on={setExpScale} tip="veExpScale" tips={{
-            1: 'veExpS_1',
-            2: 'veExpS_2',
-            4: 'veExpS_4'
-          }} /></div>}<div><div className="fig-sub-lbl">{L.riExportArea}</div><Seg o={[['board', 'Artboard'], ['content', L.riAreaAll], ['sel', L.riAreaSel]]} v={exportArea} on={setExportArea} tip="veArea" tips={{
-            board: 'veAreaBoard',
-            content: 'veAreaAll',
-            sel: 'veAreaSel'
-          }} /></div><div className="flex gap-2 pt-1"><button type="button" className="btn sec fig-cta-btn flex-1" data-tip="veCopy" onClick={exportSvg}><Ico n="copy" size={14} />{L.riCopy} {expFmt.toUpperCase()}</button><button type="button" className={'btn ' + (applyPri ? 'sec' : 'pri') + ' fig-cta-btn flex-1'} data-tip="veDownload" onClick={downloadSvg}><Ico n="download" size={14} />{L.riDownload} .{expFmt.toUpperCase()}</button></div>{onOpenCodeInspector && <button type="button" className="btn sec fig-cta-btn w-full mt-1.5 text-xs flex items-center justify-between" data-tip="veSvgCodeInspector" data-testid="inspector-code-btn" onClick={() => onOpenCodeInspector()}><span className="flex items-center gap-1.5"><Ico n="code" size={13} /><span>{L.riInspectSvgCode || (lang === 'en' ? 'Inspect SVG Code' : 'Inspeksi Kode SVG')}</span></span><span className="text-[10px] font-mono mut px-1.5 py-0.5 rounded bg-[var(--sub)]">Ctrl+Alt+C</span></button>}{onExportBackup && <button type="button" className="btn sec fig-cta-btn w-full mt-1.5 text-xs" onClick={() => onExportBackup()}><Ico n="database" size={13} /><span>{L.riExportBackup}</span></button>}</div></div>}</div><OverlayScrollbar scrollRef={rScrollRef} testIdPrefix="right-sidebar-scrollbar" /></div></aside>);
+          }} /></div></div></div>}{showExport && (
+            <ExportInspectorSection
+              L={L}
+              lang={lang}
+              expFmt={expFmt}
+              setExpFmt={setExpFmt}
+              isRasterFmt={isRasterFmt}
+              expScale={expScale}
+              setExpScale={setExpScale}
+              expQuality={expQuality}
+              setExpQuality={setExpQuality}
+              svgMinify={svgMinify}
+              setSvgMinify={setSvgMinify}
+              pdfBleedMm={pdfBleedMm}
+              setPdfBleedMm={setPdfBleedMm}
+              pdfCropMarks={pdfCropMarks}
+              setPdfCropMarks={setPdfCropMarks}
+              pdfColorSpace={pdfColorSpace}
+              setPdfColorSpace={setPdfColorSpace}
+              exportArea={exportArea}
+              setExportArea={setExportArea}
+              exportSvg={exportSvg}
+              downloadSvg={downloadSvg}
+              batchExport={batchExport}
+              getExportFilename={getExportFilename}
+              importFiles={importFiles}
+              applyPri={applyPri}
+              onExportBackup={onExportBackup}
+            />
+          )}</div><OverlayScrollbar scrollRef={rScrollRef} testIdPrefix="right-sidebar-scrollbar" /></div></aside>);
 };
 
 export { EditorRightInspector };

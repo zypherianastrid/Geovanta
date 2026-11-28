@@ -7,6 +7,7 @@ import {
   ChartDataKind,
   ChartConfig,
   createBaseChartConfig,
+  applyChartTheme,
 } from './chartTypes.ts';
 
 export type ChartCategoryId =
@@ -80,9 +81,9 @@ export const CHART_CATALOG: ChartCatalogItem[] = [
     iconPath: 'M4 20h16 M6 17v-6h3v6 M10.5 17V7h3v10 M15 17v-9h3v9',
     applyPreset: cfg => {
       cfg.title.text = 'Total revenue';
-      cfg.colors = ['#C8C2FA', '#6C5CE7', '#1E1E24', '#FF922B', '#EC4899'];
-      cfg.seriesStyle.barWidth = 10;
-      cfg.seriesStyle.barBorderRadius = 99;
+      cfg.colors = ['#A5B4FC', '#6366F1', '#0F172A', '#10B981', '#EC4899'];
+      cfg.seriesStyle.barWidth = 16;
+      cfg.seriesStyle.barBorderRadius = 8;
       cfg.yAxis.valuePrefix = '$';
       cfg.yAxis.valueSuffix = 'k';
       cfg.periodPills.show = true;
@@ -176,11 +177,14 @@ export const CHART_CATALOG: ChartCatalogItem[] = [
     descEn: 'Smooth curve with soft gradient fill & KPI hero',
     iconPath: 'M4 20h16 M4 16C7 9 10 14 14 9s4-2 6-4v15H4z',
     applyPreset: cfg => {
-      cfg.colors = ['#10B981', '#6C5CE7', '#FF922B'];
+      cfg.colors = ['#10B981', '#6366F1', '#F59E0B'];
       cfg.seriesStyle.smooth = true;
       cfg.seriesStyle.areaFill = true;
-      cfg.seriesStyle.areaOpacity = 0.25;
+      cfg.seriesStyle.areaOpacity = 0.28;
       cfg.seriesStyle.showSymbol = false;
+      cfg.yAxis.valuePrefix = '$';
+      cfg.yAxis.valueSuffix = 'k';
+      cfg.periodPills.show = false;
       cfg.title.text = 'Total revenue';
       cfg.kpi = {
         show: true,
@@ -223,11 +227,14 @@ export const CHART_CATALOG: ChartCatalogItem[] = [
     descEn: 'Modern rounded donut with pill percentage badges',
     iconPath: 'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0 M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0',
     applyPreset: cfg => {
-      cfg.colors = ['#6C5CE7', '#FF922B', '#EC4899', '#10B981', '#38BDF8'];
-      cfg.seriesStyle.pieInnerRadius = 48;
+      cfg.colors = ['#6366F1', '#F59E0B', '#EC4899', '#10B981', '#06B6D4'];
+      cfg.seriesStyle.pieInnerRadius = 52;
       cfg.seriesStyle.pieOuterRadius = 74;
-      cfg.seriesStyle.piePadAngle = 4;
+      cfg.seriesStyle.piePadAngle = 3;
       cfg.seriesStyle.pieCornerRadius = 8;
+      cfg.seriesStyle.showDonutCenter = true;
+      cfg.seriesStyle.donutCenterLabel = 'Total';
+      cfg.periodPills.show = false;
       cfg.dataLabel.show = true;
       cfg.dataLabel.pillBadge = true;
       cfg.title.text = 'Order status';
@@ -583,33 +590,62 @@ export function createChartConfigForType(chartType: EChartsSeriesType, presetId?
 export function convertChartConfigType(
   prev: ChartConfig,
   nextChartType: EChartsSeriesType,
-  nextPresetId?: string
+  nextPresetId?: string,
+  opts?: { preserveVisuals?: boolean }
 ): ChartConfig {
   const item = getCatalogItem(nextChartType, nextPresetId);
   const fresh = createChartConfigForType(item.chartType, item.id);
-  return {
+  const preserveVisuals = !!opts?.preserveVisuals;
+
+  // Keep user-edited title only if it differs from default catalog titles
+  const prevTitle = (prev.title?.text || '').trim();
+  const knownDefaultTitles = new Set(
+    CHART_CATALOG.map(c => {
+      const tmp = createBaseChartConfig(c.chartType, c.id);
+      if (c.applyPreset) c.applyPreset(tmp);
+      return tmp.title.text;
+    })
+  );
+  const keepTitle = prevTitle && !knownDefaultTitles.has(prevTitle);
+
+  let next: ChartConfig = {
     ...fresh,
     width: prev.width,
     height: prev.height,
+    themeId: prev.themeId || 'saas-light',
     backgroundColor: prev.backgroundColor,
     transparentBg: prev.transparentBg,
     borderColor: prev.borderColor,
     borderWidth: prev.borderWidth,
     borderRadius: prev.borderRadius,
-    paletteId: prev.paletteId,
-    colors: [...prev.colors],
-    useGradient: prev.useGradient,
-    gradientDirection: prev.gradientDirection,
     card: { ...prev.card },
-    kpi: { ...prev.kpi },
-    periodPills: { ...prev.periodPills },
     footnote: { ...prev.footnote },
     typography: JSON.parse(JSON.stringify(prev.typography)),
     title: {
-      ...prev.title,
+      ...fresh.title,
+      show: prev.title.show,
+      left: prev.title.left,
+      text: keepTitle ? prev.title.text : fresh.title.text,
+      subtext: keepTitle ? prev.title.subtext : fresh.title.subtext,
     },
-    legend: { ...prev.legend },
+    legend: {
+      ...prev.legend,
+      show: fresh.legend.show,
+    },
     data: JSON.parse(JSON.stringify(prev.data)),
     customOptionJson: prev.customOptionJson,
   };
+
+  if (preserveVisuals) {
+    next.paletteId = prev.paletteId;
+    next.colors = [...prev.colors];
+    next.useGradient = prev.useGradient;
+    next.gradientDirection = prev.gradientDirection;
+    next.kpi = { ...prev.kpi };
+    next.periodPills = { ...prev.periodPills };
+  } else if (prev.themeId && prev.themeId !== 'saas-light') {
+    next = applyChartTheme(next, prev.themeId);
+  }
+
+  return next;
 }

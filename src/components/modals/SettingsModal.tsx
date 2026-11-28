@@ -12,6 +12,7 @@ import { LS_KEY, DEFAULT_PREFS, ACCENT_PALETTE } from '../../constants/themeAndP
 import { GEOMETRY_CACHE } from '../../renderer/geometryCache.tsx';
 import { Ico, Keys } from '../ui/IconGlyphs.tsx';
 import { Seg } from '../ui/SegmentedControl.tsx';
+import { CustomTextBox } from '../ui/CustomTextBox.tsx';
 import { ColorField } from '../ui/ColorPickerField.tsx';
 import { parseColorWithAlpha } from '../../utils/colorParserAndFormatter.tsx';
 import { ColorText } from '../ui/ColorHexInput.tsx';
@@ -22,6 +23,8 @@ import { SC, SC_EN } from '../../constants/keyboardShortcuts.tsx';
 import { getSettingsStr } from '../../constants/settingsI18n.tsx';
 import { getAppStr } from '../../constants/appI18n.tsx';
 import { aiLiveConnector } from '../../bridge/aiLiveConnector.tsx';
+import { DebugLogPanel } from '../editor/DebugLogPanel.tsx';
+import { DEBUG_LOG } from '../../utils/debugLogger.tsx';
 
 const AI_TOOLS_LIST = [
   { name: 'geovanta_workspace_manage', mode: 'Live Full', desc: 'Mengelola ruang kerja & proyek: buat proyek baru, lihat daftar proyek, buka, ganti nama, duplikasi, favorit, pindahkan ke sampah, atau kembali ke layar Workspace.', descEn: 'Manage workspace & projects: create, list, open, rename, duplicate, favorite, move to trash, or return to the Workspace screen.' },
@@ -68,6 +71,24 @@ const Settings = ({
   flash
 }) => {
   const [sTab, setSTab] = useState('umum');
+  const [debugEnabled, setDebugEnabled] = useState(() => DEBUG_LOG.isEnabled());
+  useEffect(() => {
+    if (!open) return;
+    setDebugEnabled(DEBUG_LOG.isEnabled());
+  }, [open]);
+  const toggleDebugMode = () => {
+    const next = !DEBUG_LOG.isEnabled();
+    DEBUG_LOG.setEnabled(next);
+    setDebugEnabled(next);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('geovanta-debug-state-change', { detail: { enabled: next } }));
+    }
+    if (next) {
+      try {
+        DEBUG_LOG.log('perf', 'perf-snapshot', 'toggleDebugMode', 'src/components/modals/SettingsModal.tsx', PERF_TELEMETRY.getBadgeText());
+      } catch (e) {}
+    }
+  };
   const aboutHeroRef = useRef<HTMLDivElement | null>(null);
   const [advRenderOpen, setAdvRenderOpen] = useState(false);
   const [renderCfg, setRenderCfgS] = useState(() => ({
@@ -115,14 +136,15 @@ const Settings = ({
     return () => unsub();
   }, []);
 
+  const isEn = !!(prefs && prefs.lang === 'en');
   const toggleAiEnabled = (on: boolean) => {
     setAiEnabled(on);
     aiLiveConnector.setEnabled(on);
     if (!on) {
       setAiLastError(null);
-      flash && flash('Fungsi AI & MCP dinonaktifkan');
+      flash && flash(isEn ? 'AI & MCP features disabled' : 'Fungsi AI & MCP dinonaktifkan');
     } else {
-      flash && flash('Fungsi AI & MCP diaktifkan — menghubungkan ke server...');
+      flash && flash(isEn ? 'AI & MCP features enabled — connecting to server...' : 'Fungsi AI & MCP diaktifkan — menghubungkan ke server...');
     }
   };
 
@@ -140,12 +162,12 @@ const Settings = ({
       aiLiveConnector.setCustomWsUrl('');
     }
     aiLiveConnector.connect();
-    flash && flash('Mencoba menghubungkan ke server AI MCP...');
+    flash && flash(isEn ? 'Connecting to AI MCP server...' : 'Mencoba menghubungkan ke server AI MCP...');
   };
 
   const handleAiDisconnect = () => {
     aiLiveConnector.disconnect();
-    flash && flash('Koneksi AI MCP diputuskan');
+    flash && flash(isEn ? 'AI MCP connection disconnected' : 'Koneksi AI MCP diputuskan');
   };
 
   const toggleAiAuto = (on: boolean) => {
@@ -184,7 +206,7 @@ const Settings = ({
   const copyText = (text: string, label: string) => {
     if (navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(text);
-      flash && flash(`${label} disalin ke clipboard!`);
+      flash && flash(isEn ? `${label} copied to clipboard!` : `${label} disalin ke clipboard!`);
     }
   };
   if (!m) return null;
@@ -278,10 +300,11 @@ const Settings = ({
     if (e.target === e.currentTarget) onClose();
   }}><div className="hp stg-modal" role="dialog" aria-label={L.title} style={{
       maxWidth: 740
-    }}><div className="hp-head"><div className="stg-hdr"><div className="stg-title-blk"><span className="stg-title-ico"><Ico n="settings" size={17} /></span><div className="flex flex-wrap items-baseline gap-2"><span className="text-sm font-semibold">{L.title}</span><span className="text-[11px] mut">{L.subtitle}</span></div></div><div className="flex flex-wrap items-center gap-2"><Seg v={sTab} on={setSTab} cls="ic" o={[['umum', L.tabGeneral, 'sliders'], ['keys', L.tabShortcuts, 'keyboard'], ['ai', L.tabAi || 'AI & MCP', 'sparkle']]} tips={{
+    }}><div className="hp-head"><div className="stg-hdr"><div className="stg-title-blk"><span className="stg-title-ico"><Ico n="settings" size={17} /></span><div className="flex flex-wrap items-baseline gap-2"><span className="text-sm font-semibold">{L.title}</span><span className="text-[11px] mut">{L.subtitle}</span></div></div><div className="flex flex-wrap items-center gap-2"><Seg v={sTab} on={setSTab} cls="ic" o={[['umum', L.tabGeneral, 'sliders'], ['keys', L.tabShortcuts, 'keyboard'], ['ai', L.tabAi || 'AI & MCP', 'sparkle'], ['debug', L.tabDebug || 'Debug', 'code']]} tips={{
               umum: 'setTabUmum',
               keys: 'setTabKeys',
-              ai: 'setTabAi'
+              ai: 'setTabAi',
+              debug: 'setTabDebug'
             }} /><button className="btn sec" style={{
               padding: 0,
               width: 32,
@@ -305,7 +328,7 @@ const Settings = ({
                       width: 104
             }}><ColorText L={getAppStr(prefs && prefs.lang)} value={prefs.accent || '#13b152'} on={v => {
                         if (v && v !== 'none') setAccentCustom(parseColorWithAlpha(v).hex);
-                      }} /></div><button type="button" className="btn sec text-[11px]" style={{
+                      }} /></div><button type="button" className="btn sec text-[11px]" data-tip="setAccentPipette" style={{
                       height: 30,
                       padding: '0 10px',
                       borderRadius: 9
@@ -316,7 +339,7 @@ const Settings = ({
                       height: 30,
                       padding: '0 10px',
                       borderRadius: 9
-                    }} onClick={() => setAccentCustom(generateRandomAccentColor(prefs.accent))}><Ico n="shuffle" size={13} /><span>{L.randomBtn}</span></button><button type="button" className="btn sec text-[11px]" style={{
+                    }} onClick={() => setAccentCustom(generateRandomAccentColor(prefs.accent))}><Ico n="shuffle" size={13} /><span>{L.randomBtn}</span></button><button type="button" className="btn sec text-[11px]" data-tip="setAccentDefault" style={{
                       height: 30,
                       padding: '0 10px',
                       borderRadius: 9
@@ -340,7 +363,7 @@ const Settings = ({
                 padding: '2px 8px'
               }}>{PERF_TELEMETRY.getBadgeText()}</span></div><div className="stg-group"><div className="stg-row"><div className="stg-meta"><span className="stg-ico"><Ico n="chip" size={15} /></span><div className="stg-txt"><span className="stg-lbl">{L.statBackend}</span><span className="stg-sub font-mono" style={{
                       color: 'var(--acc)'
-                    }}>{snap.activeBackend}</span></div></div><div className="stg-ctrl"><button type="button" className={'btn ' + (advRenderOpen ? 'pri' : 'sec') + ' text-[11px]'} style={{
+                    }}>{snap.activeBackend}</span></div></div><div className="stg-ctrl"><button type="button" data-tip="setEngineParams" className={'btn ' + (advRenderOpen ? 'pri' : 'sec') + ' text-[11px]'} style={{
                     padding: '6px 10px',
                     borderRadius: 9
                   }} onClick={() => setAdvRenderOpen(v => !v)}><Ico n="sliders" size={13} /><span>{L.paramsBtn}</span></button></div></div><div className="stg-row-col"><div className="stg-stat-wrap"><div className="stg-stat-pill"><span>{L.statBackend}</span><b style={{
@@ -362,7 +385,7 @@ const Settings = ({
   <div className="stg-sec">
     <div className="stg-sec-hdr">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="stg-sec-lbl"><Ico n="sparkle" size={13} /><span>Koneksi AI & MCP Live</span></span>
+        <span className="stg-sec-lbl"><Ico n="sparkle" size={13} /><span>{isEn ? 'Live AI & MCP Connection' : 'Koneksi AI & MCP Live'}</span></span>
         <span
           data-testid="ai-experimental-badge"
           className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold px-2 py-0.5 rounded-full"
@@ -373,7 +396,7 @@ const Settings = ({
           }}
         >
           <Ico n="flask" size={11} />
-          <span>Eksperimental</span>
+          <span>{isEn ? 'Experimental' : 'Eksperimental'}</span>
         </span>
       </div>
       <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1.5" style={{
@@ -390,13 +413,13 @@ const Settings = ({
       }}>
         <span className="w-2 h-2 rounded-full inline-block" style={{ background: !aiEnabled ? '#94a3b8' : aiStatus === 'connected' ? '#22c55e' : '#94a3b8' }} />
         {!aiEnabled
-          ? 'Nonaktif'
+          ? (isEn ? 'Disabled' : 'Nonaktif')
           : aiStatus === 'connected'
           ? aiTransport === 'http-bridge'
-            ? 'Terhubung (Cloud Live)'
-            : `Terhubung (Port ${aiPort})`
+            ? (isEn ? 'Connected (Cloud Live)' : 'Terhubung (Cloud Live)')
+            : (isEn ? `Connected (Port ${aiPort})` : `Terhubung (Port ${aiPort})`)
           : aiStatus === 'connecting'
-          ? 'Menghubungkan...'
+          ? (isEn ? 'Connecting...' : 'Menghubungkan...')
           : 'Offline'}
       </span>
     </div>
@@ -406,7 +429,7 @@ const Settings = ({
           <span className="stg-ico"><Ico n="power" size={15} /></span>
           <div className="stg-txt" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="stg-lbl">Fungsi AI &amp; MCP</span>
+              <span className="stg-lbl">{isEn ? 'AI & MCP Features' : 'Fungsi AI & MCP'}</span>
               <span
                 className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold px-2 py-0.5 rounded-full"
                 style={{
@@ -416,11 +439,13 @@ const Settings = ({
                 }}
               >
                 <Ico n="flask" size={10} />
-                <span>Eksperimental</span>
+                <span>{isEn ? 'Experimental' : 'Eksperimental'}</span>
               </span>
             </div>
             <span className="stg-sub ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.45 }}>
-              Aktifkan atau nonaktifkan fitur integrasi AI Assistant &amp; Model Context Protocol (MCP) di Geovanta (default: Nonaktif).
+              {isEn
+                ? 'Enable or disable AI Assistant & Model Context Protocol (MCP) integration in Geovanta (default: Off).'
+                : 'Aktifkan atau nonaktifkan fitur integrasi AI Assistant & Model Context Protocol (MCP) di Geovanta (default: Nonaktif).'}
             </span>
           </div>
         </div>
@@ -429,9 +454,10 @@ const Settings = ({
             v={aiEnabled ? 'on' : 'off'}
             on={k => toggleAiEnabled(k === 'on')}
             cls="ic"
+            tip="setAiToggle"
             o={[
-              ['on', 'Aktif', 'check'],
-              ['off', 'Nonaktif', 'x']
+              ['on', isEn ? 'Enabled' : 'Aktif', 'check'],
+              ['off', isEn ? 'Disabled' : 'Nonaktif', 'x']
             ]}
           />
         </div>
@@ -442,20 +468,22 @@ const Settings = ({
           <div className="stg-txt" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
             <span className="stg-lbl">Live In-App WebSocket Bridge</span>
             <span className="stg-sub ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.45 }}>
-              Komunikasi 2 arah real-time antara AI (Gemini/Antigravity) dan kanvas Geovanta
+              {isEn
+                ? 'Real-time 2-way communication between AI (Gemini/Antigravity) and the Geovanta canvas'
+                : 'Komunikasi 2 arah real-time antara AI (Gemini/Antigravity) dan kanvas Geovanta'}
             </span>
           </div>
         </div>
         <div className="stg-ctrl">
           {aiStatus === 'connected' ? (
-            <button type="button" className="btn sec text-[11px]" style={{ padding: '6px 10px', borderRadius: 9 }} onClick={handleAiDisconnect}>
+            <button type="button" data-tip="setAiDisconnect" className="btn sec text-[11px]" style={{ padding: '6px 10px', borderRadius: 9 }} onClick={handleAiDisconnect}>
               <Ico n="x" size={13} />
-              <span>Putuskan</span>
+              <span>{isEn ? 'Disconnect' : 'Putuskan'}</span>
             </button>
           ) : (
-            <button type="button" className="btn pri text-[11px]" style={{ padding: '6px 10px', borderRadius: 9 }} onClick={handleAiConnect}>
+            <button type="button" data-tip="setAiConnect" className="btn pri text-[11px]" style={{ padding: '6px 10px', borderRadius: 9 }} onClick={handleAiConnect}>
               <Ico n="refresh" size={13} />
-              <span>Hubungkan Sekarang</span>
+              <span>{isEn ? 'Connect Now' : 'Hubungkan Sekarang'}</span>
             </button>
           )}
         </div>
@@ -464,8 +492,8 @@ const Settings = ({
         <div className="stg-meta">
           <span className="stg-ico"><Ico n="chip" size={15} /></span>
           <div className="stg-txt">
-            <span className="stg-lbl">Alamat Server WebSocket &amp; HTTP</span>
-            <span className="stg-sub ai-wrap" style={{ whiteSpace: 'normal' }}>Bisa diakses dari browser di <code>http://127.0.0.1:{aiPort}</code></span>
+            <span className="stg-lbl">{isEn ? 'WebSocket & HTTP Server Address' : 'Alamat Server WebSocket & HTTP'}</span>
+            <span className="stg-sub ai-wrap" style={{ whiteSpace: 'normal' }}>{isEn ? 'Accessible from browser at ' : 'Bisa diakses dari browser di '}<code>http://127.0.0.1:{aiPort}</code></span>
           </div>
         </div>
         <div className="stg-ctrl flex items-center gap-2">
@@ -473,10 +501,11 @@ const Settings = ({
             href={`http://127.0.0.1:${aiPort}`}
             target="_blank"
             rel="noreferrer"
+            data-tip="setAiOpenLocal"
             className="btn sec font-mono text-[11px]"
             style={{ padding: '5px 9px', borderRadius: 8, textDecoration: 'none' }}
           >
-            Buka http://127.0.0.1:{aiPort}
+            {isEn ? `Open http://127.0.0.1:${aiPort}` : `Buka http://127.0.0.1:${aiPort}`}
           </a>
         </div>
       </div>
@@ -484,36 +513,45 @@ const Settings = ({
         <div className="stg-meta">
           <span className="stg-ico"><Ico n="bolt" size={15} /></span>
           <div className="stg-txt">
-            <span className="stg-lbl">Auto-Connect Otomatis</span>
-            <span className="stg-sub ai-wrap" style={{ whiteSpace: 'normal' }}>Otomatis menyambungkan bridge saat Geovanta dibuka</span>
+            <span className="stg-lbl">{isEn ? 'Auto-Connect on Startup' : 'Auto-Connect Otomatis'}</span>
+            <span className="stg-sub ai-wrap" style={{ whiteSpace: 'normal' }}>{isEn ? 'Automatically connect bridge when Geovanta opens' : 'Otomatis menyambungkan bridge saat Geovanta dibuka'}</span>
           </div>
         </div>
         <div className="stg-ctrl">
-          <Seg v={aiAutoConnect ? 'on' : 'off'} on={k => toggleAiAuto(k === 'on')} o={[['on', L.on], ['off', L.off]]} />
+          <Seg v={aiAutoConnect ? 'on' : 'off'} on={k => toggleAiAuto(k === 'on')} tip="setAiAutoConnect" o={[['on', L.on], ['off', L.off]]} />
         </div>
       </div>
       <div className="stg-row-col space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11.5px] font-medium ai-wrap" style={{ whiteSpace: 'normal' }}>URL Server Tunnel / WebSocket Kustom (Untuk Netlify / Online Web)</span>
-          <span className="text-[10.5px] mut ai-wrap" style={{ whiteSpace: 'normal' }}>Kosongkan untuk default localhost:{aiPort}</span>
+          <span className="text-[11.5px] font-medium ai-wrap" style={{ whiteSpace: 'normal' }}>{isEn ? 'Custom Tunnel / WebSocket Server URL (For Netlify / Online Web)' : 'URL Server Tunnel / WebSocket Kustom (Untuk Netlify / Online Web)'}</span>
+          <span className="text-[10.5px] mut ai-wrap" style={{ whiteSpace: 'normal' }}>{isEn ? `Leave blank for default localhost:${aiPort}` : `Kosongkan untuk default localhost:${aiPort}`}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="text"
-            value={customWsInput}
-            onChange={e => setCustomWsInput(e.target.value)}
-            placeholder="Contoh: wss://your-tunnel.trycloudflare.com atau ws://127.0.0.1:38291"
+          <div
             data-testid="custom-ws-url-input"
-            className="font-mono text-[11.5px] px-2.5 py-1.5 rounded-lg flex-1"
-            style={{ background: 'var(--sub)', border: '1px solid var(--line)', color: 'var(--txt)', minWidth: 220 }}
-          />
+            className="fld font-mono text-[11.5px] px-2.5 py-1.5 flex-1 flex items-center"
+            style={{ minWidth: 220, minHeight: 30 }}
+            onClick={e => {
+              const el = e.currentTarget.querySelector('[role="textbox"]') as HTMLElement | null;
+              el?.focus();
+            }}
+          >
+            <CustomTextBox
+              value={customWsInput}
+              onChange={v => setCustomWsInput(v)}
+              onCommit={v => setCustomWsInput(v)}
+              placeholder={isEn ? 'Example: wss://your-tunnel.trycloudflare.com or ws://127.0.0.1:38291' : 'Contoh: wss://your-tunnel.trycloudflare.com atau ws://127.0.0.1:38291'}
+              ariaLabel={isEn ? 'Custom Tunnel / WebSocket Server URL' : 'URL Server Tunnel / WebSocket Kustom'}
+            />
+          </div>
           <button
             type="button"
-            className="btn pri text-[11px]"
-            style={{ padding: '6px 10px', borderRadius: 8 }}
+            data-tip="setAiSaveConnect"
+            className="btn pri inline-flex items-center justify-center gap-1.5 text-[11px]"
+            style={{ padding: '6px 12px', borderRadius: 8 }}
             onClick={handleAiConnect}
           >
-            Simpan &amp; Hubungkan
+            <span>{isEn ? 'Save & Connect' : 'Simpan & Hubungkan'}</span>
           </button>
         </div>
       </div>
@@ -535,7 +573,7 @@ const Settings = ({
         >
           <span style={{ flex: 'none', marginTop: 2 }}><Ico n="alert" size={14} /></span>
           <div className="ai-wrap" style={{ whiteSpace: 'normal', overflowWrap: 'break-word', flex: 1, minWidth: 0 }}>
-            {aiLastError}. Jika peramban Anda membatasi akses socket dari <code>file://</code>, buka aplikasi melalui tautan web server lokal di atas.
+            {aiLastError}. {isEn ? 'If your browser restricts socket access from ' : 'Jika peramban Anda membatasi akses socket dari '}<code>file://</code>{isEn ? ', open the app via the local web server link above.' : ', buka aplikasi melalui tautan web server lokal di atas.'}
           </div>
         </div>
       )}
@@ -544,17 +582,19 @@ const Settings = ({
 
   <div className="stg-sec">
     <div className="stg-sec-hdr">
-      <span className="stg-sec-lbl"><Ico n="sparkle" size={13} /><span>Google Gemini Web (Terhubung ke Server MCP)</span></span>
+      <span className="stg-sec-lbl"><Ico n="sparkle" size={13} /><span>{isEn ? 'Google Gemini Web (Connected to MCP Server)' : 'Google Gemini Web (Terhubung ke Server MCP)'}</span></span>
       <span className="font-mono text-[10.5px] px-2 py-0.5 rounded bg-[var(--fig-sel)] text-[var(--acc)]">Streamable HTTP + OAuth 2.1</span>
     </div>
     <div className="p-3.5 text-[12px] leading-relaxed mut space-y-3" style={{ background: 'var(--card)', borderRadius: 12, border: '1px solid var(--line)' }}>
       <p className="ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.55 }}>
-        Hubungkan Geovanta langsung ke menu <b>Konektor &rarr; + Kustom (Terhubung ke server MCP)</b> di <code>gemini.google.com</code>:
+        {isEn
+          ? <>Connect Geovanta directly to <b>Connectors &rarr; + Custom (Connect to MCP server)</b> on <code>gemini.google.com</code>:</>
+          : <>Hubungkan Geovanta langsung ke menu <b>Konektor &rarr; + Kustom (Terhubung ke server MCP)</b> di <code>gemini.google.com</code>:</>}
       </p>
       <div className="grid grid-cols-1 gap-2.5">
         <div className="p-2.5 rounded-lg flex flex-wrap items-center justify-between gap-2" style={{ background: 'var(--sub)', border: '1px solid var(--line)' }}>
           <div style={{ minWidth: 0, flex: '1 1 200px' }}>
-            <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[var(--mut)]">URL Server MCP (Wajib HTTPS)</div>
+            <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[var(--mut)]">{isEn ? 'MCP Server URL (HTTPS Required)' : 'URL Server MCP (Wajib HTTPS)'}</div>
             <code className="font-mono text-[11.5px] text-[var(--acc)] select-all ai-wrap" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
               {typeof window !== 'undefined' && window.location && window.location.protocol === 'https:'
                 ? `${window.location.origin}/mcp`
@@ -563,6 +603,7 @@ const Settings = ({
           </div>
           <button
             type="button"
+            data-tip="setAiCopy"
             className="btn sec text-[11px]"
             style={{ padding: '4px 8px', borderRadius: 7 }}
             onClick={() =>
@@ -575,28 +616,28 @@ const Settings = ({
             }
           >
             <Ico n="copy" size={12} />
-            <span>Salin Path /mcp</span>
+            <span>{isEn ? 'Copy /mcp Path' : 'Salin Path /mcp'}</span>
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <div className="p-2.5 rounded-lg flex items-center justify-between gap-2" style={{ background: 'var(--sub)', border: '1px solid var(--line)' }}>
             <div>
-              <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[var(--mut)]">Client ID OAuth</div>
+              <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[var(--mut)]">OAuth Client ID</div>
               <code className="font-mono text-[11.5px] text-[var(--acc)] select-all">{GEMINI_OAUTH_CLIENT_ID}</code>
             </div>
-            <button type="button" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(GEMINI_OAUTH_CLIENT_ID, 'Client ID OAuth')}>
+            <button type="button" data-tip="setAiCopy" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(GEMINI_OAUTH_CLIENT_ID, 'OAuth Client ID')}>
               <Ico n="copy" size={12} />
-              <span>Salin</span>
+              <span>{isEn ? 'Copy' : 'Salin'}</span>
             </button>
           </div>
           <div className="p-2.5 rounded-lg flex items-center justify-between gap-2" style={{ background: 'var(--sub)', border: '1px solid var(--line)' }}>
             <div>
-              <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[var(--mut)]">Rahasia Klien OAuth</div>
+              <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[var(--mut)]">{isEn ? 'OAuth Client Secret' : 'Rahasia Klien OAuth'}</div>
               <code className="font-mono text-[11.5px] text-[var(--acc)] select-all">{GEMINI_OAUTH_CLIENT_SECRET}</code>
             </div>
-            <button type="button" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(GEMINI_OAUTH_CLIENT_SECRET, 'Rahasia Klien OAuth')}>
+            <button type="button" data-tip="setAiCopy" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(GEMINI_OAUTH_CLIENT_SECRET, isEn ? 'OAuth Client Secret' : 'Rahasia Klien OAuth')}>
               <Ico n="copy" size={12} />
-              <span>Salin</span>
+              <span>{isEn ? 'Copy' : 'Salin'}</span>
             </button>
           </div>
         </div>
@@ -615,7 +656,11 @@ const Settings = ({
             border: '1px solid var(--line)'
           }}
         >
-          <b>Skenario 1 (Localhost):</b> Jalankan server MCP di port <code>{aiPort}</code>, lalu buka tunnel HTTPS gratis dengan perintah <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{GEMINI_TUNNEL_SNIPPET}</code> (atau <code>ngrok http {aiPort}</code>), dan tempel URL <code>https://.../mcp</code> yang dihasilkan ke Gemini Web.
+          {isEn ? (
+            <><b>Scenario 1 (Localhost):</b> Start the MCP server on port <code>{aiPort}</code>, open a free HTTPS tunnel with <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{GEMINI_TUNNEL_SNIPPET}</code> (or <code>ngrok http {aiPort}</code>), and paste the generated <code>https://.../mcp</code> URL into Gemini Web.</>
+          ) : (
+            <><b>Skenario 1 (Localhost):</b> Jalankan server MCP di port <code>{aiPort}</code>, lalu buka tunnel HTTPS gratis dengan perintah <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{GEMINI_TUNNEL_SNIPPET}</code> (atau <code>ngrok http {aiPort}</code>), dan tempel URL <code>https://.../mcp</code> yang dihasilkan ke Gemini Web.</>
+          )}
         </div>
         <div
           data-testid="ai-scenario-2"
@@ -630,7 +675,11 @@ const Settings = ({
             border: '1px solid var(--line)'
           }}
         >
-          <b>Skenario 2 (Web Online):</b> Deploy server Geovanta ke Cloud Run / Railway / Render, buka <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>https://domain-anda.com/?ai=1</code>, lalu masukkan <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>https://domain-anda.com/mcp</code> ke Gemini Web.
+          {isEn ? (
+            <><b>Scenario 2 (Online Web):</b> Deploy the Geovanta server to Cloud Run / Railway / Render, open <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>https://your-domain.com/?ai=1</code>, then enter <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>https://your-domain.com/mcp</code> into Gemini Web.</>
+          ) : (
+            <><b>Skenario 2 (Web Online):</b> Deploy server Geovanta ke Cloud Run / Railway / Render, buka <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>https://domain-anda.com/?ai=1</code>, lalu masukkan <code style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>https://domain-anda.com/mcp</code> ke Gemini Web.</>
+          )}
         </div>
       </div>
     </div>
@@ -639,13 +688,13 @@ const Settings = ({
   <div className="stg-sec">
     <div className="stg-sec-hdr">
       <span className="stg-sec-lbl"><Ico n="code" size={13} /><span>Google Antigravity (MCP Server)</span></span>
-      <button type="button" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(ANTIGRAVITY_SNIPPET, 'Konfigurasi Antigravity')}>
+      <button type="button" data-tip="setAiCopy" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(ANTIGRAVITY_SNIPPET, isEn ? 'Antigravity Config' : 'Konfigurasi Antigravity')}>
         <Ico n="copy" size={12} />
-        <span>Salin Konfigurasi</span>
+        <span>{isEn ? 'Copy Config' : 'Salin Konfigurasi'}</span>
       </button>
     </div>
     <div className="p-3.5 text-[12px] leading-relaxed mut" style={{ background: 'var(--card)', borderRadius: 12, border: '1px solid var(--line)' }}>
-      <p className="mb-2.5 ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.55 }}>Tambahkan snippet konfigurasi berikut ke pengaturan MCP Antigravity Anda (tersedia juga di file <code>antigravity-mcp.json</code>):</p>
+      <p className="mb-2.5 ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.55 }}>{isEn ? <>Add the following configuration snippet to your Antigravity MCP settings (also available in <code>antigravity-mcp.json</code>):</> : <>Tambahkan snippet konfigurasi berikut ke pengaturan MCP Antigravity Anda (tersedia juga di file <code>antigravity-mcp.json</code>):</>}</p>
       <pre className="font-mono text-[11px] p-3 rounded-lg overflow-x-auto text-[var(--acc)] select-all" style={{ background: 'var(--sub)', border: '1px solid var(--line)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
 {ANTIGRAVITY_SNIPPET}
       </pre>
@@ -655,18 +704,18 @@ const Settings = ({
   <div className="stg-sec">
     <div className="stg-sec-hdr">
       <span className="stg-sec-lbl"><Ico n="bolt" size={13} /><span>Google Gemini (CLI &amp; API Connector)</span></span>
-      <button type="button" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(GEMINI_CMD_SNIPPET, 'Perintah Gemini CLI')}>
+      <button type="button" data-tip="setAiCopy" className="btn sec text-[11px]" style={{ padding: '4px 8px', borderRadius: 7 }} onClick={() => copyText(GEMINI_CMD_SNIPPET, isEn ? 'Gemini CLI Command' : 'Perintah Gemini CLI')}>
         <Ico n="copy" size={12} />
-        <span>Salin Perintah</span>
+        <span>{isEn ? 'Copy Command' : 'Salin Perintah'}</span>
       </button>
     </div>
     <div className="p-3.5 text-[12px] leading-relaxed mut" style={{ background: 'var(--card)', borderRadius: 12, border: '1px solid var(--line)' }}>
-      <p className="mb-2.5 ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.55 }}>Jalankan instruksi vektor langsung dengan Gemini SDK menggunakan skrip konektor Geovanta:</p>
+      <p className="mb-2.5 ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.55 }}>{isEn ? 'Run vector instructions directly with the Gemini SDK using the Geovanta connector script:' : 'Jalankan instruksi vektor langsung dengan Gemini SDK menggunakan skrip konektor Geovanta:'}</p>
       <pre className="font-mono text-[11px] p-3 rounded-lg overflow-x-auto text-[var(--acc)] select-all" style={{ background: 'var(--sub)', border: '1px solid var(--line)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
 {GEMINI_CMD_SNIPPET}
       </pre>
       <p className="mt-2.5 text-[11px] text-[var(--mut)] ai-wrap" style={{ whiteSpace: 'normal', lineHeight: 1.55 }}>
-        Gunakan flag <code>--simulate</code> jika ingin menjalankan simulasi offline tanpa Gemini API Key.
+        {isEn ? <>Use the <code>--simulate</code> flag to run an offline simulation without a Gemini API Key.</> : <>Gunakan flag <code>--simulate</code> jika ingin menjalankan simulasi offline tanpa Gemini API Key.</>}
       </p>
     </div>
   </div>
@@ -694,6 +743,9 @@ const Settings = ({
       ))}
     </div>
   </div>
+</div>}
+{sTab === 'debug' && <div className="space-y-3 fade" key="s-debug" data-testid="settings-debug-tab">
+  <DebugLogPanel embedded={true} open={true} enabled={debugEnabled} onToggle={toggleDebugMode} onClose={onClose} lang={prefs?.lang || 'id'} />
 </div>}</div></div></div>, document.fullscreenElement || document.body);
 };
 

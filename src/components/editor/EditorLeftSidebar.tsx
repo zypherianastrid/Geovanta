@@ -14,6 +14,8 @@ import { XfField } from '../ui/TransformField.tsx';
 import { clampN } from '../../utils/colorMath.tsx';
 import { LayerTreeViewport } from './LayerTreeViewport.tsx';
 import { LayerObjRow, LayerGroupRow, LayerBucketRow, LayerEmptyRow } from './LayerRows.tsx';
+import { LayerSearchBar, LayerTypeFilter } from './LayerSearchBar.tsx';
+import { ArtboardManagerPanel } from './ArtboardManagerPanel.tsx';
 
 const FLAT_ID_MAP_CACHE = new WeakMap();
 const getFlatIdMap = flatIds => {
@@ -106,8 +108,34 @@ const EditorLeftSidebar = ({
   dropFrameId,
   toggleCollapseGrp,
   ungroupIds,
-  rzProps
+  rzProps,
+  onAddArtboard,
+  onSelectArtboard,
+  onDeleteArtboard,
+  devMode = false
 }) => {
+  const [artboardsOpen, setArtboardsOpen] = React.useState(false);
+  const [layerTypeFilter, setLayerTypeFilter] = React.useState<LayerTypeFilter>('all');
+  const filteredLayerRows = React.useMemo(() => {
+    if (layerTypeFilter === 'all') return virtualLayerRows;
+    const matchObj = (o: any) => {
+      if (!o) return false;
+      if (layerTypeFilter === 'text' && o.type !== 'text' && !o.text) return false;
+      if (layerTypeFilter === 'image' && !o.img) return false;
+      if (layerTypeFilter === 'frame' && !o.isFrameBg && !o.isAutoFrame && o.containerType !== 'frame') return false;
+      if (layerTypeFilter === 'path' && (o.type === 'text' || o.text || o.img || o.isFrameBg || o.isAutoFrame)) return false;
+      return true;
+    };
+    return (virtualLayerRows || []).filter((row: any) => {
+      if (row.kind === 'single' || row.kind === 'child') return matchObj(row.obj);
+      if (row.kind === 'group') {
+        if (layerTypeFilter === 'frame' && row.item?.isFrame) return true;
+        return false;
+      }
+      return false;
+    });
+  }, [virtualLayerRows, layerTypeFilter]);
+
   /* PERF: handler baris layer didefinisikan sekali di body komponen (bukan di
      dalam renderRowFn yang dipanggil per baris) agar identitasnya stabil
      selama scroll — syarat agar React.memo di LayerRows.tsx menahan
@@ -157,7 +185,7 @@ const EditorLeftSidebar = ({
     setLayerIns(null);
   };
   const rowDragOver = (e, o) => {
-    if (!dragLayerIds || dragLayerIds.includes(o.id)) return;
+    if (devMode || !dragLayerIds || dragLayerIds.includes(o.id)) return;
     e.preventDefault();
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect(),
@@ -195,19 +223,21 @@ const EditorLeftSidebar = ({
     setDragLayerIds(null);
     setOverFrameId(null);
   };
-  const toggleObjLock = o => commitObjs(q => q.id === o.id ? { ...q, locked: !q.locked } : q);
-  const toggleObjHide = o => commitObjs(q => q.id === o.id ? { ...q, hidden: !q.hidden } : q);
-  const ejectChild = o => moveObjsToGroup([o.id], null);
-  const toggleGroupLock = (item, allLocked) => commitObjs(q => q.group === item.id ? { ...q, locked: !allLocked } : q);
-  const toggleGroupHide = (item, allHidden) => commitObjs(q => q.group === item.id ? { ...q, hidden: !allHidden } : q);
-  const ungroup = item => ungroupIds(new Set([item.id]), (item.isFrame ? 'Frame "' : L.edGroupWord + ' "') + item.id + '"');
+  const toggleObjLock = o => { if (!devMode) commitObjs(q => q.id === o.id ? { ...q, locked: !q.locked } : q); };
+  const toggleObjHide = o => { if (!devMode) commitObjs(q => q.id === o.id ? { ...q, hidden: !q.hidden } : q); };
+  const ejectChild = o => { if (!devMode) moveObjsToGroup([o.id], null); };
+  const toggleGroupLock = (item, allLocked) => { if (!devMode) commitObjs(q => q.group === item.id ? { ...q, locked: !allLocked } : q); };
+  const toggleGroupHide = (item, allHidden) => { if (!devMode) commitObjs(q => q.group === item.id ? { ...q, hidden: !allHidden } : q); };
+  const ungroup = item => { if (!devMode) ungroupIds(new Set([item.id]), (item.isFrame ? 'Frame "' : L.edGroupWord + ' "') + item.id + '"'); };
   const bgClick = bgId => setSel({ objs: new Set([bgId]), nodes: new Set() });
   const startRenameObj = o => {
+    if (devMode) return;
     renameSkip.current = false;
     setRenamingId(o.id);
     setRenameVal(o.name);
   };
   const startRenameGroup = (gKey, id) => {
+    if (devMode) return;
     renameSkip.current = false;
     setRenamingId(gKey);
     setRenameVal(id);
@@ -233,8 +263,31 @@ const EditorLeftSidebar = ({
      kembali ke atas. Lebar pill dibuat tetap (min-width menutup seluruh
      siklus autosave umum: Tersimpan/Belum tersimpan/Menyimpan...) agar
      posisinya tidak bergeser saat status berubah. */
-  .ws-ed-top-row { flex-wrap: nowrap !important; }
-  .ws-save-pill { flex: none !important; min-width: 120px !important; justify-content: center !important; }
+  .ws-ed-top-row { flex-wrap: nowrap !important; align-items: center !important; }
+  .ws-back-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    height: 26px !important;
+    padding: 0 9px !important;
+    line-height: 1 !important;
+  }
+  .ws-back-btn svg { display: block !important; flex: none !important; }
+  .ws-back-btn > span { display: inline-flex !important; align-items: center !important; line-height: 1 !important; }
+  .ws-save-pill {
+    flex: none !important;
+    min-width: 120px !important;
+    height: 26px !important;
+    padding: 0 9px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    line-height: 1 !important;
+  }
+  .ws-save-pill .ws-save-dot { flex: none !important; display: block !important; }
+  .ws-save-pill > span:not(.ws-save-dot) { display: inline-flex !important; align-items: center !important; line-height: 1 !important; }
 `}</style><div className="fig-doc-hdr"><div className="ws-ed-proj-bar min-w-0 flex-1"><div className="ws-ed-top-row">{onBackToWorkspace ? <button type="button" className="ws-back-btn" data-tip="veBackWorkspace" onClick={() => onBackToWorkspace(docRef.current, {
           zoom: zoomRef.current,
           pan: {
@@ -249,11 +302,11 @@ const EditorLeftSidebar = ({
           __html: LOGO_INNER
         }} />}<span className={'ws-save-pill st-' + (saveStatus || 'saved')} data-tip={saveStatus === 'error' ? 'veSaveError' : 'veSaveOk'} onClick={() => {
           if (saveStatus === 'error' && onRetrySave) onRetrySave();
-        }}><span className="ws-save-dot" /><span>{({clean: L.edSaveClean, dirty: L.edSaveDirty, saving: L.edSaveSaving, saved: L.edSaveClean, error: L.edSaveError, recovery: L.edSaveRecovery, 'session-ram': L.edSaveSession})[saveStatus] || L.edSaveClean}</span></span></div><div className="flex items-center justify-between gap-1.5 min-w-0"><button type="button" className="ws-ed-proj-name-btn" data-tip="veRenameProject" onClick={() => onRenameProject && onRenameProject()}><span className="truncate">{projectName || 'Untitled Project'}</span><Ico n="pencil" size={11} /></button></div><div className="text-[11px] mut truncate" data-tip="veStats">{doc.objects.length} {L.edStatsObj} · {nTotal} node · {sel.objs.size} {L.edStatsSel}{selNodes.size ? ' · ' + selNodes.size + 'n' : ''}</div></div></div><div className="fig-sec-hdr flex-wrap gap-1.5"><span className="whitespace-nowrap" data-tip="veLayers">{L.edLayers} ({doc.objects.length})</span><div className="flex items-center gap-1"><button type="button" className={'ved-pill text-[11px]' + (clipFrames ? ' on' : '')} style={{
+        }}><span className="ws-save-dot" /><span>{({clean: L.edSaveClean, dirty: L.edSaveDirty, saving: L.edSaveSaving, saved: L.edSaveClean, error: L.edSaveError, recovery: L.edSaveRecovery, 'session-ram': L.edSaveSession})[saveStatus] || L.edSaveClean}</span></span></div><div className="flex items-center justify-between gap-1.5 min-w-0"><button type="button" className="ws-ed-proj-name-btn" data-tip="veRenameProject" onClick={() => onRenameProject && onRenameProject()}><span className="truncate">{projectName || 'Untitled Project'}</span><Ico n="pencil" size={11} /></button></div><div className="text-[11px] mut truncate" data-tip="veStats">{doc.objects.length} {L.edStatsObj} · {nTotal} node · {sel.objs.size} {L.edStatsSel}{selNodes.size ? ' · ' + selNodes.size + 'n' : ''}</div></div></div><div className="fig-sec-hdr flex-wrap gap-1.5"><span className="whitespace-nowrap" data-tip="veLayers">{L.edLayers} ({doc.objects.length})</span><div className="flex flex-wrap items-center gap-1"><button type="button" className={'ved-pill text-[11px]' + (clipFrames ? ' on' : '')} style={{
         padding: '3px 7px'
       }} aria-pressed={clipFrames} data-tip="veClipFrames" onClick={() => setClipFrames(v => !v)}>Clip Frame</button><button type="button" className={'ved-pill text-[11px]' + (groupSameColor ? ' on' : '')} style={{
         padding: '3px 7px'
-      }} aria-pressed={groupSameColor} data-tip="veLayBucket" onClick={() => setGroupSameColor(v => !v)}>{L.edGroupColor}</button></div></div><div ref={layerScrollRef} className="fig-layers-scroll space-y-2" onScroll={e => {
+      }} aria-pressed={groupSameColor} data-tip="veLayBucket" onClick={() => setGroupSameColor(v => !v)}>{L.edGroupColor}</button><button type="button" data-testid="toggle-artboards-btn" data-tip="veArtboardsToggle" className={'ved-pill text-[11px]' + (artboardsOpen ? ' on' : '')} style={{ padding: '3px 7px' }} aria-pressed={artboardsOpen} onClick={() => setArtboardsOpen(v => !v)}>{lang === 'en' ? 'Pages' : 'Halaman'}</button></div></div>{artboardsOpen && onAddArtboard && <ArtboardManagerPanel lang={lang} artboards={VE.ensureArtboards(doc)} activeArtboardId={doc.activeArtboardId} onAddArtboard={onAddArtboard} onSelectArtboard={onSelectArtboard} onDeleteArtboard={onDeleteArtboard} />}<LayerSearchBar lang={lang} typeFilter={layerTypeFilter} onTypeFilterChange={setLayerTypeFilter} /><div ref={layerScrollRef} className="fig-layers-scroll space-y-2" onScroll={e => {
     const ctrl = layerViewportCtrlRef.current;
     if (!ctrl) return;
     const st = e.currentTarget.scrollTop;
@@ -426,13 +479,13 @@ const EditorLeftSidebar = ({
               updateVcSimplify({
                 showOriginal: !s.showOriginal
               });
-            }}><span className="c-chk-box">{s.showOriginal && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>Show Original Path</span></button><button type="button" role="checkbox" aria-checked={s.preview} className={'c-chk' + (s.preview ? ' on' : '')} onClick={() => {
+            }}><span className="c-chk-box">{s.showOriginal && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{lang === 'en' ? 'Show Original Path' : 'Tampilkan Path Asli'}</span></button><button type="button" role="checkbox" aria-checked={s.preview} data-tip="veSimplifyPreview" className={'c-chk' + (s.preview ? ' on' : '')} onClick={() => {
               if (!vcSimp) openVcSimplify();
               updateVcSimplify({
                 preview: !s.preview
               });
-            }}><span className="c-chk-box">{s.preview && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>Preview</span></button></div><div className="flex gap-1.5 pt-1">{vcSimp ? <><button type="button" className="btn sec flex-1 text-xs" onClick={cancelVcSimplify}>Cancel</button><button type="button" className="btn pri flex-1 text-xs" data-tip="veApplySimplify" onClick={confirmVcSimplify}>OK</button></> : <button type="button" className="btn pri w-full text-xs" data-tip="veApplySimplify" onClick={() => openVcSimplify()}>{L.edOpenSimplify}</button>}</div></div></div>;
-    })()}<LayerTreeViewport L={L} virtualLayerRows={virtualLayerRows} hasObjects={doc.objects.length > 0} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} renderRowFn={(row, fastScroll) => {
+            }}><span className="c-chk-box">{s.preview && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10" /></svg>}</span><span>{lang === 'en' ? 'Preview' : 'Pratinjau'}</span></button></div><div className="flex gap-1.5 pt-1">{vcSimp ? <><button type="button" data-tip="veSimplifyCancel" className="btn sec flex-1 text-xs" onClick={cancelVcSimplify}>{L.cCancel || 'Cancel'}</button><button type="button" className="btn pri flex-1 text-xs" data-tip="veApplySimplify" onClick={confirmVcSimplify}>OK</button></> : <button type="button" className="btn pri w-full text-xs" data-tip="veApplySimplify" onClick={() => openVcSimplify()}>{L.edOpenSimplify}</button>}</div></div></div>;
+    })()}<LayerTreeViewport L={L} virtualLayerRows={filteredLayerRows} hasObjects={doc.objects.length > 0} layerTreeDomRef={layerTreeDomRef} layerViewportCtrlRef={layerViewportCtrlRef} dragLayerIds={dragLayerIds} moveObjsToGroup={moveObjsToGroup} setDragLayerIds={setDragLayerIds} setOverFrameId={setOverFrameId} renderRowFn={(row, fastScroll) => {
       if (row.kind === 'single') return <LayerObjRow key={row.obj.id} o={row.obj} child={false} nodeCount={row.nodeCount} selected={sel.objs.has(row.obj.id)} renaming={renamingId === row.obj.id} renameVal={renameVal} layerInsPos={layerIns && layerIns.id === row.obj.id ? layerIns.pos : null} layerNameLabel={L.edLayerName} clickSkipRef={layerClickSkipExpandRef} onPick={pick} onDragStart={dStart} onDragEnd={dEnd} onRowDragOver={rowDragOver} onRowDragLeave={rowDragLeave} onRowDrop={rowDrop} onOpenCtx={openLayerCtx} onToggleLock={toggleObjLock} onToggleHide={toggleObjHide} onEjectChild={ejectChild} onStartRename={startRenameObj} onRenameVal={setRenameVal} onRenameCommit={renameCommitObj} onRenameCancel={renameCancel} fastScroll={fastScroll} lang={lang} />;
       if (row.kind === 'child') return <LayerObjRow key={row.obj.id} o={row.obj} child={true} nodeCount={row.nodeCount} selected={sel.objs.has(row.obj.id)} renaming={renamingId === row.obj.id} renameVal={renameVal} layerInsPos={layerIns && layerIns.id === row.obj.id ? layerIns.pos : null} layerNameLabel={L.edLayerName} clickSkipRef={layerClickSkipExpandRef} onPick={pick} onDragStart={dStart} onDragEnd={dEnd} onRowDragOver={rowDragOver} onRowDragLeave={rowDragLeave} onRowDrop={rowDrop} onOpenCtx={openLayerCtx} onToggleLock={toggleObjLock} onToggleHide={toggleObjHide} onEjectChild={ejectChild} onStartRename={startRenameObj} onRenameVal={setRenameVal} onRenameCommit={renameCommitObj} onRenameCancel={renameCancel} fastScroll={fastScroll} lang={lang} />;
       if (row.kind === 'group-empty') return <LayerEmptyRow key={row.key} label={L.edEmptyFrame} />;

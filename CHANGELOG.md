@@ -5,6 +5,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.4.0] — 2026-11-28
+
+### Added
+- **Figma-Style Dev Mode & Two-Way Live SVG Code Editing (`Shift + D`, `src/engine/devModeCodeGen.ts`, `src/components/editor/devmode/`)**:
+  - Replaced the modal SVG inspector with a full Figma-style **Dev Mode** workspace featuring **Inspect**, **Tokens**, and **Assets** tabs, an interactive **CSS Box Model** diagram, **WCAG AA/AAA contrast checker**, rAF-throttled hover redline measurements, and **7-language code generation** (`CSS`, `Tailwind`, `SVG`, `React JSX`, `Vue`, `SwiftUI`, `Compose`).
+  - Added **Live SVG Code Editing** directly inside Dev Mode so edits to object SVG markup apply back to the canvas with full Undo/Redo support.
+  - Aligned Dev Mode right-sidebar spacing, scrolling (`.fig-r-scroll`), and `var(--acc)` accent theming with Normal Mode.
+- **Pro Studio Suite (`src/engine/`, `src/components/editor/`, `src/workspace/`)**:
+  - Added **Wireframe Mode & Layer Search Bar**, **Cut/Scissors Tool & Line Markers**, **Effects v2 & Appearance Stack**, **Docked History Timeline & Named Snapshots**, **Masking Engine**, **Vector PDF Exporter**, **Auto-Layout v2**, **Warp & Blend Distortion**, **Multi-Artboard Manager**, **Typography Pro (Text on Path)**, **Charts v2**, **Components & Color Styles**, **MCP Server v2**, and **Web Worker Auto Trace (`vmtWorker.ts`)**.
+- **Sticky Recolor Preview Banner (`EditorRightInspector.tsx`)**:
+  - Added a sticky `rc-pending-banner` at the top of the right sidebar whenever an unapplied Recolor live preview is active, with **Show** and **Discard** actions and active accent highlights on Recolor / Find & Replace triggers.
+
+### Fixed
+- **Critical Selection Color-Shift & Fill/Recolor Override Bug (`RecolorSection.tsx`, `FindReplaceSection.tsx`)**:
+  - Prevented `RecolorSection` from switching `scope` on selection changes while an uncommitted live preview is active (which caused canvas colors to flip when clicking/deselecting objects).
+  - Reset stale Recolor preview parameters on external document commits (such as direct Fill or Selection Colors edits) so direct color edits are never overwritten.
+- **Zero Native HTML Inputs (`TextInspector.tsx`, `TextEditOverlay.tsx`)**:
+  - Replaced remaining `<textarea>` elements with accessible `contentEditable` custom controls (`data-custom-input="true"`), achieving 0 native `<input>`, `<select>`, or `<textarea>` elements across `src/components/`.
+- **Workspace Card Dropdown Z-Index (`WorkspaceHome.tsx`)**:
+  - Portaled `.ws-card-dropdown` to `document.body` (`position: fixed; z-index: 9999`) so card menus never clip behind adjacent project cards.
+
+### Changed
+- Bumped application version to **`v1.4.0`** across `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `android/app/build.gradle` (`versionCode 6`, `versionName 1.4.0`), `src/constants/settingsI18n.tsx`, `scripts/build-android-apk.ps1`, `.github/workflows/release-desktop-windows.yml`, `README.md`, and `README.id.md`.
+
+---
+
 ## [1.3.2] — 2026-11-25
 
 ### Added

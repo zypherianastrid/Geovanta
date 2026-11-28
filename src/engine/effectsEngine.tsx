@@ -17,7 +17,15 @@
  * sendiri (Node-safe), pola yang sama dengan isStyleHex di colorStyles.tsx.
  */
 
-const EFFECT_TYPES = new Set(['dropShadow', 'layerBlur', 'backgroundBlur']);
+const EFFECT_TYPES = new Set([
+  'dropShadow',
+  'innerShadow',
+  'outerGlow',
+  'innerGlow',
+  'layerBlur',
+  'backgroundBlur',
+  'noiseGrain'
+]);
 
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const isFiniteNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -54,17 +62,42 @@ function parseEffectColor(c) {
 function normalizeEffect(e) {
   if (!e || typeof e !== 'object' || !EFFECT_TYPES.has(e.type)) return null;
   const disabled = e.disabled === true ? true : e.disabled === false ? false : undefined;
-  if (e.type === 'dropShadow') {
+  if (e.type === 'dropShadow' || e.type === 'innerShadow') {
     if (!isFiniteNum(e.dx) || !isFiniteNum(e.dy) || !isFiniteNum(e.blur) || !isFiniteNum(e.opacity)) return null;
     const col = parseEffectColor(e.color);
     if (!col) return null;
     const out: any = {
-      type: 'dropShadow',
+      type: e.type,
       dx: e.dx,
       dy: e.dy,
       blur: Math.max(0, e.blur),
+      spread: isFiniteNum(e.spread) ? Math.max(0, e.spread) : 0,
       color: col.hex,
       opacity: clampN(e.opacity * col.alpha, 0, 1)
+    };
+    if (disabled !== undefined) out.disabled = disabled;
+    return out;
+  }
+  if (e.type === 'outerGlow' || e.type === 'innerGlow') {
+    if (!isFiniteNum(e.blur) || !isFiniteNum(e.opacity)) return null;
+    const col = parseEffectColor(e.color);
+    if (!col) return null;
+    const out: any = {
+      type: e.type,
+      blur: Math.max(0, e.blur),
+      spread: isFiniteNum(e.spread) ? Math.max(0, e.spread) : 0,
+      color: col.hex,
+      opacity: clampN(e.opacity * col.alpha, 0, 1)
+    };
+    if (disabled !== undefined) out.disabled = disabled;
+    return out;
+  }
+  if (e.type === 'noiseGrain') {
+    if (!isFiniteNum(e.amount)) return null;
+    const out: any = {
+      type: 'noiseGrain',
+      amount: clampN(e.amount, 0, 1),
+      size: isFiniteNum(e.size) ? clampN(e.size, 1, 8) : 2
     };
     if (disabled !== undefined) out.disabled = disabled;
     return out;
@@ -82,18 +115,43 @@ function normalizeEffect(e) {
 function validateOne(e) {
   if (!e || typeof e !== 'object' || !EFFECT_TYPES.has(e.type)) return null;
   const disabled = e.disabled === true ? true : e.disabled === false ? false : undefined;
-  if (e.type === 'dropShadow') {
+  if (e.type === 'dropShadow' || e.type === 'innerShadow') {
     if (!isFiniteNum(e.dx) || !isFiniteNum(e.dy) || !isFiniteNum(e.blur) || !isFiniteNum(e.opacity)) return null;
     if (e.blur < 0 || e.opacity < 0 || e.opacity > 1) return null;
     const col = parseEffectColor(e.color);
     if (!col) return null;
     const out: any = {
-      type: 'dropShadow',
+      type: e.type,
       dx: e.dx,
       dy: e.dy,
       blur: e.blur,
+      spread: isFiniteNum(e.spread) ? Math.max(0, e.spread) : 0,
       color: col.hex,
       opacity: clampN(e.opacity * col.alpha, 0, 1)
+    };
+    if (disabled !== undefined) out.disabled = disabled;
+    return out;
+  }
+  if (e.type === 'outerGlow' || e.type === 'innerGlow') {
+    if (!isFiniteNum(e.blur) || !isFiniteNum(e.opacity) || e.blur < 0 || e.opacity < 0 || e.opacity > 1) return null;
+    const col = parseEffectColor(e.color);
+    if (!col) return null;
+    const out: any = {
+      type: e.type,
+      blur: e.blur,
+      spread: isFiniteNum(e.spread) ? Math.max(0, e.spread) : 0,
+      color: col.hex,
+      opacity: clampN(e.opacity * col.alpha, 0, 1)
+    };
+    if (disabled !== undefined) out.disabled = disabled;
+    return out;
+  }
+  if (e.type === 'noiseGrain') {
+    if (!isFiniteNum(e.amount) || e.amount < 0 || e.amount > 1) return null;
+    const out: any = {
+      type: 'noiseGrain',
+      amount: e.amount,
+      size: isFiniteNum(e.size) ? clampN(e.size, 1, 8) : 2
     };
     if (disabled !== undefined) out.disabled = disabled;
     return out;

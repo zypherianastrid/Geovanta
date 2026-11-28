@@ -767,26 +767,10 @@ const TIPS: Record<string, any> = {
     t: 'Impor SVG / AI / EPS / gambar',
     d: 'Menambahkan satu atau banyak file ke kanvas: SVG, AI, EPS, PS, PDF (menjadi objek vektor yang bisa diedit) atau gambar PNG/JPG/WebP/GIF. Tipe file dikenali dari isinya (magic byte). File ditambahkan di tengah tampilan dan tidak menggantikan isi kanvas. Bisa juga seret-lepas file ke kanvas atau tempel dengan Ctrl+V.'
   },
-  veSvgCodeInspector: {
-    t: 'Inspeksi & Editor Kode SVG',
-    k: 'Ctrl+Alt+C',
-    d: 'Buka Live SVG Code Inspector & Editor dua arah dengan format SVG XML, Minified, React JSX, Vue SFC, dan CSS Data URI.'
-  },
-  veCodeInspectorTitle: {
-    t: 'SVG Code Inspector & Live Editor',
-    d: 'Inspeksi dan edit kode SVG secara real-time dengan sinkronisasi dua arah.'
-  },
-  veLiveSyncActive: {
-    t: 'Live Sync Aktif',
-    d: 'Perubahan kode otomatis disinkronkan ke kanvas.'
-  },
-  veXmlSyntaxError: {
-    t: 'Kesalahan XML',
-    d: 'Sintaks XML tidak valid.'
-  },
-  veFormatXml: {
-    t: 'Format XML',
-    d: 'Format kode XML agar rapi dan mudah dibaca.'
+  veDevMode: {
+    t: 'Dev Mode',
+    k: 'Shift+D',
+    d: 'Masuk ke Dev Mode hanya-baca seperti Figma: inspeksi Box Model, Layout, Tipografi, Warna, Redline jarak otomatis saat hover, dan salin kode CSS, Tailwind, SVG, React JSX, SwiftUI, atau Compose.'
   },
   veMinifyXml: {
     t: 'Minifikasi',
@@ -2476,26 +2460,10 @@ const TIPS_EN: Record<string, any> = {
     t: 'Import SVG / AI / EPS / image',
     d: 'Adds one or many files to the canvas: SVG, AI, EPS, PS, PDF (become editable vector objects) or PNG/JPG/WebP/GIF images. File type is detected from content (magic byte). Files are added at the center of the view and do not replace the canvas content. You can also drag-drop files onto the canvas or paste with Ctrl+V.'
   },
-  veSvgCodeInspector: {
-    t: 'SVG Code Inspector & Editor',
-    k: 'Ctrl+Alt+C',
-    d: 'Open two-way live SVG Code Inspector & Editor with SVG XML, Minified, React JSX, Vue SFC, and CSS Data URI formats.'
-  },
-  veCodeInspectorTitle: {
-    t: 'SVG Code Inspector & Live Editor',
-    d: 'Inspect and edit SVG code in real-time with two-way synchronization.'
-  },
-  veLiveSyncActive: {
-    t: 'Live Sync Active',
-    d: 'Code changes automatically sync to canvas.'
-  },
-  veXmlSyntaxError: {
-    t: 'XML Syntax Error',
-    d: 'Invalid XML markup syntax.'
-  },
-  veFormatXml: {
-    t: 'Prettify XML',
-    d: 'Format XML markup with clean indentation.'
+  veDevMode: {
+    t: 'Dev Mode',
+    k: 'Shift+D',
+    d: 'Switch to read-only Figma-style Dev Mode: inspect Box Model, Layout, Typography, Colors, automatic hover redline distances, and copy CSS, Tailwind, SVG, React JSX, SwiftUI, or Compose code.'
   },
   veMinifyXml: {
     t: 'Minify',
@@ -3529,5 +3497,147 @@ TIPS.veS2gAngle = {t: 'Arah & Sudut Gradien', d: 'Atur arah sudut untuk gradien 
 TIPS_EN.veS2gAngle = {t: 'Gradient Direction & Angle', d: 'Adjust the direction angle for Linear gradients or starting angle for Angular gradients.'};
 TIPS.veS2gPreset = {t: 'Terapkan Gradien Halus', d: 'Klik untuk menerapkan variasi gradien OKLab halus ini ke objek terpilih (tanpa menumpuk objek solid).'};
 TIPS_EN.veS2gPreset = {t: 'Apply Smooth Gradient', d: 'Click to apply this smooth OKLab gradient directly to the selected object fill (no stacked solid layers).'};
+TIPS.veWireframe = {t: 'Mode Outline / Wireframe', k: 'Shift+O', d: 'Tampilkan kerangka garis luar path tanpa fill untuk memudahkan seleksi dan inspeksi geometri.'};
+TIPS_EN.veWireframe = {t: 'Outline / Wireframe Mode', k: 'Shift+O', d: 'Show path outlines without fills for easier selection and geometry inspection.'};
+TIPS.veHistoryPanel = {t: 'Riwayat Versi & Snapshot', d: 'Buka timeline riwayat Undo/Redo dan simpan atau pulihkan snapshot versi dokumen.'};
+TIPS_EN.veHistoryPanel = {t: 'Version History & Snapshots', d: 'Open the Undo/Redo timeline and save or restore named document version snapshots.'};
+TIPS.veArtboardsToggle = {t: 'Kelola Halaman / Artboard', d: 'Tampilkan atau sembunyikan panel daftar halaman dan artboard proyek.'};
+TIPS_EN.veArtboardsToggle = {t: 'Manage Pages / Artboards', d: 'Show or hide the project pages and artboards list panel.'};
+TIPS.veSimplifyPreview = {t: 'Pratinjau Simplify', d: 'Tampilkan pratinjau langsung hasil penyederhanaan kurva di kanvas.'};
+TIPS_EN.veSimplifyPreview = {t: 'Simplify Preview', d: 'Show live preview of the simplified curve on the canvas.'};
+TIPS.veSimplifyCancel = {t: 'Batal Simplify', d: 'Batalkan perubahan penyederhanaan kurva dan kembalikan path asal.'};
+TIPS_EN.veSimplifyCancel = {t: 'Cancel Simplify', d: 'Discard curve simplification changes and restore the original path.'};
+TIPS.veLayFilterAll = {t: 'Semua Layer', d: 'Tampilkan semua tipe layer di daftar.'};
+TIPS_EN.veLayFilterAll = {t: 'All Layers', d: 'Show all layer types in the list.'};
+TIPS.veLayFilterPath = {t: 'Filter Path', d: 'Tampilkan hanya layer path & bentuk vektor.'};
+TIPS_EN.veLayFilterPath = {t: 'Filter Paths', d: 'Show only vector path and shape layers.'};
+TIPS.veLayFilterText = {t: 'Filter Teks', d: 'Tampilkan hanya layer tipografi / teks.'};
+TIPS_EN.veLayFilterText = {t: 'Filter Text', d: 'Show only typography / text layers.'};
+TIPS.veLayFilterImage = {t: 'Filter Gambar', d: 'Tampilkan hanya layer gambar raster.'};
+TIPS_EN.veLayFilterImage = {t: 'Filter Images', d: 'Show only raster image layers.'};
+TIPS.veLayFilterFrame = {t: 'Filter Frame', d: 'Tampilkan hanya container Frame & Auto Layout.'};
+TIPS_EN.veLayFilterFrame = {t: 'Filter Frames', d: 'Show only Frame & Auto Layout containers.'};
+TIPS.veGridRulersMenu = {t: 'Opsi Grid & Rulers', d: 'Atur tampilan grid, penggaris (rulers), garis bantu (guides), dan satuan pengukuran.'};
+TIPS_EN.veGridRulersMenu = {t: 'Grid & Rulers Options', d: 'Configure grid, rulers, guides visibility/lock, and ruler units.'};
+TIPS.veGridToggle = {t: 'Tampilkan Grid', d: 'Tampilkan atau sembunyikan grid latar pada kanvas.'};
+TIPS_EN.veGridToggle = {t: 'Show Grid', d: 'Show or hide the canvas background grid.'};
+TIPS.veRulersToggle = {t: 'Tampilkan Rulers', d: 'Tampilkan atau sembunyikan penggaris di tepi atas dan kiri kanvas.'};
+TIPS_EN.veRulersToggle = {t: 'Show Rulers', d: 'Show or hide top and left canvas rulers.'};
+TIPS.veGuidesToggle = {t: 'Tampilkan Guides', d: 'Tampilkan atau sembunyikan garis bantu (guides) yang ditarik dari penggaris.'};
+TIPS_EN.veGuidesToggle = {t: 'Show Guides', d: 'Show or hide guides dragged from the rulers.'};
+TIPS.veGuidesLock = {t: 'Kunci Guides', d: 'Cegah garis bantu tergeser secara tidak sengaja saat mengedit objek.'};
+TIPS_EN.veGuidesLock = {t: 'Lock Guides', d: 'Prevent guides from being moved accidentally while editing.'};
+TIPS.veRulerUnit = {t: 'Satuan Ruler', d: 'Pilih satuan pengukuran penggaris dan koordinat (px, mm, cm, in, pt).'};
+TIPS_EN.veRulerUnit = {t: 'Ruler Unit', d: 'Choose the ruler and coordinate measurement unit (px, mm, cm, in, pt).'};
+TIPS.veResetOrigin = {t: 'Reset Origin Ruler', d: 'Kembalikan titik nol (0, 0) penggaris ke sudut awal.'};
+TIPS_EN.veResetOrigin = {t: 'Reset Ruler Origin', d: 'Reset the ruler origin (0, 0) back to the default corner.'};
+TIPS.veClearGuides = {t: 'Hapus Semua Guides', d: 'Hapus seluruh garis bantu dari kanvas.'};
+TIPS_EN.veClearGuides = {t: 'Clear All Guides', d: 'Remove all guides from the canvas.'};
+TIPS.veNodeSizePreset = {t: 'Preset Ukuran Node', d: 'Terapkan skala ukuran tampilan node dan handle.'};
+TIPS_EN.veNodeSizePreset = {t: 'Node Size Preset', d: 'Apply a display scale preset for nodes and handles.'};
+TIPS.veNodeSizeReset = {t: 'Reset Ukuran Node', d: 'Kembalikan ukuran tampilan node & handle ke 100%.'};
+TIPS_EN.veNodeSizeReset = {t: 'Reset Node Size', d: 'Reset node and handle display scale to 100%.'};
+TIPS.veCornerSelectAll = {t: 'Pilih Semua Sudut', d: 'Aktifkan seluruh sudut terdeteksi untuk diatur radiusnya sekaligus.'};
+TIPS_EN.veCornerSelectAll = {t: 'Select All Corners', d: 'Select all detected corners to adjust their radius together.'};
+TIPS.veCornerSelectOdd = {t: 'Pilih Sudut Ganjil', d: 'Pilih sudut bernomor ganjil saja (1, 3, 5, ...).'};
+TIPS_EN.veCornerSelectOdd = {t: 'Select Odd Corners', d: 'Select odd-numbered corners only (1, 3, 5, ...).'};
+TIPS.veCornerSelectEven = {t: 'Pilih Sudut Genap', d: 'Pilih sudut bernomor genap saja (2, 4, 6, ...).'};
+TIPS_EN.veCornerSelectEven = {t: 'Select Even Corners', d: 'Select even-numbered corners only (2, 4, 6, ...).'};
+TIPS.veCornerSharpen = {t: 'Tajamkan Sudut (0)', d: 'Atur radius sudut terpilih kembali ke 0 (sudut tajam).'};
+TIPS_EN.veCornerSharpen = {t: 'Sharpen Corners (0)', d: 'Reset selected corner radii to 0 (sharp corners).'};
+TIPS.veTracePreset = {t: 'Preset Auto Trace', d: 'Terapkan profil konfigurasi Auto Trace cepat sesuai jenis gambar.'};
+TIPS_EN.veTracePreset = {t: 'Auto Trace Preset', d: 'Apply a quick Auto Trace configuration preset for the image type.'};
+TIPS.veTraceAdvanced = {t: 'Pengaturan Lanjutan Trace', d: 'Buka atau tutup opsi lanjutan mode, profil, smoothing, dan despeckle.'};
+TIPS_EN.veTraceAdvanced = {t: 'Advanced Trace Settings', d: 'Expand or collapse advanced trace mode, profile, smoothing, and despeckle options.'};
+TIPS.veAddExtraFill = {t: 'Tambah Fill Tambahan', d: 'Tambahkan lapisan Fill baru (Appearance Stack) di atas objek terpilih.'};
+TIPS_EN.veAddExtraFill = {t: 'Add Extra Fill', d: 'Add another Fill layer (Appearance Stack) onto selected objects.'};
+TIPS.veAddExtraStroke = {t: 'Tambah Stroke Tambahan', d: 'Tambahkan lapisan Stroke baru (Appearance Stack) pada objek terpilih.'};
+TIPS_EN.veAddExtraStroke = {t: 'Add Extra Stroke', d: 'Add another Stroke layer (Appearance Stack) onto selected objects.'};
+TIPS.veRemoveExtraPaint = {t: 'Hapus Lapisan Paint', d: 'Hapus lapisan fill atau stroke tambahan ini.'};
+TIPS_EN.veRemoveExtraPaint = {t: 'Remove Paint Layer', d: 'Remove this extra fill or stroke layer.'};
+TIPS.veFxAddShadow = {t: 'Tambah Drop Shadow', d: 'Tambahkan efek bayangan luar pada objek terpilih.'};
+TIPS_EN.veFxAddShadow = {t: 'Add Drop Shadow', d: 'Add an outer drop shadow effect to selected objects.'};
+TIPS.veFxAddInnerShadow = {t: 'Tambah Inner Shadow', d: 'Tambahkan efek bayangan dalam pada objek terpilih.'};
+TIPS_EN.veFxAddInnerShadow = {t: 'Add Inner Shadow', d: 'Add an inner shadow effect to selected objects.'};
+TIPS.veFxAddOuterGlow = {t: 'Tambah Outer Glow', d: 'Tambahkan efek cahaya luar (glow) di sekeliling objek.'};
+TIPS_EN.veFxAddOuterGlow = {t: 'Add Outer Glow', d: 'Add an outer glow effect around selected objects.'};
+TIPS.veFxAddInnerGlow = {t: 'Tambah Inner Glow', d: 'Tambahkan efek cahaya dalam pada tepi dalam objek.'};
+TIPS_EN.veFxAddInnerGlow = {t: 'Add Inner Glow', d: 'Add an inner glow effect along the inside edges.'};
+TIPS.veFxAddLayerBlur = {t: 'Tambah Layer Blur', d: 'Tambahkan efek buram Gaussian pada objek.'};
+TIPS_EN.veFxAddLayerBlur = {t: 'Add Layer Blur', d: 'Add a Gaussian blur effect to the object.'};
+TIPS.veFxAddBgBlur = {t: 'Tambah Background Blur', d: 'Tambahkan efek buram latar belakang (frosted glass) di balik objek.'};
+TIPS_EN.veFxAddBgBlur = {t: 'Add Background Blur', d: 'Add a backdrop blur (frosted glass) effect behind the object.'};
+TIPS.veFxAddNoiseGrain = {t: 'Tambah Noise / Grain', d: 'Tambahkan tekstur bintik halus (grain) pada objek.'};
+TIPS_EN.veFxAddNoiseGrain = {t: 'Add Noise / Grain', d: 'Add a subtle film grain / noise texture effect.'};
+TIPS.veHistTabTimeline = {t: 'Tab Riwayat', d: 'Lihat daftar langkah pengeditan (Undo/Redo) dan lompat ke titik mana pun.'};
+TIPS_EN.veHistTabTimeline = {t: 'History Tab', d: 'View Undo/Redo editing steps and jump to any point.'};
+TIPS.veHistTabSnapshots = {t: 'Tab Snapshot', d: 'Simpan dan kelola snapshot versi bernama untuk proyek ini.'};
+TIPS_EN.veHistTabSnapshots = {t: 'Snapshots Tab', d: 'Save and manage named version snapshots for this project.'};
+TIPS.veHistStep = {t: 'Lompat ke Langkah Ini', d: 'Klik untuk memulihkan status dokumen ke langkah riwayat ini.'};
+TIPS_EN.veHistStep = {t: 'Jump to This Step', d: 'Click to restore the document state to this history step.'};
+TIPS.veHistSaveSnap = {t: 'Simpan Snapshot', d: 'Simpan kondisi dokumen saat ini sebagai snapshot versi bernama.'};
+TIPS_EN.veHistSaveSnap = {t: 'Save Snapshot', d: 'Save the current document state as a named version snapshot.'};
+TIPS.veHistRestoreSnap = {t: 'Pulihkan Snapshot', d: 'Terapkan kembali isi snapshot ini ke kanvas.'};
+TIPS_EN.veHistRestoreSnap = {t: 'Restore Snapshot', d: 'Restore this snapshot onto the canvas.'};
+TIPS.veHistDeleteSnap = {t: 'Hapus Snapshot', d: 'Hapus snapshot tersimpan ini secara permanen.'};
+TIPS_EN.veHistDeleteSnap = {t: 'Delete Snapshot', d: 'Delete this saved snapshot permanently.'};
+TIPS.veArtboardAdd = {t: 'Tambah Artboard Baru', d: 'Buat halaman / artboard baru di dalam proyek.'};
+TIPS_EN.veArtboardAdd = {t: 'Add New Artboard', d: 'Create a new page / artboard in this project.'};
+TIPS.veArtboardDelete = {t: 'Hapus Artboard', d: 'Hapus artboard ini dari proyek.'};
+TIPS_EN.veArtboardDelete = {t: 'Delete Artboard', d: 'Remove this artboard from the project.'};
+TIPS.vePdfColorSpace = {t: 'Profil Warna PDF', d: 'Pilih ruang warna ekspor PDF: RGB (layar) atau CMYK (cetak).'};
+TIPS_EN.vePdfColorSpace = {t: 'PDF Color Space', d: 'Choose PDF export color space: RGB (screen) or CMYK (print).'};
+TIPS.veBatchExport = {t: 'Batch Export', d: 'Ekspor sekaligus dalam format SVG serta PNG 1x dan 2x.'};
+TIPS_EN.veBatchExport = {t: 'Batch Export', d: 'Export SVG plus PNG 1x and 2x in one batch.'};
+TIPS.veExportBackup = {t: 'Ekspor Arsip Backup', d: 'Unduh cadangan penuh proyek dalam format .geovanta.'};
+TIPS_EN.veExportBackup = {t: 'Export Backup Archive', d: 'Download a full project backup in .geovanta format.'};
+TIPS.setAccentPipette = {t: 'Ambil Warna Layar (Pipet)', d: 'Pilih warna aksen langsung dari piksel mana pun di layar.'};
+TIPS_EN.setAccentPipette = {t: 'Pick Screen Color (Pipette)', d: 'Pick an accent color directly from any pixel on screen.'};
+TIPS.setAccentDefault = {t: 'Warna Aksen Default', d: 'Kembalikan warna aksen ke hijau standar Geovanta (#13B152).'};
+TIPS_EN.setAccentDefault = {t: 'Default Accent Color', d: 'Reset the accent color to Geovanta default green (#13B152).'};
+TIPS.setEngineParams = {t: 'Parameter Mesin Vektor', d: 'Tampilkan atau sembunyikan pengaturan koordinat lokal, toleransi piksel, dan kedalaman Bézier.'};
+TIPS_EN.setEngineParams = {t: 'Vector Engine Parameters', d: 'Show or hide local coordinate rebasing, pixel error target, and Bézier recursion depth.'};
+TIPS.setTabDebug = {t: 'Tab Debug', d: 'Buka Debugging Mode, log live, konsol fungsi, dan benchmark engine.'};
+TIPS_EN.setTabDebug = {t: 'Debug Tab', d: 'Open Debugging Mode, live logs, function console, and engine benchmarks.'};
+TIPS.setAiToggle = {t: 'Aktif/Nonaktifkan AI & MCP', d: 'Nyalakan atau matikan integrasi AI Assistant & Model Context Protocol (MCP).'};
+TIPS_EN.setAiToggle = {t: 'Toggle AI & MCP', d: 'Enable or disable AI Assistant & Model Context Protocol (MCP) integration.'};
+TIPS.setAiConnect = {t: 'Hubungkan ke Server MCP', d: 'Mulai koneksi WebSocket/HTTP ke server AI MCP lokal atau tunnel.'};
+TIPS_EN.setAiConnect = {t: 'Connect to MCP Server', d: 'Start WebSocket/HTTP connection to the local or tunnel AI MCP server.'};
+TIPS.setAiDisconnect = {t: 'Putuskan Koneksi MCP', d: 'Tutup koneksi live ke server AI MCP.'};
+TIPS_EN.setAiDisconnect = {t: 'Disconnect MCP', d: 'Close the live connection to the AI MCP server.'};
+TIPS.setAiOpenLocal = {t: 'Buka Server Lokal', d: 'Buka alamat server WebSocket & HTTP lokal di tab baru.'};
+TIPS_EN.setAiOpenLocal = {t: 'Open Local Server', d: 'Open the local WebSocket & HTTP server URL in a new tab.'};
+TIPS.setAiAutoConnect = {t: 'Auto-Connect Bridge', d: 'Hubungkan bridge AI MCP secara otomatis setiap kali Geovanta dibuka.'};
+TIPS_EN.setAiAutoConnect = {t: 'Auto-Connect Bridge', d: 'Automatically connect the AI MCP bridge whenever Geovanta opens.'};
+TIPS.setAiSaveConnect = {t: 'Simpan & Hubungkan Tunnel', d: 'Simpan URL WebSocket/Tunnel kustom lalu hubungkan ke server.'};
+TIPS_EN.setAiSaveConnect = {t: 'Save & Connect Tunnel', d: 'Save the custom WebSocket/Tunnel URL and connect to the server.'};
+TIPS.setAiCopy = {t: 'Salin ke Clipboard', d: 'Salin nilai atau konfigurasi ini ke clipboard.'};
+TIPS_EN.setAiCopy = {t: 'Copy to Clipboard', d: 'Copy this value or configuration to the clipboard.'};
+TIPS.dbgToggle = {t: 'Aktif/Nonaktifkan Debugging Mode', d: 'Nyalakan atau matikan perekaman log interaksi dan telemetri secara real-time.'};
+TIPS_EN.dbgToggle = {t: 'Toggle Debugging Mode', d: 'Turn real-time interaction logging and telemetry recording on or off.'};
+TIPS.dbgTabLog = {t: 'Log Live', d: 'Lihat aliran log interaksi kanvas, filter kategori, dan pencarian.'};
+TIPS_EN.dbgTabLog = {t: 'Live Log', d: 'View live canvas interaction logs with category filter and search.'};
+TIPS.dbgTabConsole = {t: 'Konsol Fungsi', d: 'Pantau fungsi aktif dan aliran perubahan (prev → next) secara real-time.'};
+TIPS_EN.dbgTabConsole = {t: 'Function Console', d: 'Monitor active functions and prev → next state changes in real time.'};
+TIPS.dbgTabEngine = {t: 'Engine & Visual', d: 'Kontrol overlay mesh/wireframe, telemetri GPU, skenario uji, dan benchmark.'};
+TIPS_EN.dbgTabEngine = {t: 'Engine & Visual', d: 'Control mesh/wireframe overlays, GPU telemetry, test scenarios, and benchmarks.'};
+TIPS.dbgClearSearch = {t: 'Hapus Pencarian Log', d: 'Kosongkan kata kunci pencarian log.'};
+TIPS_EN.dbgClearSearch = {t: 'Clear Log Search', d: 'Clear the log search filter.'};
+TIPS.dbgPause = {t: 'Jeda / Lanjutkan Log', d: 'Tahan sementara pembaruan tampilan log live atau lanjutkan kembali.'};
+TIPS_EN.dbgPause = {t: 'Pause / Resume Log', d: 'Temporarily pause or resume live log stream updates.'};
+TIPS.dbgClear = {t: 'Bersihkan Log', d: 'Hapus seluruh entri log debug yang tercatat saat ini.'};
+TIPS_EN.dbgClear = {t: 'Clear Logs', d: 'Clear all currently recorded debug log entries.'};
+TIPS.dbgExportJson = {t: 'Unduh Log JSON', d: 'Ekspor seluruh log debug dalam format JSON.'};
+TIPS_EN.dbgExportJson = {t: 'Download JSON Logs', d: 'Export all debug logs in JSON format.'};
+TIPS.dbgExportMd = {t: 'Unduh Laporan Markdown', d: 'Ekspor ringkasan log debug dalam format Markdown (.md).'};
+TIPS_EN.dbgExportMd = {t: 'Download Markdown Report', d: 'Export a debug log summary in Markdown (.md) format.'};
+TIPS.dbgOverlayMode = {t: 'Mode Overlay Geometri', d: 'Tampilkan overlay visual path asli, polyline, mesh tessellation, atau seam guard di kanvas.'};
+TIPS_EN.dbgOverlayMode = {t: 'Geometry Overlay Mode', d: 'Display original paths, flattened polylines, tessellation meshes, or seam guards on the canvas.'};
+TIPS.dbgTestScenario = {t: 'Muat Skenario Uji', d: 'Muat dokumen atau SVG uji standar ke kanvas untuk pengujian render.'};
+TIPS_EN.dbgTestScenario = {t: 'Load Test Scenario', d: 'Load a standard benchmark document or SVG onto the canvas for render testing.'};
+TIPS.dbgRunBench = {t: 'Jalankan Semua Benchmark', d: 'Jalankan suite benchmark otomatis (9 skenario) dan ukur waktu render aktual.'};
+TIPS_EN.dbgRunBench = {t: 'Run Automated Benchmarks', d: 'Run the automated 9-scenario benchmark suite and measure actual render timings.'};
+TIPS.veExitIsolation = {t: 'Keluar Mode Isolasi', k: 'Esc', d: 'Kembali mengedit seluruh kanvas dan keluar dari mode isolasi grup/frame.'};
+TIPS_EN.veExitIsolation = {t: 'Exit Isolation Mode', k: 'Esc', d: 'Return to editing the full canvas and exit group/frame isolation mode.'};
 export { TIPS, TIPS_EN };
 export default TIPS;

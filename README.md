@@ -10,8 +10,8 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Language-English-0ea5e9?style=for-the-badge" alt="English" /></a>
   <a href="README.id.md"><img src="https://img.shields.io/badge/Bahasa-Indonesia-13b152?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   <a href="https://geovanta.netlify.app" target="_blank"><img src="https://img.shields.io/badge/WebApp-Live_on_Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" alt="WebApp Live on Netlify" /></a>
-  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.2" target="_blank"><img src="https://img.shields.io/badge/Release-v1.3.2-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.3.2" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.3.2-8b5cf6?style=for-the-badge" alt="Changelog v1.3.2" /></a>
+  <a href="https://github.com/zypherianastrid/Geovanta/releases/tag/v1.4.0" target="_blank"><img src="https://img.shields.io/badge/Release-v1.4.0-2563eb?style=for-the-badge&logo=github&logoColor=white" alt="Release v1.4.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-v1.4.0-8b5cf6?style=for-the-badge" alt="Changelog v1.4.0" /></a>
 </p>
 
 <p>
@@ -190,6 +190,16 @@ Design crisp headlines and multi-line vector copy with full typographic control:
 
 ---
 
+### 15. Figma-Style Dev Mode, Live SVG Code Editing & Pro Studio Suite (`v1.4.0`)
+Inspect, edit, and ship production-ready vector assets without leaving the canvas:
+- **Figma-Style Dev Mode (`Shift + D`)**: Switch instantly into **Dev Mode** with **Inspect**, **Tokens**, and **Assets** tabs, an interactive **CSS Box Model** visualizer, **WCAG AA/AAA Contrast Checker**, rAF-throttled hover redline measurements, and **7-language code generation** (*CSS, Tailwind, SVG, React JSX, Vue, SwiftUI, Jetpack Compose*).
+- **Two-Way Live SVG Code Editing**: Edit object SVG markup directly inside Dev Mode and apply live geometry/paint updates back onto the canvas with full Undo/Redo support.
+- **100% Custom Input System**: Every input, dropdown, slider, and multiline textbox across the entire application uses Geovanta's custom accessible controls (zero native HTML `<input>`, `<select>`, or `<textarea>`).
+- **Pro Studio Suite**: Includes **Wireframe View & Layer Search**, **Cut / Scissors & Line Markers**, **Effects v2 & Appearance Stack**, **Docked Version History & Named Snapshots**, **Masking**, **Vector PDF Export**, **Auto-Layout v2**, **Distortion & Blend**, **Multi-Artboard Manager**, **Typography Pro**, **Charts v2**, **Components & Color Styles**, **MCP v2**, and **Web Worker Auto Trace**.
+- **Recolor & Workspace Stability**: Fixed Recolor live-preview shifting on selection or overriding direct Fill edits, added a sticky **Recolor Preview Active** banner, and portaled Workspace card dropdown menus above all cards.
+
+---
+
 ## 📋 Complete Feature Reference
 
 > For the chronological release history, see **[CHANGELOG.md](CHANGELOG.md)**.
@@ -310,17 +320,17 @@ flowchart LR
 Launch Geovanta directly in any modern browser (Chrome, Edge, Firefox) with no installation required:
 - **Live WebApp**: **[https://geovanta.netlify.app](https://geovanta.netlify.app)**
 
-### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.3.2` Release)
-Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.3.2)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.2)**:
-1. Download [`Geovanta.Vector.Editor_1.3.2_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.2/Geovanta.Vector.Editor_1.3.2_x64-setup.exe) (or the `.msi` installer).
+### Option 2: 🪟 Install Desktop App — Windows 64-Bit (`v1.4.0` Release)
+Download the official pre-built Windows 64-bit installer from **[GitHub Releases (v1.4.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.4.0)**:
+1. Download [`Geovanta-Vector-Editor_1.4.0_x64-setup.exe`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.4.0/Geovanta-Vector-Editor_1.4.0_x64-setup.exe) (or the `.msi` installer).
 2. Run the `.exe` installer and follow the setup wizard.
 3. Launch **Geovanta Vector Editor** from your Start Menu or Desktop shortcut.
 
-### Option 3: 📱 Install Android App (`.apk` — `v1.3.2` Release)
+### Option 3: 📱 Install Android App (`.apk` — `v1.4.0` Release)
 Install Geovanta directly on Android phones and tablets (with Dedicated Mobile Mode, Material 3 Action Sheet, two-finger pinch-to-zoom/pan, 2-finger Undo, 3-finger Redo, Material You dynamic accent, and native Capacitor 7 bridge):
-1. Download [`Geovanta-v1.3.2-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.3.2/Geovanta-v1.3.2-android.apk) from **[GitHub Releases (v1.3.2)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.3.2)**.
+1. Download [`Geovanta-v1.4.0-android.apk`](https://github.com/zypherianastrid/Geovanta/releases/download/v1.4.0/Geovanta-v1.4.0-android.apk) from **[GitHub Releases (v1.4.0)](https://github.com/zypherianastrid/Geovanta/releases/tag/v1.4.0)**.
 2. Tap the `.apk` file on your Android device and allow installation if prompted.
-3. *(Optional)* Build the APK locally from source using `npm run android:build:apk` or `build-android-apk.bat` (outputs to `dist/android/Geovanta-v1.3.2-android.apk`).
+3. *(Optional)* Build the APK locally from source using `npm run android:build:apk` or `build-android-apk.bat` (outputs to `dist/android/Geovanta-v1.4.0-android.apk`).
 
 ### Option 4: 📦 Run Offline Bundle Locally (No Build Required)
 Serve or open `web/index.html` in Chrome, Edge, or any modern Chromium browser. All JavaScript bundles, fonts, and Skia CanvasKit WebAssembly runtimes are bundled locally — no internet connection required.
@@ -337,7 +347,7 @@ npm run typecheck
 # 3. Rebuild the 100% offline web bundle (updates dist/ and web/)
 npm run build:web
 
-# 4. Build Android APK locally (outputs dist/android/Geovanta-v1.3.2-android.apk)
+# 4. Build Android APK locally (outputs dist/android/Geovanta-v1.4.0-android.apk)
 npm run android:build:apk
 ```
 
@@ -347,8 +357,8 @@ Requires **Node.js 20+**, **Rust MSVC** (`x86_64-pc-windows-msvc`), **Visual Stu
 build-windows-64bit.bat
 ```
 Generated 64-bit installers are placed in:
-- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.3.2_x64-setup.exe`
-- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.3.2_x64_en-US.msi`
+- **NSIS Setup (`.exe`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\Geovanta Vector Editor_1.4.0_x64-setup.exe`
+- **WiX Installer (`.msi`)**: `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\Geovanta Vector Editor_1.4.0_x64_en-US.msi`
 
 ---
 

@@ -61,11 +61,16 @@ export function sanitizeEChartsSvgForVectorParser(svg: string): string {
 
     const texts = Array.from(svgEl.querySelectorAll('text'));
     for (const t of texts) {
+      const txtContent = (t.textContent || '').trim();
+      if (!txtContent) {
+        t.remove();
+        continue;
+      }
       if (!t.hasAttribute('x')) t.setAttribute('x', '0');
       let y = parseFloat(t.getAttribute('y') || '0');
       if (!Number.isFinite(y)) y = 0;
 
-      const styleAttr = t.getAttribute('style') || '';
+      let styleAttr = t.getAttribute('style') || '';
       let fs = parseFloat(t.getAttribute('font-size') || '') || 0;
 
       // Expand CSS shorthand `font: [italic] [weight] 28px Family...` so VE.parseSVG preserves exact hero size/weight/family
@@ -80,9 +85,23 @@ export function sanitizeEChartsSvgForVectorParser(svg: string): string {
           if (/\bitalic\b/i.test(prefix)) t.setAttribute('font-style', 'italic');
           const wtMatch = prefix.match(/\b(bold|normal|[1-9]00)\b/i);
           if (wtMatch) t.setAttribute('font-weight', wtMatch[1]);
-          const firstFam = sizeMatch[2].split(',')[0].replace(/^['"]+|['"]+$/g, '').trim();
+          const firstFam = sizeMatch[2].split(',')[0].trim().replace(/^['"]+|['"]+$/g, '').trim();
           if (firstFam) t.setAttribute('font-family', firstFam);
         }
+      }
+
+      // Normalize style="font-family:..." so it never leaves a trailing quote after splitting
+      const famStyleMatch = styleAttr.match(/(?:^|;)\s*font-family\s*:\s*([^;]+)/i);
+      if (famStyleMatch) {
+        const cleanFam = famStyleMatch[1].split(',')[0].trim().replace(/^['"]+|['"]+$/g, '').trim();
+        if (cleanFam) {
+          t.setAttribute('font-family', cleanFam);
+          styleAttr = styleAttr.replace(/font-family\s*:\s*[^;]+/i, `font-family:${cleanFam}`);
+          t.setAttribute('style', styleAttr);
+        }
+      } else if (t.hasAttribute('font-family')) {
+        const cleanAttrFam = (t.getAttribute('font-family') || '').split(',')[0].trim().replace(/^['"]+|['"]+$/g, '').trim();
+        if (cleanAttrFam) t.setAttribute('font-family', cleanAttrFam);
       }
 
       if (!fs) {
@@ -274,18 +293,26 @@ export function regenChartGroup(
   let originX = anchor.gen && anchor.gen.bounds ? Number(anchor.gen.bounds.x) || 0 : 0;
   let originY = anchor.gen && anchor.gen.bounds ? Number(anchor.gen.bounds.y) || 0 : 0;
   try {
-    let minX = Infinity;
-    let minY = Infinity;
-    for (const m of members) {
-      const bb = VE.tightBBox(m);
-      if (bb && Number.isFinite(bb[0]) && Number.isFinite(bb[1])) {
-        if (bb[0] < minX) minX = bb[0];
-        if (bb[1] < minY) minY = bb[1];
+    // Only shift origin if the user dragged the chart on canvas (detected via anchor object bbox vs stored bounds)
+    if (anchor.gen && anchor.gen.bounds) {
+      let minX = Infinity;
+      let minY = Infinity;
+      for (const m of members) {
+        const bb = VE.tightBBox(m);
+        if (bb && Number.isFinite(bb[0]) && Number.isFinite(bb[1])) {
+          if (bb[0] < minX) minX = bb[0];
+          if (bb[1] < minY) minY = bb[1];
+        }
       }
-    }
-    if (Number.isFinite(minX) && Number.isFinite(minY)) {
-      originX = minX;
-      originY = minY;
+      // If card frame is disabled and bounds were from card, keep stable origin unless moved by > 8px
+      if (Number.isFinite(minX) && Number.isFinite(minY)) {
+        const dx = Math.abs(minX - originX);
+        const dy = Math.abs(minY - originY);
+        if (dx > 8 || dy > 8) {
+          originX = minX;
+          originY = minY;
+        }
+      }
     }
   } catch (_e) {}
 

@@ -683,6 +683,160 @@ const ringsToSubs = (rings, tol = REFIT_TOL) => {
    Konvensi: urutan objek = bawah -> atas (doc order). Subtract memakai
    objek TERATAS sebagai pemotong; sisanya digabung dulu sebagai subjek.
    ============================================================================ */
+const SKIA_VERBS = { MOVE: 0, LINE: 1, QUAD: 2, CONIC: 3, CUBIC: 4, CLOSE: 5 };
+
+function objToSkiaPath(kit, obj) {
+  const path = new kit.Path();
+  if (obj.fillRule === 'evenodd' && kit.FillType?.EvenOdd != null) {
+    path.setFillType(kit.FillType.EvenOdd);
+  } else if (kit.FillType?.Winding != null) {
+    path.setFillType(kit.FillType.Winding);
+  }
+  for (const sp of obj.subs || []) {
+    const nodes = sp && sp.nodes;
+    if (!nodes || nodes.length < 3 || !sp.closed) continue;
+    path.moveTo(nodes[0].x, nodes[0].y);
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      const b = nodes[(i + 1) % nodes.length];
+      const ho = a.handleOut || (a.ox != null ? { x: a.ox, y: a.oy } : null);
+      const hi = b.handleIn || (b.ix != null ? { x: b.ix, y: b.iy } : null);
+      if (ho || hi) {
+        path.cubicTo(
+          ho ? ho.x : a.x,
+          ho ? ho.y : a.y,
+          hi ? hi.x : b.x,
+          hi ? hi.y : b.y,
+          b.x,
+          b.y
+        );
+      } else {
+        path.lineTo(b.x, b.y);
+      }
+    }
+    path.close();
+  }
+  return path;
+}
+
+function skiaCmdsToSubs(cmds) {
+  if (!cmds || !cmds.length) return [];
+  const subs = [];
+  let curNodes = [];
+  let curPt = [0, 0];
+  let i = 0;
+  const finishSub = closed => {
+    if (curNodes.length >= 2) {
+      if (closed && curNodes.length > 1) {
+        const first = curNodes[0];
+        const last = curNodes[curNodes.length - 1];
+        if (Math.hypot(first.x - last.x, first.y - last.y) < 1e-4) {
+          if (last.handleIn) first.handleIn = last.handleIn;
+          curNodes.pop();
+        }
+      }
+      if (curNodes.length >= 3) {
+        subs.push({ id: uid(), closed: true, nodes: curNodes });
+      }
+    }
+    curNodes = [];
+  };
+  while (i < cmds.length) {
+    const verb = cmds[i++];
+    if (verb === SKIA_VERBS.MOVE) {
+      if (curNodes.length) finishSub(true);
+      const x = rd(cmds[i++]), y = rd(cmds[i++]);
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: 'corner', handleIn: null, handleOut: null });
+    } else if (verb === SKIA_VERBS.LINE) {
+      const x = rd(cmds[i++]), y = rd(cmds[i++]);
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: 'corner', handleIn: null, handleOut: null });
+    } else if (verb === SKIA_VERBS.QUAD) {
+      const qx = cmds[i++], qy = cmds[i++], x = rd(cmds[i++]), y = rd(cmds[i++]);
+      const prev = curNodes[curNodes.length - 1];
+      if (prev) {
+        prev.handleOut = { x: rd(curPt[0] + (2 / 3) * (qx - curPt[0])), y: rd(curPt[1] + (2 / 3) * (qy - curPt[1])) };
+      }
+      const hi = { x: rd(x + (2 / 3) * (qx - x)), y: rd(y + (2 / 3) * (qy - y)) };
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: 'corner', handleIn: hi, handleOut: null });
+    } else if (verb === SKIA_VERBS.CONIC) {
+      const cx = cmds[i++], cy = cmds[i++], x = rd(cmds[i++]), y = rd(cmds[i++]);
+      i++; // weight
+      const prev = curNodes[curNodes.length - 1];
+      if (prev) {
+        prev.handleOut = { x: rd(curPt[0] + (2 / 3) * (cx - curPt[0])), y: rd(curPt[1] + (2 / 3) * (cy - curPt[1])) };
+      }
+      const hi = { x: rd(x + (2 / 3) * (cx - x)), y: rd(y + (2 / 3) * (cy - y)) };
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: 'corner', handleIn: hi, handleOut: null });
+    } else if (verb === SKIA_VERBS.CUBIC) {
+      const c1x = rd(cmds[i++]), c1y = rd(cmds[i++]);
+      const c2x = rd(cmds[i++]), c2y = rd(cmds[i++]);
+      const x = rd(cmds[i++]), y = rd(cmds[i++]);
+      const prev = curNodes[curNodes.length - 1];
+      if (prev) prev.handleOut = { x: c1x, y: c1y };
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: 'corner', handleIn: { x: c2x, y: c2y }, handleOut: null });
+    } else if (verb === SKIA_VERBS.CLOSE) {
+      finishSub(true);
+    } else {
+      break;
+    }
+  }
+  if (curNodes.length) finishSub(true);
+  return subs;
+}
+
+function trySkiaBooleanSubs(usable, op) {
+  const kit = typeof globalThis !== 'undefined' ? globalThis.__geovantaCanvasKit : null;
+  if (!kit || !kit.Path || typeof kit.Path.MakeFromOp !== 'function' || !kit.PathOp) return null;
+  const opMap = {
+    union: kit.PathOp.Union,
+    intersect: kit.PathOp.Intersect,
+    subtract: kit.PathOp.Difference,
+    exclude: kit.PathOp.XOR,
+  };
+  const skiaOp = opMap[op];
+  if (skiaOp === undefined) return null;
+  const paths = [];
+  let acc = null;
+  try {
+    for (const item of usable) paths.push(objToSkiaPath(kit, item.o));
+    if (op === 'subtract') {
+      const topPath = paths[paths.length - 1];
+      acc = paths[0].copy();
+      for (let i = 1; i < paths.length - 1; i++) {
+        const nextAcc = kit.Path.MakeFromOp(acc, paths[i], kit.PathOp.Union);
+        acc.delete();
+        acc = nextAcc;
+        if (!acc) return null;
+      }
+      const diff = kit.Path.MakeFromOp(acc, topPath, kit.PathOp.Difference);
+      acc.delete();
+      acc = diff;
+    } else {
+      acc = paths[0].copy();
+      for (let i = 1; i < paths.length; i++) {
+        const nextAcc = kit.Path.MakeFromOp(acc, paths[i], skiaOp);
+        acc.delete();
+        acc = nextAcc;
+        if (!acc) return null;
+      }
+    }
+    if (!acc) return null;
+    const cmds = acc.toCmds();
+    const subs = skiaCmdsToSubs(cmds);
+    return subs.length ? subs : null;
+  } catch (_) {
+    return null;
+  } finally {
+    for (const p of paths) p?.delete?.();
+    acc?.delete?.();
+  }
+}
+
 const booleanDoc = (doc, op, selIds) => {
   const targets = doc.objects.filter(o => selIds.has(o.id) && !o.hidden && !o.locked && !o.img && !o.text && o.subs && o.subs.length);
   if (targets.length < 2) return { doc, changed: false, reason: 'need2' };
@@ -690,7 +844,13 @@ const booleanDoc = (doc, op, selIds) => {
   const usable = perObj.filter(p => p.rings.length > 0);
   if (usable.length < 2) return { doc, changed: false, reason: 'need2closed' };
   let resultRings = null;
-  if (op === 'divide') {
+  let skiaSubs = null;
+  if (op !== 'divide') {
+    skiaSubs = trySkiaBooleanSubs(usable, op);
+  }
+  if (skiaSubs) {
+    // Fast-path succeeded via Skia PathOps
+  } else if (op === 'divide') {
     let regions = [{ rings: usable[0].rings, sourceObj: usable[0].o }];
     for (let k = 1; k < usable.length; k++) {
       let remnantOfOk = usable[k].rings;
@@ -806,8 +966,8 @@ const booleanDoc = (doc, op, selIds) => {
   } else {
     return { doc, changed: false, reason: 'badop' };
   }
-  if (!resultRings || !resultRings.length) return { doc, changed: false, reason: 'empty' };
-  const subs = ringsToSubs(resultRings);
+  if (!skiaSubs && (!resultRings || !resultRings.length)) return { doc, changed: false, reason: 'empty' };
+  const subs = skiaSubs || ringsToSubs(resultRings);
   if (!subs.length) return { doc, changed: false, reason: 'empty' };
   const bottom = usable[0].o;
   const topObj = usable[usable.length - 1].o;
@@ -843,9 +1003,10 @@ const booleanDoc = (doc, op, selIds) => {
     resultId: merged.id,
     resultIds: [merged.id],
     stats: {
+      engine: skiaSubs ? 'skia-pathops' : 'greiner-hormann',
       inObjects: usable.length,
       inRings: usable.reduce((s, p) => s + p.rings.length, 0),
-      outRings: resultRings.length,
+      outRings: skiaSubs ? subs.length : resultRings.length,
       outNodes: subs.reduce((s, sp) => s + sp.nodes.length, 0),
       skippedOpen: perObj.reduce((s, p) => s + p.skippedOpen, 0)
     }

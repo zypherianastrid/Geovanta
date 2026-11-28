@@ -363,12 +363,59 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'geovanta_live_export',
-    description: 'Trigger file export of active Geovanta canvas in specified format (svg, png, jpg, webp).',
+    description: 'Trigger file export of active Geovanta canvas in specified format (svg, png, jpg, webp, pdf).',
     inputSchema: {
       type: 'object',
       properties: {
-        format: { type: 'string', enum: ['svg', 'png', 'jpg', 'webp'], description: 'Export file format' }
+        format: { type: 'string', enum: ['svg', 'png', 'jpg', 'webp', 'pdf'], description: 'Export file format' }
       }
+    }
+  },
+  {
+    name: 'geovanta_live_screenshot',
+    description: 'Capture a PNG base64 visual screenshot of the active Geovanta canvas for AI visual inspection and self-correction.',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    name: 'geovanta_charts_create',
+    description: 'Create an Apache ECharts pure-vector chart on the Geovanta canvas.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        chartType: { type: 'string', description: 'ECharts series type (line, bar, pie, scatter, radar, etc.)' },
+        title: { type: 'string', description: 'Chart title' },
+        data: { type: 'object', description: 'Chart data payload' }
+      },
+      required: ['chartType']
+    }
+  },
+  {
+    name: 'geovanta_effects_apply',
+    description: 'Apply Effects v2 (dropShadow, innerShadow, outerGlow, innerGlow, layerBlur, noiseGrain) to selected or specified object IDs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        objectIds: { type: 'array', items: { type: 'string' }, description: 'Target object IDs' },
+        effects: { type: 'array', items: { type: 'object' }, description: 'Effect definitions' }
+      },
+      required: ['objectIds', 'effects']
+    }
+  },
+  {
+    name: 'geovanta_autolayout_apply',
+    description: 'Apply Figma-style Auto-Layout v2 (row/col, gap, padding, fill/hug/minmax) to a Frame.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        frameId: { type: 'string', description: 'Target Frame ID' },
+        dir: { type: 'string', enum: ['row', 'col'], description: 'Flow direction' },
+        gap: { type: 'number', description: 'Gap between items' },
+        padding: { type: 'number', description: 'Padding inside frame' }
+      },
+      required: ['frameId']
     }
   }
 ];

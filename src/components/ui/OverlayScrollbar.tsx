@@ -102,6 +102,12 @@ const OverlayScrollbar: React.FC<OverlayScrollbarProps> = ({
     };
   }, [scrollRef]);
 
+  const winCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    if (winCleanupRef.current) winCleanupRef.current();
+  }, []);
+
   const onThumbPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -124,6 +130,38 @@ const OverlayScrollbar: React.FC<OverlayScrollbarProps> = ({
     try {
       thumbEl.setPointerCapture(e.pointerId);
     } catch (_err) {}
+
+    if (winCleanupRef.current) winCleanupRef.current();
+    const onWinMove = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d.active || d.pointerId !== ev.pointerId) return;
+      const maxScroll = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+      const maxTravel = Math.max(1, d.trackHeight - d.thumbHeight);
+      const dy = ev.clientY - d.startY;
+      scrollEl.scrollTop = Math.max(0, Math.min(maxScroll, d.startScrollTop + (dy / maxTravel) * maxScroll));
+    };
+    const onWinUp = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d.active || d.pointerId !== ev.pointerId) return;
+      d.active = false;
+      d.pointerId = -1;
+      setDragging(false);
+      try {
+        thumbEl.releasePointerCapture(ev.pointerId);
+      } catch (_err) {}
+      if (winCleanupRef.current) {
+        winCleanupRef.current();
+        winCleanupRef.current = null;
+      }
+    };
+    window.addEventListener('pointermove', onWinMove, true);
+    window.addEventListener('pointerup', onWinUp, true);
+    window.addEventListener('pointercancel', onWinUp, true);
+    winCleanupRef.current = () => {
+      window.removeEventListener('pointermove', onWinMove, true);
+      window.removeEventListener('pointerup', onWinUp, true);
+      window.removeEventListener('pointercancel', onWinUp, true);
+    };
   };
 
   const onThumbPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {

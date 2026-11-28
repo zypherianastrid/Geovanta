@@ -1139,6 +1139,55 @@ class GeovantaMcpServer {
           };
         }
 
+        case 'geovanta_live_screenshot': {
+          if (!this.isLiveConnected()) {
+            return {
+              content: [{ type: 'text', text: 'Error: No Geovanta client connected.' }],
+              isError: true
+            };
+          }
+          const res = await this.sendLiveMessage('captureScreenshot', {});
+          return {
+            content: [{ type: 'text', text: JSON.stringify(res, null, 2) }]
+          };
+        }
+
+        case 'geovanta_charts_create': {
+          if (!this.isLiveConnected()) {
+            return {
+              content: [{ type: 'text', text: JSON.stringify({ status: 'headless', chartType: args.chartType, title: args.title || '' }) }]
+            };
+          }
+          const res = await this.sendLiveMessage('createChart', args);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(res, null, 2) }]
+          };
+        }
+
+        case 'geovanta_effects_apply': {
+          if (!this.isLiveConnected()) {
+            return {
+              content: [{ type: 'text', text: JSON.stringify({ status: 'headless', objectIds: args.objectIds, effects: args.effects }) }]
+            };
+          }
+          const res = await this.sendLiveMessage('applyEffects', args);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(res, null, 2) }]
+          };
+        }
+
+        case 'geovanta_autolayout_apply': {
+          if (!this.isLiveConnected()) {
+            return {
+              content: [{ type: 'text', text: JSON.stringify({ status: 'headless', frameId: args.frameId, dir: args.dir || 'row' }) }]
+            };
+          }
+          const res = await this.sendLiveMessage('applyAutoLayout', args);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(res, null, 2) }]
+          };
+        }
+
         default:
           return {
             content: [{ type: 'text', text: `Unknown tool: ${name}` }],

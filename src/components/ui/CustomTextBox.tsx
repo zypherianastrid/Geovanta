@@ -2,7 +2,7 @@
  * @file src/components/ui/CustomTextBox.tsx
  * @description Komponen kotak input teks & angka kustom (0% Native HTML Input) dengan pemilihan rentang & kursor
  */
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 
 /* Helper offscreen canvas untuk mengukur posisi horizontal tiap batas karakter */
 let measureCtx = null;
@@ -92,9 +92,11 @@ const CustomTextBox: React.FC<CustomTextBoxProps> = ({
   cls = ''
 }) => {
   const ref = useRef(null);
+  const txtRef = useRef<HTMLSpanElement | null>(null);
   const [editing, setEditing] = useState(false);
   const [buf, setBuf] = useState(String(value ?? ''));
   const [caret, setCaret] = useState(String(value ?? '').length);
+  const [caretX, setCaretX] = useState(0);
   const [selStart, setSelStart] = useState(0);
   const [selEnd, setSelEnd] = useState(0);
   const isDraggingRef = useRef(false);
@@ -507,8 +509,40 @@ const CustomTextBox: React.FC<CustomTextBoxProps> = ({
   const beforeSel = hasSel ? shown.slice(0, selStart) : '';
   const selText = hasSel ? shown.slice(selStart, selEnd) : '';
   const afterSel = hasSel ? shown.slice(selEnd) : '';
-  const beforeCaret = !hasSel && editing ? shown.slice(0, caret) : shown;
-  const afterCaret = !hasSel && editing ? shown.slice(caret) : '';
+
+  useLayoutEffect(() => {
+    if (!editing || hasSel) return;
+    if (caret <= 0) {
+      setCaretX(0);
+      return;
+    }
+    const el = txtRef.current;
+    const node = el && el.firstChild;
+    if (node && node.nodeType === 3 && typeof document !== 'undefined' && document.createRange) {
+      try {
+        const len = (node.textContent || '').length;
+        const idx = Math.max(0, Math.min(len, caret));
+        if (idx === 0) {
+          setCaretX(0);
+          return;
+        }
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.setEnd(node, idx);
+        const w = range.getBoundingClientRect().width;
+        setCaretX(Number.isFinite(w) ? w : 0);
+        return;
+      } catch (_) {}
+    }
+    let font = '12px "Geovanta Sans", Inter, sans-serif';
+    if (typeof window !== 'undefined' && ref.current) {
+      const cs = window.getComputedStyle(ref.current);
+      font = `${cs.fontWeight || '400'} ${cs.fontSize || '12px'} ${cs.fontFamily || '"Geovanta Sans", Inter, sans-serif'}`;
+    }
+    const positions = getCharPositions(shown, font);
+    const idx = Math.max(0, Math.min(positions.length - 1, caret));
+    setCaretX(positions[idx] || 0);
+  }, [editing, hasSel, caret, shown]);
 
   return (
     <div
@@ -545,10 +579,9 @@ const CustomTextBox: React.FC<CustomTextBoxProps> = ({
           {afterSel}
         </span>
       ) : editing ? (
-        <span className="c-inp-txt" style={{ display: 'inline-block', whiteSpace: 'pre', padding: 0, margin: 0 }}>
-          {beforeCaret}
-          <span className="c-caret" aria-hidden="true" style={{ display: 'inline-block', width: 0, margin: 0, borderLeft: '1.5px solid var(--acc)', verticalAlign: 'middle', height: '14px', position: 'relative', zIndex: 1 }} />
-          {afterCaret}
+        <span ref={txtRef} className="c-inp-txt" style={{ position: 'relative', display: 'inline-block', whiteSpace: 'pre', padding: 0, margin: 0 }}>
+          {shown}
+          <span className="c-caret" aria-hidden="true" style={{ position: 'absolute', left: `${caretX}px`, top: '50%', transform: 'translateY(-50%)', width: '1.5px', height: '14px', margin: 0, padding: 0, border: 0, background: 'var(--acc)', pointerEvents: 'none', zIndex: 1 }} />
         </span>
       ) : (
         <span className="c-inp-txt" style={{ display: 'inline-block', whiteSpace: 'pre', padding: 0, margin: 0 }}>{shown}</span>

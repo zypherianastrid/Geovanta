@@ -4,7 +4,6 @@
  * (8-Stage Multiscale Image Profiler, CIE-Lab/CIEDE2000 KD-Tree & K-Means++, QuadTree + MRF Potts Segmentation,
  * Beach Sub-Pixel Deconvolution, Polak-Ribière Conjugate Gradient Smoother, Cubic Bézier Fitting & Gradient Assembly).
  */
-import { getSvgPeakVmtEngine } from './svgpeak/vmtEngineBundle.js';
 import {
   getAutoTraceGpuInfo,
   maskEdgeConnectedWhiteBackdrop,
@@ -94,18 +93,106 @@ export const DEFAULT_AUTO_TRACE_OPTIONS: Required<AutoTraceOptions> = {
 
 export { getAutoTraceGpuInfo, type AutoTraceGpuInfo };
 
+function getSvgPeakVmtEngineLazy(): any {
+  const g = globalThis as any;
+  if (typeof g.__geovantaGetSvgPeakVmt === 'function') {
+    return g.__geovantaGetSvgPeakVmt();
+  }
+  throw new Error('SVGPeak VMT engine belum dimuat. Gunakan traceRgbaBufferToSvgAsync untuk lazy-load worker.');
+}
+
+let vmtScriptLoadPromise: Promise<void> | null = null;
+function ensureVmtScriptLoaded(): Promise<void> {
+  const g = globalThis as any;
+  if (typeof g.__geovantaGetSvgPeakVmt === 'function') return Promise.resolve();
+  if (vmtScriptLoadPromise) return vmtScriptLoadPromise;
+  vmtScriptLoadPromise = new Promise<void>((resolve, reject) => {
+    if (typeof document === 'undefined' || !document.head) {
+      reject(new Error('Document unavailable to load vmt-worker.js'));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = './assets/vmt-worker.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      vmtScriptLoadPromise = null;
+      reject(new Error('Gagal memuat ./assets/vmt-worker.js'));
+    };
+    document.head.appendChild(script);
+  });
+  return vmtScriptLoadPromise;
+}
+
+let activeVmtWorker: Worker | null = null;
+let vmtReqSeq = 0;
+
+function runVmtInWorker(
+  inputRgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  vmtCfg: any,
+  opts: Required<AutoTraceOptions>,
+  onProgress?: (stage: string, frac: number, detail: string, viz?: any) => void
+): Promise<{ svg: string; palette: any[]; regions: any[]; stats: any }> {
+  return new Promise((resolve, reject) => {
+    if (!activeVmtWorker) {
+      activeVmtWorker = new Worker('./assets/vmt-worker.js');
+    }
+    const worker = activeVmtWorker;
+    const reqId = ++vmtReqSeq;
+    const copyBuf = new Uint8ClampedArray(inputRgba).buffer;
+
+    const cleanup = () => {
+      worker.removeEventListener('message', onMsg);
+      worker.removeEventListener('error', onErr);
+    };
+    const onMsg = (ev: MessageEvent) => {
+      const m = ev.data;
+      if (!m || m.id !== reqId) return;
+      if (m.type === 'progress') {
+        onProgress?.(m.stage, m.frac, m.detail);
+      } else if (m.type === 'done') {
+        cleanup();
+        resolve({
+          svg: m.svg,
+          palette: m.palette || [],
+          regions: m.regions || [],
+          stats: { ...(m.stats || {}), workerUsed: true },
+        });
+      } else if (m.type === 'error') {
+        cleanup();
+        reject(new Error(m.message || 'VMT worker error'));
+      }
+    };
+    const onErr = (err: ErrorEvent) => {
+      cleanup();
+      activeVmtWorker?.terminate();
+      activeVmtWorker = null;
+      reject(new Error(err.message || 'VMT worker crashed'));
+    };
+
+    worker.addEventListener('message', onMsg);
+    worker.addEventListener('error', onErr);
+    worker.postMessage(
+      { id: reqId, rgbaBuffer: copyBuf, width, height, vmtCfg, opts: { ignoreWhite: opts.ignoreWhite } },
+      [copyBuf]
+    );
+  });
+}
+
 /**
  * Returns the full 85-function SVGPeak VMT Bayesian Vectorization Engine instance.
  */
 export function getSvgPeakVmt(): any {
-  return getSvgPeakVmtEngine().VMT;
+  return getSvgPeakVmtEngineLazy().VMT;
 }
 
 /**
  * Returns the SVGPeak VE (SVG / AI / EPS Exporter) engine instance.
  */
 export function getSvgPeakVe(): any {
-  return getSvgPeakVmtEngine().VE;
+  return getSvgPeakVmtEngineLazy().VE;
 }
 
 /**
@@ -204,20 +291,20 @@ export async function traceRgbaBufferToSvgAsync(
   options: AutoTraceOptions = {},
   onProgress?: (stage: string, frac: number, detail: string, viz?: any) => void
 ): Promise<{ svg: string; palette: any[]; regions: any[]; stats: any }> {
-  const VMT = getSvgPeakVmt();
   const opts = { ...DEFAULT_AUTO_TRACE_OPTIONS, ...options };
   const gpuInfo = getAutoTraceGpuInfo();
   const allowGpu = opts.useGpu !== false && gpuInfo.gpuAvailable;
 
-  if (typeof VMT.setHwConfig === 'function') {
-    VMT.setHwConfig({
-      useGpu: allowGpu,
-      gpuPipeline: allowGpu ? 'full' : 'off',
-      multiThread: true,
-    });
-  }
-
   if (opts.rawPixelMode === true) {
+    await ensureVmtScriptLoaded();
+    const VMT = getSvgPeakVmt();
+    if (typeof VMT.setHwConfig === 'function') {
+      VMT.setHwConfig({
+        useGpu: allowGpu,
+        gpuPipeline: allowGpu ? 'full' : 'off',
+        multiThread: true,
+      });
+    }
     const ultraRes = traceUltraExactVectorSvg(
       rgba,
       width,
@@ -256,6 +343,40 @@ export async function traceRgbaBufferToSvgAsync(
     opts.ignoreWhite && opts.mode !== 'bw'
       ? maskEdgeConnectedWhiteBackdrop(rawRgba, width, height, 244)
       : rawRgba;
+
+  // Jalankan di Dedicated Web Worker pada origin http(s) agar UI tetap 60 FPS dan bundle utama ramping
+  const canUseWorker = typeof Worker !== 'undefined' &&
+    typeof location !== 'undefined' &&
+    location.protocol !== 'file:';
+  if (canUseWorker) {
+    try {
+      const workerRes = await runVmtInWorker(inputRgba, width, height, vmtCfg, opts, onProgress);
+      return {
+        ...workerRes,
+        stats: {
+          ...(workerRes.stats || {}),
+          workerUsed: true,
+          hw: {
+            ...(workerRes.stats?.hw || {}),
+            gpuUsed: false,
+            gpuBackend: 'Web Worker CPU',
+          },
+        },
+      };
+    } catch (_) {
+      // Fallback ke script lazy-load di main thread bila Worker gagal
+    }
+  }
+
+  await ensureVmtScriptLoaded();
+  const VMT = getSvgPeakVmt();
+  if (typeof VMT.setHwConfig === 'function') {
+    VMT.setHwConfig({
+      useGpu: allowGpu,
+      gpuPipeline: allowGpu ? 'full' : 'off',
+      multiThread: true,
+    });
+  }
 
   let srcImg: any = { _rgba: inputRgba, w: width, h: height };
   if (typeof document !== 'undefined' && typeof ImageData !== 'undefined') {

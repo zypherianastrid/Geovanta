@@ -1585,9 +1585,12 @@ class SceneRenderer {
           ? (visibleDraft ? visible : this.doc.objects).map(object => object.id === preview.id ? preview : object)
           : visible || this.doc.objects;
       }
-      const sceneOpts = hasTextPreview && !options?.hasTextPreview
-        ? { ...options, hasTextPreview: true }
-        : options;
+      const sceneOpts = {
+        ...(options || {}),
+        ...(hasTextPreview && !options?.hasTextPreview ? { hasTextPreview: true } : {}),
+        wireframeMode: Boolean(this.wireframeMode || options?.wireframeMode),
+        isolatedGroupId: this.isolatedGroupId ?? options?.isolatedGroupId ?? null,
+      };
       stats = scene.drawScene(canvas, objects, view, sceneOpts);
       canvas.restore();
     } finally {

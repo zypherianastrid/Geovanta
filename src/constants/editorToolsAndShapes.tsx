@@ -45,14 +45,6 @@ const VE_TOOLS = [{
 }, {
   type: 'single',
   item: ['hand', 'veHand', 'M18 11V7.5a1.75 1.75 0 0 0-3.5 0V10 M14.5 9.5V5.75a1.75 1.75 0 0 0-3.5 0V9.5 M11 9.5V6.5a1.75 1.75 0 0 0-3.5 0v7l-1.6-1.6a1.75 1.75 0 0 0-2.48 2.48l4.18 4.18A5.5 5.5 0 0 0 11.5 20.2h2A5.5 5.5 0 0 0 19 14.7V11a1.75 1.75 0 0 0-1-1.58']
-}, {
-  /* Task 5 (Iconify): entri tunggal — glyph ICONS.shapes yang sudah ada
-     (segitiga + kotak + lingkaran = "ikon"), tanpa ikon baru yang dibundel. */
-  type: 'single',
-  item: ['iconify', 'veIconify', ICONS.shapes]
-}, {
-  type: 'single',
-  item: ['charts', 'veCharts', 'M4 20h16 M7 16v-5 M12 16V7 M17 16v-8']
 }];
 /* ---------- Pustaka shape: setiap generator mengembalikan path M/L/C/Z di kotak (x, y, w, h) ---------- */
 

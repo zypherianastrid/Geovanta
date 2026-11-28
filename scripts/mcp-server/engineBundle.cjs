@@ -679,7 +679,15 @@ function readStyleLinks(el, styleIds) {
 }
 
 // src/engine/effectsEngine.tsx
-var EFFECT_TYPES = /* @__PURE__ */ new Set(["dropShadow", "layerBlur", "backgroundBlur"]);
+var EFFECT_TYPES = /* @__PURE__ */ new Set([
+  "dropShadow",
+  "innerShadow",
+  "outerGlow",
+  "innerGlow",
+  "layerBlur",
+  "backgroundBlur",
+  "noiseGrain"
+]);
 var clampN2 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 var isFiniteNum = (v) => typeof v === "number" && Number.isFinite(v);
 function parseEffectColor(c) {
@@ -703,18 +711,43 @@ function parseEffectColor(c) {
 function validateOne(e) {
   if (!e || typeof e !== "object" || !EFFECT_TYPES.has(e.type)) return null;
   const disabled = e.disabled === true ? true : e.disabled === false ? false : void 0;
-  if (e.type === "dropShadow") {
+  if (e.type === "dropShadow" || e.type === "innerShadow") {
     if (!isFiniteNum(e.dx) || !isFiniteNum(e.dy) || !isFiniteNum(e.blur) || !isFiniteNum(e.opacity)) return null;
     if (e.blur < 0 || e.opacity < 0 || e.opacity > 1) return null;
     const col = parseEffectColor(e.color);
     if (!col) return null;
     const out2 = {
-      type: "dropShadow",
+      type: e.type,
       dx: e.dx,
       dy: e.dy,
       blur: e.blur,
+      spread: isFiniteNum(e.spread) ? Math.max(0, e.spread) : 0,
       color: col.hex,
       opacity: clampN2(e.opacity * col.alpha, 0, 1)
+    };
+    if (disabled !== void 0) out2.disabled = disabled;
+    return out2;
+  }
+  if (e.type === "outerGlow" || e.type === "innerGlow") {
+    if (!isFiniteNum(e.blur) || !isFiniteNum(e.opacity) || e.blur < 0 || e.opacity < 0 || e.opacity > 1) return null;
+    const col = parseEffectColor(e.color);
+    if (!col) return null;
+    const out2 = {
+      type: e.type,
+      blur: e.blur,
+      spread: isFiniteNum(e.spread) ? Math.max(0, e.spread) : 0,
+      color: col.hex,
+      opacity: clampN2(e.opacity * col.alpha, 0, 1)
+    };
+    if (disabled !== void 0) out2.disabled = disabled;
+    return out2;
+  }
+  if (e.type === "noiseGrain") {
+    if (!isFiniteNum(e.amount) || e.amount < 0 || e.amount > 1) return null;
+    const out2 = {
+      type: "noiseGrain",
+      amount: e.amount,
+      size: isFiniteNum(e.size) ? clampN2(e.size, 1, 8) : 2
     };
     if (disabled !== void 0) out2.disabled = disabled;
     return out2;
@@ -837,7 +870,7 @@ function legacyTextSpec(o) {
     x: Number.isFinite(x) ? x : 0,
     y: Number.isFinite(y) ? y : fontSize,
     fontSize,
-    fontFamily: String(value.fontFamily ?? o.fontFamily ?? "sans-serif"),
+    fontFamily: String(value.fontFamily ?? o.fontFamily ?? "sans-serif").split(",")[0].trim().replace(/^['"]+|['"]+$/g, "").replace(/\s+/g, " ").trim() || "sans-serif",
     fontWeight: String(value.fontWeight ?? o.fontWeight ?? "normal"),
     fontStyle: String(value.fontStyle ?? o.fontStyle ?? "normal"),
     textAnchor: String(value.textAnchor ?? o.textAnchor ?? "start"),
@@ -1379,6 +1412,25 @@ function parseDasharray(raw) {
 function formatDasharray(arr) {
   const parsed = parseDasharray(arr);
   return parsed ? parsed.map((v) => String(v)).join(" ") : "";
+}
+function buildMarkerSvgDef(id, kind, color, strokeWidth) {
+  const s = Math.max(4, strokeWidth * 2.4);
+  const w = rd(s * 2);
+  const h = rd(s * 2);
+  const cy = rd(s);
+  let inner = "";
+  if (kind === "dot") {
+    inner = `<circle cx="${cy}" cy="${cy}" r="${rd(s * 0.45)}" fill="${color}"/>`;
+  } else if (kind === "diamond") {
+    inner = `<path d="M 0 ${cy} L ${rd(s * 0.8)} ${rd(s * 0.4)} L ${rd(s * 1.6)} ${cy} L ${rd(s * 0.8)} ${rd(s * 1.6)} Z" fill="${color}"/>`;
+  } else if (kind === "bar") {
+    inner = `<rect x="${rd(s * 0.7)}" y="${rd(s * 0.2)}" width="${rd(s * 0.4)}" height="${rd(s * 1.6)}" fill="${color}"/>`;
+  } else if (kind === "stealth") {
+    inner = `<path d="M 0 ${rd(s * 0.25)} L ${rd(s * 1.5)} ${cy} L 0 ${rd(s * 1.75)} L ${rd(s * 0.45)} ${cy} Z" fill="${color}"/>`;
+  } else {
+    inner = `<path d="M 0 ${rd(s * 0.25)} L ${rd(s * 1.5)} ${cy} L 0 ${rd(s * 1.75)} Z" fill="${color}"/>`;
+  }
+  return `<marker id="${id}" markerWidth="${w}" markerHeight="${h}" refX="${rd(s * 0.8)}" refY="${cy}" orient="auto-start-reverse" markerUnits="userSpaceOnUse">${inner}</marker>`;
 }
 function effectiveStrokeAlign(o) {
   if (!o) return "center";
@@ -2566,7 +2618,7 @@ function parseSVG(str) {
     if (!d) return [];
     return parsePath(d, localM, noteWarn);
   };
-  svg.querySelectorAll("clipPath").forEach((ce) => {
+  svg.querySelectorAll("clipPath, mask").forEach((ce) => {
     const cid = ce.getAttribute("id");
     if (!cid) return;
     const cSubs = collectClipSubs(ce, [1, 0, 0, 1, 0, 0], 0, /* @__PURE__ */ new Set());
@@ -2574,7 +2626,7 @@ function parseSVG(str) {
       clipDefs.set(cid, {
         subs: cSubs,
         d: cSubs.map((sp) => serializeSub(sp)).join(" "),
-        units: ce.getAttribute("clipPathUnits") || "userSpaceOnUse"
+        units: ce.getAttribute("clipPathUnits") || ce.getAttribute("maskContentUnits") || "userSpaceOnUse"
       });
     }
   });
@@ -2978,7 +3030,7 @@ function parseSVG(str) {
       const mScale = Math.hypot(m[0], m[1]) || 1;
       const rawFs = parseFloat(prop(el, "font-size") || el.getAttribute("font-size") || "16") || 16;
       const fontSize = Math.max(1, rd(rawFs * mScale));
-      const rawFam = (prop(el, "font-family") || el.getAttribute("font-family") || "Geovanta Sans").replace(/^['"]+|['"]+$/g, "").split(",")[0].trim() || "Geovanta Sans";
+      const rawFam = (prop(el, "font-family") || el.getAttribute("font-family") || "Geovanta Sans").split(",")[0].trim().replace(/^['"]+|['"]+$/g, "").replace(/\s+/g, " ").trim() || "Geovanta Sans";
       const fontWeight = prop(el, "font-weight") || el.getAttribute("font-weight") || "normal";
       const fontStyle = prop(el, "font-style") || el.getAttribute("font-style") || "normal";
       const textAnchor = prop(el, "text-anchor") || el.getAttribute("text-anchor") || cur["text-anchor"] || "start";
@@ -3064,8 +3116,9 @@ function parseSVG(str) {
     const sxDir = Math.hypot(m[0], m[1]), syDir = Math.hypot(m[2], m[3]);
     const strokeScaleXY = Math.abs(sxDir - syDir) > 1e-3 ? [rd(sxDir), rd(syDir)] : void 0;
     let clipPathD = cur._symClipD || void 0;
-    if (cur["clip-path"]) {
-      const cm = /^url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/.exec(cur["clip-path"]);
+    const clipOrMaskRef = cur["clip-path"] || cur["mask"];
+    if (clipOrMaskRef) {
+      const cm = /^url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/.exec(clipOrMaskRef);
       if (cm && clipDefs.has(cm[1])) {
         const cd = clipDefs.get(cm[1]);
         let clipMat = m;
@@ -4606,6 +4659,156 @@ var ringsToSubs = (rings, tol = REFIT_TOL) => {
   }
   return subs;
 };
+var SKIA_VERBS = { MOVE: 0, LINE: 1, QUAD: 2, CONIC: 3, CUBIC: 4, CLOSE: 5 };
+function objToSkiaPath(kit, obj) {
+  const path = new kit.Path();
+  if (obj.fillRule === "evenodd" && kit.FillType?.EvenOdd != null) {
+    path.setFillType(kit.FillType.EvenOdd);
+  } else if (kit.FillType?.Winding != null) {
+    path.setFillType(kit.FillType.Winding);
+  }
+  for (const sp of obj.subs || []) {
+    const nodes = sp && sp.nodes;
+    if (!nodes || nodes.length < 3 || !sp.closed) continue;
+    path.moveTo(nodes[0].x, nodes[0].y);
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      const b = nodes[(i + 1) % nodes.length];
+      const ho = a.handleOut || (a.ox != null ? { x: a.ox, y: a.oy } : null);
+      const hi = b.handleIn || (b.ix != null ? { x: b.ix, y: b.iy } : null);
+      if (ho || hi) {
+        path.cubicTo(
+          ho ? ho.x : a.x,
+          ho ? ho.y : a.y,
+          hi ? hi.x : b.x,
+          hi ? hi.y : b.y,
+          b.x,
+          b.y
+        );
+      } else {
+        path.lineTo(b.x, b.y);
+      }
+    }
+    path.close();
+  }
+  return path;
+}
+function skiaCmdsToSubs(cmds) {
+  if (!cmds || !cmds.length) return [];
+  const subs = [];
+  let curNodes = [];
+  let curPt = [0, 0];
+  let i = 0;
+  const finishSub = (closed) => {
+    if (curNodes.length >= 2) {
+      if (closed && curNodes.length > 1) {
+        const first = curNodes[0];
+        const last = curNodes[curNodes.length - 1];
+        if (Math.hypot(first.x - last.x, first.y - last.y) < 1e-4) {
+          if (last.handleIn) first.handleIn = last.handleIn;
+          curNodes.pop();
+        }
+      }
+      if (curNodes.length >= 3) {
+        subs.push({ id: uid(), closed: true, nodes: curNodes });
+      }
+    }
+    curNodes = [];
+  };
+  while (i < cmds.length) {
+    const verb = cmds[i++];
+    if (verb === SKIA_VERBS.MOVE) {
+      if (curNodes.length) finishSub(true);
+      const x = rd(cmds[i++]), y = rd(cmds[i++]);
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: "corner", handleIn: null, handleOut: null });
+    } else if (verb === SKIA_VERBS.LINE) {
+      const x = rd(cmds[i++]), y = rd(cmds[i++]);
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: "corner", handleIn: null, handleOut: null });
+    } else if (verb === SKIA_VERBS.QUAD) {
+      const qx = cmds[i++], qy = cmds[i++], x = rd(cmds[i++]), y = rd(cmds[i++]);
+      const prev = curNodes[curNodes.length - 1];
+      if (prev) {
+        prev.handleOut = { x: rd(curPt[0] + 2 / 3 * (qx - curPt[0])), y: rd(curPt[1] + 2 / 3 * (qy - curPt[1])) };
+      }
+      const hi = { x: rd(x + 2 / 3 * (qx - x)), y: rd(y + 2 / 3 * (qy - y)) };
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: "corner", handleIn: hi, handleOut: null });
+    } else if (verb === SKIA_VERBS.CONIC) {
+      const cx = cmds[i++], cy = cmds[i++], x = rd(cmds[i++]), y = rd(cmds[i++]);
+      i++;
+      const prev = curNodes[curNodes.length - 1];
+      if (prev) {
+        prev.handleOut = { x: rd(curPt[0] + 2 / 3 * (cx - curPt[0])), y: rd(curPt[1] + 2 / 3 * (cy - curPt[1])) };
+      }
+      const hi = { x: rd(x + 2 / 3 * (cx - x)), y: rd(y + 2 / 3 * (cy - y)) };
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: "corner", handleIn: hi, handleOut: null });
+    } else if (verb === SKIA_VERBS.CUBIC) {
+      const c1x = rd(cmds[i++]), c1y = rd(cmds[i++]);
+      const c2x = rd(cmds[i++]), c2y = rd(cmds[i++]);
+      const x = rd(cmds[i++]), y = rd(cmds[i++]);
+      const prev = curNodes[curNodes.length - 1];
+      if (prev) prev.handleOut = { x: c1x, y: c1y };
+      curPt = [x, y];
+      curNodes.push({ id: uid(), x, y, type: "corner", handleIn: { x: c2x, y: c2y }, handleOut: null });
+    } else if (verb === SKIA_VERBS.CLOSE) {
+      finishSub(true);
+    } else {
+      break;
+    }
+  }
+  if (curNodes.length) finishSub(true);
+  return subs;
+}
+function trySkiaBooleanSubs(usable, op) {
+  const kit = typeof globalThis !== "undefined" ? globalThis.__geovantaCanvasKit : null;
+  if (!kit || !kit.Path || typeof kit.Path.MakeFromOp !== "function" || !kit.PathOp) return null;
+  const opMap = {
+    union: kit.PathOp.Union,
+    intersect: kit.PathOp.Intersect,
+    subtract: kit.PathOp.Difference,
+    exclude: kit.PathOp.XOR
+  };
+  const skiaOp = opMap[op];
+  if (skiaOp === void 0) return null;
+  const paths = [];
+  let acc = null;
+  try {
+    for (const item of usable) paths.push(objToSkiaPath(kit, item.o));
+    if (op === "subtract") {
+      const topPath = paths[paths.length - 1];
+      acc = paths[0].copy();
+      for (let i = 1; i < paths.length - 1; i++) {
+        const nextAcc = kit.Path.MakeFromOp(acc, paths[i], kit.PathOp.Union);
+        acc.delete();
+        acc = nextAcc;
+        if (!acc) return null;
+      }
+      const diff = kit.Path.MakeFromOp(acc, topPath, kit.PathOp.Difference);
+      acc.delete();
+      acc = diff;
+    } else {
+      acc = paths[0].copy();
+      for (let i = 1; i < paths.length; i++) {
+        const nextAcc = kit.Path.MakeFromOp(acc, paths[i], skiaOp);
+        acc.delete();
+        acc = nextAcc;
+        if (!acc) return null;
+      }
+    }
+    if (!acc) return null;
+    const cmds = acc.toCmds();
+    const subs = skiaCmdsToSubs(cmds);
+    return subs.length ? subs : null;
+  } catch (_) {
+    return null;
+  } finally {
+    for (const p of paths) p?.delete?.();
+    acc?.delete?.();
+  }
+}
 var booleanDoc = (doc, op, selIds) => {
   const targets = doc.objects.filter((o) => selIds.has(o.id) && !o.hidden && !o.locked && !o.img && !o.text && o.subs && o.subs.length);
   if (targets.length < 2) return { doc, changed: false, reason: "need2" };
@@ -4613,7 +4816,12 @@ var booleanDoc = (doc, op, selIds) => {
   const usable = perObj.filter((p) => p.rings.length > 0);
   if (usable.length < 2) return { doc, changed: false, reason: "need2closed" };
   let resultRings = null;
-  if (op === "divide") {
+  let skiaSubs = null;
+  if (op !== "divide") {
+    skiaSubs = trySkiaBooleanSubs(usable, op);
+  }
+  if (skiaSubs) {
+  } else if (op === "divide") {
     let regions = [{ rings: usable[0].rings, sourceObj: usable[0].o }];
     for (let k2 = 1; k2 < usable.length; k2++) {
       let remnantOfOk = usable[k2].rings;
@@ -4721,8 +4929,8 @@ var booleanDoc = (doc, op, selIds) => {
   } else {
     return { doc, changed: false, reason: "badop" };
   }
-  if (!resultRings || !resultRings.length) return { doc, changed: false, reason: "empty" };
-  const subs = ringsToSubs(resultRings);
+  if (!skiaSubs && (!resultRings || !resultRings.length)) return { doc, changed: false, reason: "empty" };
+  const subs = skiaSubs || ringsToSubs(resultRings);
   if (!subs.length) return { doc, changed: false, reason: "empty" };
   const bottom = usable[0].o;
   const topObj = usable[usable.length - 1].o;
@@ -4757,9 +4965,10 @@ var booleanDoc = (doc, op, selIds) => {
     resultId: merged.id,
     resultIds: [merged.id],
     stats: {
+      engine: skiaSubs ? "skia-pathops" : "greiner-hormann",
       inObjects: usable.length,
       inRings: usable.reduce((s, p) => s + p.rings.length, 0),
-      outRings: resultRings.length,
+      outRings: skiaSubs ? subs.length : resultRings.length,
       outNodes: subs.reduce((s, sp) => s + sp.nodes.length, 0),
       skippedOpen: perObj.reduce((s, p) => s + p.skippedOpen, 0)
     }
@@ -5437,6 +5646,13 @@ function serializeDoc(doc, opt = {}) {
         gdefs += gradXml(o.grad, gid, ox, oy);
         textFillA = "url(#" + gid + ")";
       }
+      if (o.textOnPath?.pathD) {
+        const tpId = "tp-" + ++gn;
+        gdefs += `<path id="${tpId}" d="${esc(o.textOnPath.pathD)}"/>`;
+        const tpOffset = o.textOnPath.startOffset ? ` startOffset="${rd(o.textOnPath.startOffset)}"` : "";
+        body += '<text id="' + uq(o.name || o.id || "text") + '" data-id="' + esc(o.id) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + '><textPath href="#' + tpId + '"' + tpOffset + ">" + esc(display) + "</textPath></text>";
+        return;
+      }
       body += '<text id="' + uq(o.name || o.id || "text") + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : "") + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : "") + ' x="' + r6(t.x - ox) + '" y="' + r6(t.y - oy) + '" font-size="' + r6(t.fontSize) + '" font-family="' + esc(t.fontFamily) + '" font-weight="' + esc(t.fontWeight) + '" font-style="' + esc(t.fontStyle) + '" text-anchor="' + esc(t.textAnchor === "justify" ? "start" : t.textAnchor) + '"' + lsAttr + decAttr + rotAttr + ' fill="' + textFillA + '" opacity="' + r6(t.opacity) + '"' + blendStyleAttr(o) + fxAttrs(o) + ">" + spans + "</text>";
       return;
     }
@@ -5453,9 +5669,44 @@ function serializeDoc(doc, opt = {}) {
       gdefs += gradXml(o.strokeGrad, sgid, ox, oy);
       strokeA = "url(#" + sgid + ")";
     }
+    let objClipAttr = "";
+    if (o.clipPathD) {
+      const objClipId = "clip-" + ++gn;
+      gdefs += '<clipPath id="' + objClipId + '"><path d="' + esc(o.clipPathD) + '"' + (o.clipRule === "evenodd" ? ' clip-rule="evenodd"' : "") + "/></clipPath>";
+      objClipAttr = ' clip-path="url(#' + objClipId + ')"';
+    }
+    let objMarkerAttrs = "";
+    if (strokeVisible && (o.strokeMarkerStart && o.strokeMarkerStart !== "none" || o.strokeMarkerEnd && o.strokeMarkerEnd !== "none")) {
+      const mColor = esc(o.stroke === "transparent" || !o.stroke ? "#000000" : o.stroke);
+      if (o.strokeMarkerStart && o.strokeMarkerStart !== "none") {
+        const msId = "mk-s-" + ++gn;
+        gdefs += buildMarkerSvgDef(msId, o.strokeMarkerStart, mColor, o.strokeWidth || 1);
+        objMarkerAttrs += ' marker-start="url(#' + msId + ')"';
+      }
+      if (o.strokeMarkerEnd && o.strokeMarkerEnd !== "none") {
+        const meId = "mk-e-" + ++gn;
+        gdefs += buildMarkerSvgDef(meId, o.strokeMarkerEnd, mColor, o.strokeWidth || 1);
+        objMarkerAttrs += ' marker-end="url(#' + meId + ')"';
+      }
+    }
+    let extraStackAttrs = "";
+    if (Array.isArray(o.extraFills) && o.extraFills.length) {
+      extraStackAttrs += ' data-extra-fills="' + esc(JSON.stringify(o.extraFills)) + '"';
+      for (const ef of o.extraFills) {
+        if (ef && !ef.disabled && ef.pattern && ef.pattern !== "none") {
+          const patId = "pat-" + ++gn;
+          const pCol = esc(ef.color || "#000000");
+          const pBody = ef.pattern === "dots" ? `<circle cx="6" cy="6" r="2" fill="${pCol}"/>` : ef.pattern === "stripes" ? `<rect x="0" y="0" width="4" height="12" fill="${pCol}"/>` : `<rect x="0" y="0" width="6" height="6" fill="${pCol}"/>`;
+          gdefs += `<pattern id="${patId}" width="12" height="12" patternUnits="userSpaceOnUse">${pBody}</pattern>`;
+        }
+      }
+    }
+    if (Array.isArray(o.extraStrokes) && o.extraStrokes.length) {
+      extraStackAttrs += ' data-extra-strokes="' + esc(JSON.stringify(o.extraStrokes)) + '"';
+    }
     const align = effectiveStrokeAlign(o);
     if (align === "center" || !strokeVisible) {
-      body += '<path id="' + uq(o.name) + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : "") + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : "") + (o.strokeStyleId ? ' data-stroke-style="' + esc(o.strokeStyleId) + '"' : "") + ' fill="' + fillA + '"' + (strokeVisible ? ' stroke="' + strokeA + '" stroke-width="' + rd(o.strokeWidth) + '" stroke-linejoin="' + esc(o.strokeLinejoin || "round") + '" stroke-linecap="' + esc(o.strokeLinecap || "round") + '"' + (o.strokeMiterlimit ? ' stroke-miterlimit="' + rd(o.strokeMiterlimit) + '"' : "") + (o.nonScalingStroke ? ' vector-effect="non-scaling-stroke"' : "") + dashAttrs(o) : "") + (o.paintOrder ? ' paint-order="' + esc(o.paintOrder) + '"' : "") + ((o.opacity ?? 1) !== 1 ? ' opacity="' + rd(o.opacity) + '"' : "") + blendStyleAttr(o) + (o.fillRule === "evenodd" ? ' fill-rule="evenodd"' : "") + ' d="' + serializePath(o, ox, oy) + '"' + fxAttrs(o) + "/>";
+      body += '<path id="' + uq(o.name) + '" data-id="' + esc(o.id) + '"' + (o.gen ? ' data-gen="' + esc(JSON.stringify(o.gen)) + '"' : "") + (o.fillStyleId ? ' data-fill-style="' + esc(o.fillStyleId) + '"' : "") + (o.strokeStyleId ? ' data-stroke-style="' + esc(o.strokeStyleId) + '"' : "") + ' fill="' + fillA + '"' + (strokeVisible ? ' stroke="' + strokeA + '" stroke-width="' + rd(o.strokeWidth) + '" stroke-linejoin="' + esc(o.strokeLinejoin || "round") + '" stroke-linecap="' + esc(o.strokeLinecap || "round") + '"' + (o.strokeMiterlimit ? ' stroke-miterlimit="' + rd(o.strokeMiterlimit) + '"' : "") + (o.nonScalingStroke ? ' vector-effect="non-scaling-stroke"' : "") + dashAttrs(o) : "") + (o.paintOrder ? ' paint-order="' + esc(o.paintOrder) + '"' : "") + ((o.opacity ?? 1) !== 1 ? ' opacity="' + rd(o.opacity) + '"' : "") + blendStyleAttr(o) + (o.fillRule === "evenodd" ? ' fill-rule="evenodd"' : "") + objClipAttr + objMarkerAttrs + extraStackAttrs + ' d="' + serializePath(o, ox, oy) + '"' + fxAttrs(o) + "/>";
     } else {
       const closedSubs = (o.subs || []).filter((sp) => sp.closed);
       const openSubs = (o.subs || []).filter((sp) => !sp.closed);

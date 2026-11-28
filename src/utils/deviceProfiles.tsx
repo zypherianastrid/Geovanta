@@ -158,4 +158,40 @@ const computeSafeFramebufferSize = (cssW, cssH, requestedDpr, profile = ACTIVE_D
   };
 };
 
-export { DEVICE_PROFILES, detectDeviceProfile, ACTIVE_DEVICE_PROFILE, setDeviceProfileTier, computeSafeFramebufferSize };
+const computeSafeExportScale = (
+  width: number,
+  height: number,
+  requestedScale: number,
+  profile: any = ACTIVE_DEVICE_PROFILE
+): number => {
+  const w = Math.max(1, Number(width) || 1);
+  const h = Math.max(1, Number(height) || 1);
+  const req = Math.max(0.25, Number(requestedScale) || 1);
+  const prof = profile || ACTIVE_DEVICE_PROFILE;
+  const maxDim = Math.max(256, Number(prof.maxExportDimension) || 4096);
+  const maxPx = Math.max(65536, Number(prof.maxExportPixels) || 16777216);
+  const capDim = Math.min(maxDim / w, maxDim / h);
+  const capPx = Math.sqrt(maxPx / (w * h));
+  return Math.max(0.25, Math.round(Math.min(req, capDim, capPx) * 100) / 100);
+};
+
+const shouldRejectPalmEvent = (
+  pointerType: string,
+  lastStylusTime: number,
+  now: number,
+  windowMs = 600
+): boolean => {
+  if (pointerType !== 'touch' || !lastStylusTime) return false;
+  const dt = now - lastStylusTime;
+  return dt >= 0 && dt <= windowMs;
+};
+
+export {
+  DEVICE_PROFILES,
+  detectDeviceProfile,
+  ACTIVE_DEVICE_PROFILE,
+  setDeviceProfileTier,
+  computeSafeFramebufferSize,
+  computeSafeExportScale,
+  shouldRejectPalmEvent
+};

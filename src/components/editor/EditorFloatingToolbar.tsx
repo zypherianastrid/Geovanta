@@ -100,8 +100,10 @@ const EditorFloatingToolbar = ({
   applyJoinNodes,
   applySplitPath,
   applyReversePath,
-  onOpenCodeInspector,
-  isCodeInspectorOpen = false
+  devMode = false,
+  onToggleDevMode,
+  wireframeMode = false,
+  onToggleWireframe
 }: any) => {
   /* Boolean / Pathfinder: syarat seleksi (sama seperti menu konteks). */
   const [lastBoolOp, setLastBoolOp] = React.useState('union');
@@ -183,7 +185,17 @@ const EditorFloatingToolbar = ({
   .flt .snp-row.on .snp-sw { background: var(--acc) !important; }
   .flt .snp-row .snp-sw::after { background: #fff !important; }
   .flt .opt { cursor: pointer; }
-`}</style>{VE_TOOLS.map(entry => {
+`}</style>{devMode ? (
+    <>
+      {[['select', 'veSelect', 'M4 3l14 9.5-6.5 1.8L8.2 20z'], ['hand', 'veHand', 'M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2 M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v6 M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8 M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15']].map(([k, tip, d]) => (
+        <button key={k} type="button" className={'tool-btn' + (tool === k ? ' on' : '')} data-tip={tip} aria-label={TT[tip] ? TT[tip].t : k} aria-pressed={tool === k} onClick={() => { setOpenGrp(null); setTool(k); }}>
+          <Vi d={d} s={isMob ? 20 : 22} />{mobLbl(MOB_LABELS[k] || k)}
+        </button>
+      ))}
+      {onToggleWireframe && <button type="button" className={'tool-btn' + (wireframeMode ? ' on' : '')} data-testid="toggle-wireframe" data-tip="veWireframe" aria-label={isEn ? 'Outline / Wireframe Mode (Shift+O)' : 'Mode Outline / Wireframe (Shift+O)'} aria-pressed={wireframeMode} onClick={onToggleWireframe}><Vi d="M4 5h16v14H4z M4 5l16 14 M20 5L4 19" s={isMob ? 19 : 22} />{mobLbl(isEn ? 'Outline' : 'Outline')}</button>}
+      <button type="button" className={'tool-btn' + (gridOn || rulersOn ? ' on' : '')} data-tip="veGrid" aria-label="Grid & Rulers" aria-pressed={gridOn} onClick={() => setGridOn((g: boolean) => !g)}><Vi d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14h16 M10 4v16 M14 4v16" s={isMob ? 19 : 22} />{mobLbl('Grid')}</button>
+    </>
+  ) : (<>{VE_TOOLS.map(entry => {
     if (entry.type === 'single') {
       const [k, tip, d] = entry.item;
       const isShape = k === 'shape';
@@ -230,7 +242,7 @@ const EditorFloatingToolbar = ({
           }}><span className="sel-l"><Vi d={d} s={17} /><span>{info.t}</span></span><span className="flex items-center gap-1.5">{info.k && <span className="text-[10px] font-mono mut px-1.5 py-0.5 rounded bg-[var(--sub)]">{info.k}</span>}<svg className="ck" style={{
                 opacity: on ? 1 : 0
               }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></span></div>;
-        })}{id === 'nodeGrp' && <div className="pt-2 mt-2 border-t border-[var(--line)]"><div className="text-[11px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">{L.ftNodeActions || 'Aksi Node & Path'}</div><div style={{ maxHeight: 240, overflowY: 'auto' }}>{NODE_ACTIONS.map(([k, tip, d, dis, act]) => {
+        })}{id === 'nodeGrp' && <div className="pt-2 mt-2 border-t border-[var(--line)]"><div className="text-[11px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">{L.ftNodeActions || 'Aksi Node & Path'}</div><div data-testid="node-actions-scroll" style={{ maxHeight: 108, overflowY: 'auto' }}>{NODE_ACTIONS.map(([k, tip, d, dis, act]) => {
           const info = TT[tip] || {
             t: k
           };
@@ -270,7 +282,7 @@ const EditorFloatingToolbar = ({
       }}><span className="sel-l"><Vi d={d} s={17} /><span>{label}</span></span>{kbd && <span className="text-[10px] font-mono mut px-1.5 py-0.5 rounded bg-[var(--sub)]">{kbd}</span>}</div>)}</Float><span className="fig-bar-sep" /><button type="button" className={'tool-btn' + (tool === 'frame' ? ' on' : '')} data-tool="frame" data-tip="veFrameTool" aria-label="Frame" aria-pressed={tool === 'frame'} onClick={() => {
     setOpenGrp(null);
     setTool('frame');
-  }}><FrameToolGlyph />{mobLbl('Frame')}</button><span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center">{/* T9: ikon magnet digambar baru (U-magnet + ujung kutub), mengikuti gaya set ikon internal: viewBox 24, stroke, round cap/join; dirender IconBtn -> Vi. */}<button type="button" className={'tool-btn has-sub' + (snapOn ? ' on' : '')} data-tip="veSnap" aria-label={TT.veSnap ? TT.veSnap.t : 'Snap'} aria-expanded={isMob ? snapMenuOpen : undefined} onClick={() => {
+  }}><FrameToolGlyph />{mobLbl('Frame')}</button>{onToggleWireframe && <button type="button" className={'tool-btn' + (wireframeMode ? ' on' : '')} data-testid="toggle-wireframe" data-tip="veWireframe" aria-label={isEn ? 'Outline / Wireframe Mode (Shift+O)' : 'Mode Outline / Wireframe (Shift+O)'} aria-pressed={wireframeMode} onClick={onToggleWireframe}><Vi d="M4 5h16v14H4z M4 5l16 14 M20 5L4 19" s={isMob ? 19 : 22} />{mobLbl(isEn ? 'Outline' : 'Outline')}</button>}<span className="fig-bar-sep" /><div ref={snapMenuBtn} className="inline-flex items-center">{/* T9: ikon magnet digambar baru (U-magnet + ujung kutub), mengikuti gaya set ikon internal: viewBox 24, stroke, round cap/join; dirender IconBtn -> Vi. */}<button type="button" className={'tool-btn has-sub' + (snapOn ? ' on' : '')} data-tip="veSnap" aria-label={TT.veSnap ? TT.veSnap.t : 'Snap'} aria-expanded={isMob ? snapMenuOpen : undefined} onClick={() => {
       if (isMob) setSnapMenuOpen(o => !o);
       else setSnapOn(s => !s);
     }}><Vi d="M6 6v6a6 6 0 0 0 12 0V6 M4 9.5h4 M16 9.5h4" s={isMob ? 19 : 22} />{mobLbl('Snap')}</button><button type="button" className="tool-btn chev-btn" data-tip="veSnapMenu" aria-label={L.ftSnapOpts} aria-expanded={snapMenuOpen} onClick={() => setSnapMenuOpen(o => !o)}><Chev open={snapMenuOpen} /></button></div><Float anchor={snapMenuBtn} open={snapMenuOpen} onClose={() => setSnapMenuOpen(false)} w={272} cls="cp" preferUp={true}>{isMob && <div className="pb-2 mb-2 border-b border-[var(--line)]"><button type="button" role="switch" aria-checked={snapOn} className={'snp-row' + (snapOn ? ' on' : '')} style={{ ['--c' as any]: 'var(--acc)' }} onClick={() => setSnapOn(s => !s)}><SnapIcon k="bbox" /><span className="snp-lb font-semibold">{lang === 'en' ? 'Master Snap' : 'Snap Aktif'}</span><span className="snp-sw" aria-hidden="true" /></button></div>}<div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold">{L.ftSnapChecklist}</span><div className="flex gap-1"><button type="button" className="ved-pill" data-tip="veSnapPresetAll" onClick={() => setSnapCfg({
@@ -325,10 +337,28 @@ const EditorFloatingToolbar = ({
     const next = !curveDragOn;
     setCurveDragOn(next);
     if (next && selNodes.size) commitObjs(o => sel.objs.has(o.id) ? VE.mirrorNodes(o, selNodes, 'freeCurve', selHandles) : o);
-    say(next ? 'Geser Handle Melengkung: AKTIF' : 'Geser Handle Melengkung: MATI');
+    say(next ? (isEn ? 'Drag Curved Handle: ON' : 'Geser Handle Melengkung: AKTIF') : (isEn ? 'Drag Curved Handle: OFF' : 'Geser Handle Melengkung: MATI'));
   }} d="M4 17C7 7 17 7 20 17 M10 9.5a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M5 9.5h5 M14 9.5h5" /><Float anchor={mirrorBtn} open={mirrorOpen && selNodes.size > 0} onClose={() => setMirrorOpen(false)} w={268} preferUp={true}><div className="text-[11px] mut px-2.5 py-1 font-semibold uppercase tracking-wider">Mirroring Handle</div>{MIRROR_OPTS.map(([k, tip, label, d]) => <div key={k} role="option" aria-selected={mirrorCur === k} className={'opt' + (mirrorCur === k ? ' on' : '')} data-tip={tip} onClick={() => applyMirror(k)}><span className="sel-l"><Vi d={d} s={17} /><span>{label}</span></span><svg className="ck" style={{
         opacity: mirrorCur === k ? 1 : 0
-      }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></div>)}{!mirrorCur && <div className="text-[11px] mut px-2.5 py-1">{L.ftMixed}</div>}</Float><span className="fig-bar-sep" /><IconBtn lang={lang} label={isMob ? (isEn ? 'Settings' : 'Setelan') : undefined} s={isMob ? 19 : 22} tip="settings" act={onSettings} d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />{onOpenCodeInspector && <button type="button" className={'tool-btn' + (isCodeInspectorOpen ? ' on' : '')} data-tip="veSvgCodeInspector" data-testid="toolbar-code" aria-label={lang === 'en' ? 'SVG Code' : 'Kode SVG'} aria-pressed={isCodeInspectorOpen} onClick={onOpenCodeInspector}><Vi d={ICONS.code} s={isMob ? 19 : 22} />{mobLbl(isEn ? 'Code' : 'Kode')}</button>}</div>;
+      }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></div>)}{!mirrorCur && <div className="text-[11px] mut px-2.5 py-1">{L.ftMixed}</div>}</Float></>)}
+  {onToggleDevMode && (
+    <>
+      <span className="fig-bar-sep" />
+      <button
+        type="button"
+        className={'tool-btn dev-mode-switch' + (devMode ? ' on' : '')}
+        data-tip="veDevMode"
+        data-testid="toggle-dev-mode"
+        aria-label={isEn ? 'Dev Mode (Shift+D)' : 'Dev Mode (Shift+D)'}
+        aria-pressed={devMode}
+        onClick={onToggleDevMode}
+      >
+        <Vi d={ICONS.code} s={isMob ? 19 : 22} />
+        {mobLbl('Dev')}
+      </button>
+    </>
+  )}
+</div>;
 };
 
 export { EditorFloatingToolbar };

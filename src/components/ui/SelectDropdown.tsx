@@ -5,6 +5,7 @@
 import React, { useRef, useState } from 'react';
 import { Ico, Chev } from './IconGlyphs.tsx';
 import { Float } from './FloatPopover.tsx';
+import { CustomTextBox } from './CustomTextBox.tsx';
 
 const SELECT_SEARCH_CAP = 100;
 
@@ -139,12 +140,14 @@ const Select: React.FC<SelectProps> = ({
       btn.current && btn.current.focus();
     }
   };
-  return <div><button ref={btn} type="button" data-testid={testId} data-tip={tip} className={'fld sel' + (open ? ' open' : '')} onClick={toggle} onKeyDown={key} aria-haspopup="listbox" aria-expanded={open}><span className="sel-l">{cur[2] && <Ico n={cur[2]} size={14} />}<span style={cur[3] && cur[3].fontFamily ? {fontFamily: previewFontStack(cur[3].fontFamily)} : undefined}>{cur[1]}</span></span><Chev open={open} /></button><Float anchor={btn} open={open} onClose={close} minW={120}>{searchable && <div style={{padding: '6px 6px 4px'}}><input type="text" value={q} placeholder={searchPlaceholder || 'Cari…'} data-custom-input="true" aria-label={searchPlaceholder || 'Cari'} autoFocus onChange={e => {
-          setQ(e.target.value);
+  return <div><button ref={btn} type="button" data-testid={testId} data-tip={tip} className={'fld sel' + (open ? ' open' : '')} onClick={toggle} onKeyDown={key} aria-haspopup="listbox" aria-expanded={open}><span className="sel-l inline-flex items-center gap-1.5">{cur[2] && <Ico n={cur[2]} size={14} />}<span style={cur[3] && cur[3].fontFamily ? {fontFamily: previewFontStack(cur[3].fontFamily)} : undefined}>{cur[1]}</span></span><Chev open={open} /></button><Float anchor={btn} open={open} onClose={close} minW={120}>{searchable && <div style={{padding: '6px 6px 4px'}} onKeyDown={inputKey} onClick={e => e.stopPropagation()}><div className="fld flex items-center px-2 py-1" style={{minHeight: 28}}><CustomTextBox value={q} placeholder={searchPlaceholder || 'Cari…'} ariaLabel={searchPlaceholder || 'Cari'} autoFocus={true} onChange={val => {
+          setQ(val);
           setHi(0);
-        }} onKeyDown={inputKey} onClick={e => e.stopPropagation()} style={{width: '100%', padding: '6px 8px', fontSize: 12, color: 'var(--ink)', background: 'var(--sub)', border: '1px solid var(--line)', borderRadius: 8, outline: 'none'}} /></div>}<div ref={listRef} onScroll={fireVisible} style={{maxHeight: 340, overflowY: 'auto', overscrollBehavior: 'contain'}}>{shown.map(([k, t, ic, meta], i) => <div key={k} role="option" data-testid={testId ? `${testId}-option-${k}` : undefined} data-opt-key={k} aria-selected={k === value} aria-disabled={!!(meta && meta.disabled)} className={'opt' + (i === hi ? ' hi' : '') + (k === value ? ' on' : '') + (meta && meta.disabled ? ' dis' : '')} onMouseEnter={() => {
+        }} onCommit={val => {
+          setQ(val);
+        }} /></div></div>}<div ref={listRef} onScroll={fireVisible} style={{maxHeight: 340, overflowY: 'auto', overscrollBehavior: 'contain'}}>{shown.map(([k, t, ic, meta], i) => <div key={k} role="option" data-testid={testId ? `${testId}-option-${k}` : undefined} data-opt-key={k} aria-selected={k === value} aria-disabled={!!(meta && meta.disabled)} className={'opt' + (i === hi ? ' hi' : '') + (k === value ? ' on' : '') + (meta && meta.disabled ? ' dis' : '')} onMouseEnter={() => {
           if (!(meta && meta.disabled)) setHi(i);
-        }} onClick={() => choose(k)} style={{gap: 8}}><span className="sel-l">{ic && <Ico n={ic} size={14} />}<span style={meta && meta.fontFamily ? {fontFamily: previewFontStack(meta.fontFamily)} : undefined}>{t}</span></span><svg className="ck" style={{
+        }} onClick={() => choose(k)} style={{gap: 8}}><span className="sel-l inline-flex items-center gap-1.5">{ic && <Ico n={ic} size={14} />}<span style={meta && meta.fontFamily ? {fontFamily: previewFontStack(meta.fontFamily)} : undefined}>{t}</span></span><svg className="ck" style={{
           opacity: k === value ? 1 : 0,
           flexShrink: 0
         }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg></div>)}</div>{searchable && totalItems > shown.length && <div className="mut" style={{padding: '6px 10px', fontSize: 11}}>{lang === 'en' ? `Showing ${shown.length} of ${totalItems} — type to filter` : `Menampilkan ${shown.length} dari ${totalItems} — ketik untuk menyaring`}</div>}</Float></div>;

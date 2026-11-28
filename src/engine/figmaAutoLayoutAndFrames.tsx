@@ -274,6 +274,10 @@ function applyAutoLayout(doc, selObjs, cfg) {
       X2 = X + frameW,
       Y2 = Y + frameH;
     const ef = existingFrame;
+    const defaultStroke = ef ? (ef.stroke || 'none') : 'none';
+    const resolvedStroke = cfg.frameStroke != null ? cfg.frameStroke : defaultStroke;
+    const hasStroke = Boolean(resolvedStroke && resolvedStroke !== 'none' && resolvedStroke !== 'transparent');
+    const resolvedStrokeW = cfg.frameStrokeW != null ? cfg.frameStrokeW : (ef ? (ef.strokeWidth || 0) : (hasStroke ? 1 : 0));
     const baseFrame = {
       id: ef ? ef.id : uid(),
       name: ef ? ef.name : targetGroup ? targetGroup + '-bg' : 'auto-frame',
@@ -282,8 +286,8 @@ function applyAutoLayout(doc, selObjs, cfg) {
       isFrameBg: true,
       containerType: 'frame',
       fill: cfg.frameFill || (ef ? ef.fill : '#f4f4f5'),
-      stroke: cfg.frameStroke || (ef ? ef.stroke : '#d4d4d8'),
-      strokeWidth: cfg.frameStrokeW != null ? cfg.frameStrokeW : ef ? ef.strokeWidth : 1,
+      stroke: hasStroke ? resolvedStroke : 'none',
+      strokeWidth: hasStroke ? resolvedStrokeW : 0,
       opacity: ef ? ef.opacity : 1,
       fillRule: 'nonzero',
       group: targetGroup,
@@ -367,6 +371,7 @@ function createFrame(doc, selObjs, cfg) {
     x1 = x0 + vw * 0.5;
     y1 = y0 + vh * 0.5;
   }
+  const hasExplicitStroke = Boolean(cfg.stroke && cfg.stroke !== 'none' && cfg.stroke !== 'transparent');
   const bgBase = {
     id: uid(),
     name: frameId + '-bg',
@@ -375,8 +380,8 @@ function createFrame(doc, selObjs, cfg) {
     isFrameBg: true,
     containerType: 'frame',
     fill: cfg.fill || '#ffffff',
-    stroke: cfg.stroke || '#e4e4e7',
-    strokeWidth: 1,
+    stroke: hasExplicitStroke ? cfg.stroke : 'none',
+    strokeWidth: hasExplicitStroke ? (cfg.strokeWidth != null ? cfg.strokeWidth : 1) : 0,
     opacity: 1,
     fillRule: 'nonzero',
     group: frameId,
@@ -693,4 +698,135 @@ function applyArtboardPadding(doc, selObjs, pad) {
    - crates/tools/src/cursor.rs (rotate_about_in_view -> RotateToward(octant))
    ========================================================================= */
 
-export { readingOrder, clusterLayoutUnits, applyFramePadding, applyAutoLayout, createFrame, isFrameMember, frameBgOf, frameBounds, listFrames, compactGroups, reparentDroppedObjects, inferFrameAutoLayout, applyArtboardPadding };
+function scaleObjectToBox(o, targetL, targetT, targetW, targetH) {
+  const bb = tightBBox(o);
+  if (!bb) return o;
+  const curW = Math.max(1e-6, bb[2] - bb[0]);
+  const curH = Math.max(1e-6, bb[3] - bb[1]);
+  const sx = targetW / curW;
+  const sy = targetH / curH;
+  const mapPt = (px, py) => ({
+    x: rd(targetL + (px - bb[0]) * sx),
+    y: rd(targetT + (py - bb[1]) * sy),
+  });
+  return {
+    ...o,
+    subs: (o.subs || []).map(sp => ({
+      ...sp,
+      nodes: (sp.nodes || []).map(n => {
+        const p = mapPt(n.x, n.y);
+        const hi = n.handleIn ? mapPt(n.handleIn.x, n.handleIn.y) : null;
+        const ho = n.handleOut ? mapPt(n.handleOut.x, n.handleOut.y) : null;
+        return { ...n, x: p.x, y: p.y, handleIn: hi, handleOut: ho };
+      }),
+    })),
+  };
+}
+
+function applyAutoLayoutV2(doc: any, frameId: string, cfg: Record<string, any> = {}) {
+  const objects = doc?.objects || [];
+  const bg = objects.find(o => o.group === frameId && (o.isFrameBg || o.isAutoFrame));
+  if (!bg) return { doc, changed: false };
+  const fbb = tightBBox(bg);
+  if (!fbb) return { doc, changed: false };
+  const dir = cfg.dir === 'col' ? 'col' : 'row';
+  const gap = Math.max(0, Number(cfg.gap ?? 8));
+  const pad = Math.max(0, Number(cfg.padding ?? 16));
+  const innerW = Math.max(1, (fbb[2] - fbb[0]) - pad * 2);
+  const innerH = Math.max(1, (fbb[3] - fbb[1]) - pad * 2);
+
+  const flowChildren = objects.filter(
+    o => o.group === frameId && !o.isFrameBg && !o.isAutoFrame && o.layoutPositioning !== 'absolute'
+  );
+  if (!flowChildren.length) return { doc, changed: false };
+
+  let fixedTotal = 0;
+  let fillCount = 0;
+  for (const c of flowChildren) {
+    const cbb = tightBBox(c) || [0, 0, 10, 10];
+    const cw = cbb[2] - cbb[0];
+    const ch = cbb[3] - cbb[1];
+    if (dir === 'row') {
+      if (c.layoutSizingH === 'fill') fillCount++;
+      else fixedTotal += cw;
+    } else {
+      if (c.layoutSizingV === 'fill') fillCount++;
+      else fixedTotal += ch;
+    }
+  }
+  const gapsTotal = Math.max(0, flowChildren.length - 1) * gap;
+  const availMain = dir === 'row' ? innerW : innerH;
+  const eachFill = fillCount > 0 ? Math.max(1, (availMain - fixedTotal - gapsTotal) / fillCount) : 0;
+
+  let cursor = (dir === 'row' ? fbb[0] : fbb[1]) + pad;
+  const updatedById = new Map();
+  for (const c of flowChildren) {
+    const cbb = tightBBox(c) || [0, 0, 10, 10];
+    let w = cbb[2] - cbb[0];
+    let h = cbb[3] - cbb[1];
+    if (dir === 'row') {
+      if (c.layoutSizingH === 'fill') w = eachFill;
+      if (c.layoutSizingV === 'fill') h = innerH;
+    } else {
+      if (c.layoutSizingV === 'fill') h = eachFill;
+      if (c.layoutSizingH === 'fill') w = innerW;
+    }
+    if (c.minWidth != null) w = Math.max(c.minWidth, w);
+    if (c.maxWidth != null) w = Math.min(c.maxWidth, w);
+    if (c.minHeight != null) h = Math.max(c.minHeight, h);
+    if (c.maxHeight != null) h = Math.min(c.maxHeight, h);
+
+    const tx = dir === 'row' ? cursor : fbb[0] + pad;
+    const ty = dir === 'row' ? fbb[1] + pad : cursor;
+    updatedById.set(c.id, scaleObjectToBox(c, tx, ty, w, h));
+    cursor += (dir === 'row' ? w : h) + gap;
+  }
+
+  return {
+    doc: { ...doc, objects: objects.map(o => updatedById.get(o.id) || o) },
+    changed: true,
+  };
+}
+
+function resizeFrameWithConstraints(doc, frameId, newW, newH) {
+  const objects = doc?.objects || [];
+  const bg = objects.find(o => o.group === frameId && (o.isFrameBg || o.isAutoFrame));
+  if (!bg) return { doc, changed: false };
+  const fbb = tightBBox(bg);
+  if (!fbb) return { doc, changed: false };
+  const oldW = Math.max(1, fbb[2] - fbb[0]);
+  const oldH = Math.max(1, fbb[3] - fbb[1]);
+  const dw = newW - oldW;
+  const dh = newH - oldH;
+
+  const nextObjects = objects.map(o => {
+    if (o.id === bg.id) return scaleObjectToBox(o, fbb[0], fbb[1], newW, newH);
+    if (o.group !== frameId) return o;
+    const cbb = tightBBox(o);
+    if (!cbb) return o;
+    const ox = cbb[0] - fbb[0];
+    const oy = cbb[1] - fbb[1];
+    const ow = cbb[2] - cbb[0];
+    const oh = cbb[3] - cbb[1];
+    const hc = o.constraints?.horizontal || 'left';
+    const vc = o.constraints?.vertical || 'top';
+
+    let nx = ox, nw = ow;
+    if (hc === 'right') nx = ox + dw;
+    else if (hc === 'left-right') nw = Math.max(1, ow + dw);
+    else if (hc === 'center') nx = ox + dw / 2;
+    else if (hc === 'scale') { nx = (ox / oldW) * newW; nw = Math.max(1, (ow / oldW) * newW); }
+
+    let ny = oy, nh = oh;
+    if (vc === 'bottom') ny = oy + dh;
+    else if (vc === 'top-bottom') nh = Math.max(1, oh + dh);
+    else if (vc === 'center') ny = oy + dh / 2;
+    else if (vc === 'scale') { ny = (oy / oldH) * newH; nh = Math.max(1, (oh / oldH) * newH); }
+
+    return scaleObjectToBox(o, fbb[0] + nx, fbb[1] + ny, nw, nh);
+  });
+
+  return { doc: { ...doc, objects: nextObjects }, changed: true };
+}
+
+export { readingOrder, clusterLayoutUnits, applyFramePadding, applyAutoLayout, applyAutoLayoutV2, resizeFrameWithConstraints, createFrame, isFrameMember, frameBgOf, frameBounds, listFrames, compactGroups, reparentDroppedObjects, inferFrameAutoLayout, applyArtboardPadding };

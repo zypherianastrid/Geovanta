@@ -93,9 +93,132 @@ export interface ChartDataPayload {
   customItems: Array<{ categoryIndex: number; start: number; end: number; label?: string }>;
 }
 
+export type ChartThemeId =
+  | 'saas-light'
+  | 'obsidian-dark'
+  | 'editorial-minimal'
+  | 'glass-aurora'
+  | 'emerald-fintech';
+
+export interface ChartThemePreset {
+  id: ChartThemeId;
+  name: string;
+  nameId: string;
+  isDark: boolean;
+  cardBg: string;
+  cardBorder: string;
+  cardShadow: 'none' | 'soft' | 'elevated';
+  titleColor: string;
+  subtitleColor: string;
+  axisLabelColor: string;
+  axisNameColor: string;
+  dataLabelColor: string;
+  legendColor: string;
+  splitLineColor: string;
+  paletteId: string;
+  colors: string[];
+  useGradient?: boolean;
+}
+
+export const CHART_THEMES: ChartThemePreset[] = [
+  {
+    id: 'saas-light',
+    name: 'SaaS Light',
+    nameId: 'SaaS Terang',
+    isDark: false,
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    cardShadow: 'soft',
+    titleColor: '#0f172a',
+    subtitleColor: '#64748b',
+    axisLabelColor: '#94a3b8',
+    axisNameColor: '#64748b',
+    dataLabelColor: '#1e293b',
+    legendColor: '#64748b',
+    splitLineColor: '#f1f5f9',
+    paletteId: 'geovanta-fintech',
+    colors: ['#6366F1', '#A5B4FC', '#0F172A', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6'],
+  },
+  {
+    id: 'obsidian-dark',
+    name: 'Obsidian Dark',
+    nameId: 'Obsidian Gelap',
+    isDark: true,
+    cardBg: '#0f172a',
+    cardBorder: '#1e293b',
+    cardShadow: 'elevated',
+    titleColor: '#f8fafc',
+    subtitleColor: '#94a3b8',
+    axisLabelColor: '#94a3b8',
+    axisNameColor: '#cbd5e1',
+    dataLabelColor: '#f1f5f9',
+    legendColor: '#cbd5e1',
+    splitLineColor: '#1e293b',
+    paletteId: 'neon-cyber',
+    colors: ['#818CF8', '#34D399', '#38BDF8', '#FBBF24', '#F472B6', '#A78BFA', '#FB923C', '#2DD4BF'],
+  },
+  {
+    id: 'editorial-minimal',
+    name: 'Editorial',
+    nameId: 'Editorial',
+    isDark: false,
+    cardBg: '#fafaf9',
+    cardBorder: '#e7e5e4',
+    cardShadow: 'none',
+    titleColor: '#18181b',
+    subtitleColor: '#71717a',
+    axisLabelColor: '#71717a',
+    axisNameColor: '#52525b',
+    dataLabelColor: '#18181b',
+    legendColor: '#52525b',
+    splitLineColor: '#e4e4e7',
+    paletteId: 'corporate-slate',
+    colors: ['#18181B', '#2563EB', '#0D9488', '#D97706', '#DC2626', '#7C3AED', '#4F46E5', '#52525B'],
+  },
+  {
+    id: 'glass-aurora',
+    name: 'Glass Aurora',
+    nameId: 'Aurora Gradien',
+    isDark: false,
+    cardBg: '#f8fafc',
+    cardBorder: '#e0e7ff',
+    cardShadow: 'soft',
+    titleColor: '#1e1b4b',
+    subtitleColor: '#64748b',
+    axisLabelColor: '#94a3b8',
+    axisNameColor: '#475569',
+    dataLabelColor: '#1e1b4b',
+    legendColor: '#475569',
+    splitLineColor: '#e2e8f0',
+    paletteId: 'vivid-pop',
+    colors: ['#6366F1', '#8B5CF6', '#EC4899', '#06B6D4', '#10B981', '#F59E0B', '#3B82F6', '#A855F7'],
+    useGradient: true,
+  },
+  {
+    id: 'emerald-fintech',
+    name: 'Emerald',
+    nameId: 'Emerald Fintech',
+    isDark: false,
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    cardShadow: 'soft',
+    titleColor: '#0f172a',
+    subtitleColor: '#64748b',
+    axisLabelColor: '#94a3b8',
+    axisNameColor: '#64748b',
+    dataLabelColor: '#064e3b',
+    legendColor: '#475569',
+    splitLineColor: '#f1f5f9',
+    paletteId: 'forest-botanical',
+    colors: ['#059669', '#34D399', '#0F172A', '#0EA5E9', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6'],
+  },
+];
+
 export interface ChartConfig {
   chartType: EChartsSeriesType;
   presetId: string;
+  chartStyleId?: string;
+  themeId?: ChartThemeId;
   width: number;
   height: number;
   backgroundColor: string;
@@ -113,6 +236,9 @@ export interface ChartConfig {
     borderColor: string;
     borderWidth: number;
     borderRadius: number;
+    shadow?: 'none' | 'soft' | 'elevated' | 'hard';
+    accentBar?: 'none' | 'top' | 'left';
+    doubleBorder?: boolean;
   };
   kpi: {
     show: boolean;
@@ -221,6 +347,9 @@ export interface ChartConfig {
     pieCornerRadius: number;
     pieStartAngle: number;
     pieHalf: boolean;
+    showDonutCenter?: boolean;
+    donutCenterValue?: string;
+    donutCenterLabel?: string;
     gaugeMin: number;
     gaugeMax: number;
     gaugeStartAngle: number;
@@ -243,6 +372,8 @@ export interface ChartConfig {
     pictorialSymbol: string;
     pictorialRepeat: boolean;
     opacity: number;
+    outlineOnly?: boolean;
+    barOutline?: boolean;
   };
   dataLabel: {
     show: boolean;
@@ -553,11 +684,13 @@ export function createBaseChartConfig(
   return {
     chartType,
     presetId,
+    chartStyleId: 'saas-clean',
+    themeId: 'saas-light',
     width: 600,
     height: 420,
     backgroundColor: '#ffffff',
     transparentBg: true,
-    borderColor: '#eef2f6',
+    borderColor: '#e2e8f0',
     borderWidth: 0,
     borderRadius: 0,
     paletteId: palette.id,
@@ -567,9 +700,10 @@ export function createBaseChartConfig(
     card: {
       show: true,
       backgroundColor: '#ffffff',
-      borderColor: '#eef2f6',
+      borderColor: '#e2e8f0',
       borderWidth: 1,
       borderRadius: 20,
+      shadow: 'soft',
     },
     kpi: {
       show: false,
@@ -658,7 +792,7 @@ export function createBaseChartConfig(
     seriesStyle: {
       smooth: true,
       areaFill: false,
-      areaOpacity: 0.22,
+      areaOpacity: 0.24,
       lineWidth: 2.5,
       lineType: 'solid',
       step: false,
@@ -668,16 +802,19 @@ export function createBaseChartConfig(
       stack: false,
       horizontal: false,
       polar: false,
-      barWidth: 12,
-      barBorderRadius: 99,
+      barWidth: 16,
+      barBorderRadius: 8,
       showBarBackground: false,
-      pieInnerRadius: 48,
+      pieInnerRadius: 52,
       pieOuterRadius: 74,
       pieRoseType: false,
-      piePadAngle: 4,
+      piePadAngle: 3,
       pieCornerRadius: 8,
       pieStartAngle: 90,
       pieHalf: false,
+      showDonutCenter: true,
+      donutCenterValue: '',
+      donutCenterLabel: 'Total',
       gaugeMin: 0,
       gaugeMax: 100,
       gaugeStartAngle: 225,
@@ -729,5 +866,35 @@ export function createBaseChartConfig(
     },
     data: createDefaultDataPayload(),
     customOptionJson: '',
+  };
+}
+
+export function applyChartTheme(cfg: ChartConfig, themeId: ChartThemeId): ChartConfig {
+  const theme = CHART_THEMES.find(t => t.id === themeId) || CHART_THEMES[0];
+  return {
+    ...cfg,
+    themeId: theme.id,
+    paletteId: theme.paletteId,
+    colors: [...theme.colors],
+    useGradient: theme.useGradient ?? false,
+    backgroundColor: theme.cardBg,
+    card: {
+      ...cfg.card,
+      backgroundColor: theme.cardBg,
+      borderColor: theme.cardBorder,
+      shadow: theme.cardShadow,
+    },
+    typography: {
+      ...cfg.typography,
+      global: { ...cfg.typography.global, color: theme.legendColor },
+      title: { ...cfg.typography.title, color: theme.titleColor },
+      subtitle: { ...cfg.typography.subtitle, color: theme.subtitleColor },
+      axisLabel: { ...cfg.typography.axisLabel, color: theme.axisLabelColor },
+      axisName: { ...cfg.typography.axisName, color: theme.axisNameColor },
+      dataLabel: { ...cfg.typography.dataLabel, color: theme.dataLabelColor },
+      legend: { ...cfg.typography.legend, color: theme.legendColor },
+    },
+    xAxis: { ...cfg.xAxis, splitLineColor: theme.splitLineColor },
+    yAxis: { ...cfg.yAxis, splitLineColor: theme.splitLineColor },
   };
 }

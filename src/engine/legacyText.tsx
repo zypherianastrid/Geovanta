@@ -49,7 +49,12 @@ export function legacyTextSpec(o) {
     x: Number.isFinite(x) ? x : 0,
     y: Number.isFinite(y) ? y : fontSize,
     fontSize,
-    fontFamily: String(value.fontFamily ?? o.fontFamily ?? 'sans-serif'),
+    fontFamily: (String(value.fontFamily ?? o.fontFamily ?? 'sans-serif')
+      .split(',')[0]
+      .trim()
+      .replace(/^['"]+|['"]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim() || 'sans-serif'),
     fontWeight: String(value.fontWeight ?? o.fontWeight ?? 'normal'),
     fontStyle: String(value.fontStyle ?? o.fontStyle ?? 'normal'),
     textAnchor: String(value.textAnchor ?? o.textAnchor ?? 'start'),

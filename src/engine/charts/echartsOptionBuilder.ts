@@ -23,10 +23,34 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
   return out;
 }
 
-const FONT_FALLBACK = "'Geovanta Sans', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const FONT_FALLBACK = 'Geovanta Sans, IBM Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif';
+
+function isDarkHex(hex?: string): boolean {
+  if (!hex || typeof hex !== 'string') return false;
+  const h = hex.trim().replace(/^#/, '');
+  if (h.length !== 3 && h.length !== 6) return false;
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return false;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum < 0.45;
+}
+
+function estimateTextWidth(str: string, fontSize: number): number {
+  let w = 0;
+  for (const ch of str) {
+    if (/[.,:;'|!iIl1\s]/.test(ch)) w += fontSize * 0.34;
+    else if (/[MW%$@&]/.test(ch)) w += fontSize * 0.78;
+    else w += fontSize * 0.56;
+  }
+  return w;
+}
 
 function toEChartsTextStyle(f: ChartFontStyle) {
-  const fam = f.family && f.family !== 'Geovanta Sans' ? `'${f.family}', ${FONT_FALLBACK}` : FONT_FALLBACK;
+  const cleanFam = String(f.family || 'Geovanta Sans').split(',')[0].trim().replace(/^['"]+|['"]+$/g, '');
+  const fam = cleanFam && cleanFam !== 'Geovanta Sans' ? `${cleanFam}, ${FONT_FALLBACK}` : FONT_FALLBACK;
   return {
     fontFamily: fam,
     fontSize: Number(f.size) || 12,
@@ -71,17 +95,59 @@ function buildLegendPosition(legend: ChartConfig['legend']) {
   return pos;
 }
 
-function buildGraphicComponents(config: ChartConfig): any[] {
+function buildGraphicComponents(config: ChartConfig, isDark: boolean): any[] {
   const graphics: any[] = [];
   const w = Math.max(120, Number(config.width) || 600);
   const h = Math.max(100, Number(config.height) || 420);
-  const rawFam = config.typography?.global?.family || 'Geovanta Sans';
-  const fontFam = rawFam !== 'Geovanta Sans' ? `'${rawFam}', ${FONT_FALLBACK}` : FONT_FALLBACK;
+  const rawFam = String(config.typography?.global?.family || 'Geovanta Sans').split(',')[0].trim().replace(/^['"]+|['"]+$/g, '');
+  const fontFam = rawFam && rawFam !== 'Geovanta Sans' ? `${rawFam}, ${FONT_FALLBACK}` : FONT_FALLBACK;
 
-  // 1. Rounded Card Frame
+  // 1. Rounded Card Frame + Modern Elevation / Hard Shadow + Accent Bar / Double Border
   if (config.card && config.card.show) {
     const bw = Math.max(0, Number(config.card.borderWidth) || 0);
+    const radius = Math.max(0, Number(config.card.borderRadius) || 0);
+    const shadowMode = config.card.shadow ?? 'soft';
+    const padRight = shadowMode === 'hard' ? 6 : 0;
+    const padBottom = shadowMode === 'hard' ? 6 : shadowMode !== 'none' ? 3 : 0;
+
+    if (shadowMode === 'hard') {
+      graphics.push({
+        type: 'rect',
+        z: -12,
+        silent: true,
+        left: 6,
+        top: 6,
+        shape: {
+          width: Math.max(10, w - 6),
+          height: Math.max(10, h - 6),
+          r: radius,
+        },
+        style: {
+          fill: isDark ? '#334155' : '#0f172a',
+        },
+      });
+    } else if (shadowMode !== 'none') {
+      const shOffset = shadowMode === 'elevated' ? 5 : 3;
+      const shAlpha = isDark ? (shadowMode === 'elevated' ? 0.28 : 0.16) : (shadowMode === 'elevated' ? 0.08 : 0.045);
+      graphics.push({
+        type: 'rect',
+        z: -12,
+        silent: true,
+        left: 2,
+        top: shOffset,
+        shape: {
+          width: Math.max(10, w - 4),
+          height: Math.max(10, h - shOffset),
+          r: radius,
+        },
+        style: {
+          fill: `rgba(15, 23, 42, ${shAlpha})`,
+        },
+      });
+    }
     const inset = bw / 2;
+    const cardW = Math.max(10, w - bw - padRight);
+    const cardH = Math.max(10, h - bw - padBottom);
     graphics.push({
       type: 'rect',
       z: -10,
@@ -89,21 +155,72 @@ function buildGraphicComponents(config: ChartConfig): any[] {
       left: inset,
       top: inset,
       shape: {
-        width: Math.max(10, w - bw),
-        height: Math.max(10, h - bw),
-        r: Math.max(0, Number(config.card.borderRadius) || 0),
+        width: cardW,
+        height: cardH,
+        r: radius,
       },
       style: {
-        fill: config.card.backgroundColor || '#ffffff',
-        stroke: bw > 0 ? (config.card.borderColor || '#eef2f6') : 'none',
+        fill: config.card.backgroundColor || (isDark ? '#0f172a' : '#ffffff'),
+        stroke: bw > 0 ? (config.card.borderColor || (isDark ? '#1e293b' : '#e2e8f0')) : 'none',
         lineWidth: bw,
       },
     });
+
+    if (config.card.doubleBorder) {
+      graphics.push({
+        type: 'rect',
+        z: -9,
+        silent: true,
+        left: inset + 6,
+        top: inset + 6,
+        shape: {
+          width: Math.max(8, cardW - 12),
+          height: Math.max(8, cardH - 12),
+          r: Math.max(0, radius - 4),
+        },
+        style: {
+          fill: 'none',
+          stroke: config.card.borderColor || (isDark ? '#334155' : '#cbd5e1'),
+          lineWidth: 1,
+        },
+      });
+    }
+
+    const accentCol = (config.colors && config.colors[0]) || '#6366F1';
+    if (config.card.accentBar === 'top') {
+      graphics.push({
+        type: 'rect',
+        z: -8,
+        silent: true,
+        left: inset + Math.min(radius, 8),
+        top: inset,
+        shape: {
+          width: Math.max(10, cardW - Math.min(radius, 8) * 2),
+          height: 4,
+          r: 2,
+        },
+        style: { fill: accentCol },
+      });
+    } else if (config.card.accentBar === 'left') {
+      graphics.push({
+        type: 'rect',
+        z: -8,
+        silent: true,
+        left: inset,
+        top: inset + Math.min(radius, 12),
+        shape: {
+          width: 4,
+          height: Math.max(10, cardH - Math.min(radius, 12) * 2),
+          r: 2,
+        },
+        style: { fill: accentCol },
+      });
+    }
   }
 
   // 2. KPI Hero Value + Delta Badge + Caption
   if (config.kpi && config.kpi.show) {
-    const kpiTop = config.title.show ? (config.title.subtext ? 62 : 46) : 22;
+    const kpiTop = config.title.show ? (config.title.subtext ? 64 : 48) : 22;
     const valStr = String(config.kpi.value || '$23.700');
     graphics.push({
       type: 'text',
@@ -114,17 +231,21 @@ function buildGraphicComponents(config: ChartConfig): any[] {
       style: {
         text: valStr,
         font: `700 28px ${fontFam}`,
-        fill: '#0F172A',
+        fill: isDark ? '#f8fafc' : '#0f172a',
       },
     });
 
     if (config.kpi.delta) {
       const deltaStr = String(config.kpi.delta);
-      const badgeLeft = 22 + Math.max(4, valStr.length) * 16 + 10;
+      const badgeLeft = 22 + Math.round(estimateTextWidth(valStr, 28)) + 12;
       const tone = config.kpi.deltaTone || 'positive';
-      const bgFill = tone === 'positive' ? '#dcfce7' : tone === 'negative' ? '#fee2e2' : '#f1f5f9';
-      const txtFill = tone === 'positive' ? '#15803d' : tone === 'negative' ? '#b91c1c' : '#475569';
-      const pillW = Math.max(64, Math.round(deltaStr.length * 6.8 + 22));
+      const bgFill = isDark
+        ? (tone === 'positive' ? 'rgba(16, 185, 129, 0.18)' : tone === 'negative' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(148, 163, 184, 0.16)')
+        : (tone === 'positive' ? '#dcfce7' : tone === 'negative' ? '#fee2e2' : '#f1f5f9');
+      const txtFill = isDark
+        ? (tone === 'positive' ? '#34d399' : tone === 'negative' ? '#f87171' : '#cbd5e1')
+        : (tone === 'positive' ? '#15803d' : tone === 'negative' ? '#b91c1c' : '#475569');
+      const pillW = Math.max(58, Math.round(estimateTextWidth(deltaStr, 11) + 20));
       graphics.push({
         type: 'group',
         z: 10,
@@ -136,13 +257,13 @@ function buildGraphicComponents(config: ChartConfig): any[] {
             type: 'rect',
             x: 0,
             y: 0,
-            shape: { width: pillW, height: 24, r: 12 },
+            shape: { width: pillW, height: 22, r: 11 },
             style: { fill: bgFill },
           },
           {
             type: 'text',
             x: pillW / 2,
-            y: 12,
+            y: 11,
             style: {
               text: deltaStr,
               font: `600 11px ${fontFam}`,
@@ -161,64 +282,110 @@ function buildGraphicComponents(config: ChartConfig): any[] {
         z: 10,
         silent: true,
         left: 22,
-        top: kpiTop + 36,
+        top: kpiTop + 34,
         style: {
           text: config.kpi.caption,
           font: `400 12px ${fontFam}`,
-          fill: '#94A3B8',
+          fill: isDark ? '#94a3b8' : '#64748b',
         },
       });
     }
   }
 
-  // 3. Period Pills (e.g. Monthly | Yearly) at top-right
+  // 3. Segmented Period Pills (e.g. Monthly | Yearly) at top-right
   if (config.periodPills && config.periodPills.show && Array.isArray(config.periodPills.items) && config.periodPills.items.length) {
     const items = config.periodPills.items;
     const activeIdx = Math.max(0, Math.min(items.length - 1, Number(config.periodPills.activeIndex) || 0));
-    const accent = (config.colors && config.colors[1]) || (config.colors && config.colors[0]) || '#6C5CE7';
-    let curX = 0;
+    const accent = isDark ? '#6366f1' : '#0f172a';
+    const trackFill = isDark ? '#1e293b' : '#f1f5f9';
+    const inactiveText = isDark ? '#94a3b8' : '#64748b';
+    let curX = 3;
     const children: any[] = [];
+    const pillWidths = items.map(lbl => Math.max(52, Math.round(estimateTextWidth(String(lbl), 11) + 20)));
+    const totalW = pillWidths.reduce((a, b) => a + b, 0) + Math.max(0, items.length - 1) * 4 + 6;
+    children.push({
+      type: 'rect',
+      x: 0,
+      y: 0,
+      shape: { width: totalW, height: 28, r: 14 },
+      style: { fill: trackFill },
+    });
     items.forEach((lbl, idx) => {
-      const pw = Math.max(52, String(lbl).length * 7 + 20);
+      const pw = pillWidths[idx];
       const isAct = idx === activeIdx;
-      children.push({
-        type: 'rect',
-        x: curX,
-        y: 0,
-        shape: { width: pw, height: 24, r: 12 },
-        style: {
-          fill: isAct ? accent : '#ffffff',
-          stroke: isAct ? accent : '#e2e8f0',
-          lineWidth: 1,
-        },
-      });
+      if (isAct) {
+        children.push({
+          type: 'rect',
+          x: curX,
+          y: 3,
+          shape: { width: pw, height: 22, r: 11 },
+          style: { fill: accent },
+        });
+      }
       children.push({
         type: 'text',
         x: curX + pw / 2,
-        y: 12,
+        y: 14,
         style: {
           text: lbl,
-          font: `500 11px ${fontFam}`,
-          fill: isAct ? '#ffffff' : '#64748b',
+          font: `${isAct ? 600 : 500} 11px ${fontFam}`,
+          fill: isAct ? '#ffffff' : inactiveText,
           textAlign: 'center',
           textVerticalAlign: 'middle',
         },
       });
-      curX += pw + 6;
+      curX += pw + 4;
     });
     graphics.push({
       type: 'group',
       z: 10,
       silent: true,
-      right: 22,
-      top: 18,
+      right: 20,
+      top: 16,
       children,
     });
   }
 
-  // 4. Footnote
+  // 4. Donut Center Metric (when pieInnerRadius >= 30 and showDonutCenter !== false)
+  if (config.chartType === 'pie' && (config.seriesStyle.pieInnerRadius || 0) >= 30 && config.seriesStyle.showDonutCenter !== false) {
+    const rawVal = (config.seriesStyle.donutCenterValue || '').trim();
+    const totalSum = (config.data?.items || []).reduce((acc, it) => acc + (Number(it.value) || 0), 0);
+    const centerVal = rawVal || (Number.isFinite(totalSum) ? totalSum.toLocaleString('en-US') : '100');
+    const centerLbl = (config.seriesStyle.donutCenterLabel ?? 'Total').trim();
+    const cy = Math.round(h * 0.52);
+    graphics.push({
+      type: 'text',
+      z: 10,
+      silent: true,
+      left: 'center',
+      top: centerLbl ? cy - 16 : cy - 10,
+      style: {
+        text: centerVal,
+        font: `700 22px ${fontFam}`,
+        fill: isDark ? '#f8fafc' : '#0f172a',
+        textAlign: 'center',
+      },
+    });
+    if (centerLbl) {
+      graphics.push({
+        type: 'text',
+        z: 10,
+        silent: true,
+        left: 'center',
+        top: cy + 10,
+        style: {
+          text: centerLbl,
+          font: `500 11px ${fontFam}`,
+          fill: isDark ? '#94a3b8' : '#64748b',
+          textAlign: 'center',
+        },
+      });
+    }
+  }
+
+  // 5. Footnote
   if (config.footnote && config.footnote.show && config.footnote.text) {
-    const pos: Record<string, any> = { bottom: 8 };
+    const pos: Record<string, any> = { bottom: 10 };
     if (config.footnote.align === 'center') pos.left = 'center';
     else if (config.footnote.align === 'right') pos.right = 22;
     else pos.left = 22;
@@ -230,7 +397,7 @@ function buildGraphicComponents(config: ChartConfig): any[] {
       style: {
         text: config.footnote.text,
         font: `400 10px ${fontFam}`,
-        fill: '#94a3b8',
+        fill: isDark ? '#64748b' : '#94a3b8',
       },
     });
   }
@@ -374,6 +541,11 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
     makeColorEntry(c, useGradient, gradientDirection)
   );
 
+  const surfaceHex = config.card?.show
+    ? config.card.backgroundColor
+    : (config.transparentBg ? '#ffffff' : config.backgroundColor);
+  const isDark = isDarkHex(surfaceHex);
+
   const labelOpt: Record<string, any> = {
     show: !!dataLabel.show,
     position: dataLabel.position || 'top',
@@ -381,9 +553,21 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
     rotate: Number(dataLabel.rotate) || 0,
     formatter: dataLabel.formatter ? dataLabel.formatter : undefined,
     ...toEChartsTextStyle(typography.dataLabel),
+    ...(dataLabel.show && dataLabel.pillBadge
+      ? {
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          borderColor: isDark ? '#334155' : '#e2e8f0',
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: [3, 7],
+          color: isDark ? '#f8fafc' : '#0f172a',
+          fontWeight: '600',
+        }
+      : {}),
   };
 
-  const kpiExtraTop = config.kpi && config.kpi.show ? (config.kpi.caption ? 70 : 50) : 0;
+  const kpiExtraTop = config.kpi && config.kpi.show ? (config.kpi.caption ? 72 : 52) : 0;
+  const subExtraTop = config.title.show && config.title.subtext ? 16 : 0;
   const footnoteExtraBottom = config.footnote && config.footnote.show ? 18 : 0;
 
   const option: Record<string, any> = {
@@ -391,12 +575,12 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
     backgroundColor: config.transparentBg ? 'transparent' : (config.backgroundColor || '#ffffff'),
     color: paletteColors,
     textStyle: toEChartsTextStyle(typography.global),
-    graphic: buildGraphicComponents(config),
+    graphic: buildGraphicComponents(config, isDark),
     title: {
       show: title.show,
       text: title.text,
       subtext: title.subtext,
-      left: title.left === 'left' ? 18 : title.left === 'right' ? 'right' : 'center',
+      left: title.left === 'left' ? 20 : title.left === 'right' ? 'right' : 'center',
       top: title.top ?? 20,
       itemGap: title.itemGap,
       textStyle: toEChartsTextStyle(typography.title),
@@ -424,7 +608,7 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
 
   if (usesCartesian) {
     option.grid = {
-      top: (Number(grid.top) || 72) + kpiExtraTop,
+      top: (Number(grid.top) || 72) + kpiExtraTop + subExtraTop,
       right: Number(grid.right) || 28,
       bottom: (Number(grid.bottom) || 56) + footnoteExtraBottom,
       left: Number(grid.left) || 52,
@@ -478,18 +662,24 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
           type: 'line',
           animation: false,
           data: s.data,
-          smooth: seriesStyle.smooth,
+          smooth: seriesStyle.smooth ? 0.35 : false,
           step: seriesStyle.step || false,
           stack: seriesStyle.stack ? 'total' : undefined,
           showSymbol: seriesStyle.showSymbol,
           symbol: seriesStyle.symbol || 'circle',
-          symbolSize: seriesStyle.symbolSize || 6,
+          symbolSize: seriesStyle.symbolSize || 7,
           lineStyle: {
             width: seriesStyle.lineWidth || 2.5,
             type: seriesStyle.lineType || 'solid',
+            cap: 'round',
+            join: 'round',
           },
           areaStyle: areaGrad,
-          itemStyle: { opacity: seriesStyle.opacity ?? 1 },
+          itemStyle: {
+            opacity: seriesStyle.opacity ?? 1,
+            borderColor: isDark ? '#0f172a' : '#ffffff',
+            borderWidth: seriesStyle.showSymbol ? 1.5 : 0,
+          },
           label: labelOpt,
           markPoint,
           markLine,
@@ -500,7 +690,7 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
     }
 
     case 'bar': {
-      const rVal = seriesStyle.barBorderRadius ?? 99;
+      const rVal = seriesStyle.barBorderRadius ?? 8;
       if (seriesStyle.polar) {
         option.polar = { center: ['50%', '54%'], radius: ['18%', '68%'] };
         option.angleAxis = { startAngle: 90, axisLabel: toEChartsTextStyle(typography.axisLabel) };
@@ -521,27 +711,41 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
           : seriesStyle.horizontal
             ? [0, rVal, rVal, 0]
             : [rVal, rVal, 0, 0];
-        option.series = (data.series || []).map(s => ({
-          name: s.name,
-          type: 'bar',
-          animation: false,
-          data: s.data,
-          stack: seriesStyle.stack ? 'total' : undefined,
-          barWidth: seriesStyle.barWidth > 0 ? seriesStyle.barWidth : 12,
-          barGap: '30%',
-          showBackground: seriesStyle.showBarBackground,
-          backgroundStyle: seriesStyle.showBarBackground
-            ? { color: '#f1f5f9', borderRadius: radiusArr }
-            : undefined,
-          itemStyle: {
+        option.series = (data.series || []).map((s, idx) => {
+          const baseHex = (colors && colors[idx % colors.length]) || '#6366F1';
+          const barItemStyle: Record<string, any> = {
             borderRadius: radiusArr,
             opacity: seriesStyle.opacity ?? 1,
-          },
-          label: labelOpt,
-          markPoint,
-          markLine,
-          markArea,
-        }));
+          };
+          if (seriesStyle.outlineOnly) {
+            barItemStyle.color = baseHex + '24';
+            barItemStyle.borderColor = baseHex;
+            barItemStyle.borderWidth = 2;
+          } else if (seriesStyle.barOutline) {
+            barItemStyle.borderColor = isDark ? '#f8fafc' : '#0f172a';
+            barItemStyle.borderWidth = 1.5;
+          }
+          return {
+            name: s.name,
+            type: 'bar',
+            animation: false,
+            data: s.data,
+            stack: seriesStyle.stack ? 'total' : undefined,
+            barWidth: seriesStyle.barWidth > 0 ? seriesStyle.barWidth : 16,
+            barMaxWidth: 32,
+            barGap: '24%',
+            barCategoryGap: '34%',
+            showBackground: seriesStyle.showBarBackground,
+            backgroundStyle: seriesStyle.showBarBackground
+              ? { color: isDark ? '#1e293b' : '#f1f5f9', borderRadius: radiusArr }
+              : undefined,
+            itemStyle: barItemStyle,
+            label: labelOpt,
+            markPoint,
+            markLine,
+            markArea,
+          };
+        });
       }
       break;
     }
@@ -573,13 +777,13 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
         formatter: dataLabel.formatter || (dataLabel.pillBadge ? '{d}%' : '{b}: {d}%'),
       };
       if (dataLabel.pillBadge) {
-        pieLabel.backgroundColor = '#ffffff';
-        pieLabel.borderColor = '#e2e8f0';
+        pieLabel.backgroundColor = isDark ? '#1e293b' : '#ffffff';
+        pieLabel.borderColor = isDark ? '#334155' : '#e2e8f0';
         pieLabel.borderWidth = 1;
         pieLabel.borderRadius = 10;
         pieLabel.padding = [5, 10];
         pieLabel.fontWeight = '600';
-        pieLabel.color = '#1e293b';
+        pieLabel.color = isDark ? '#f8fafc' : '#0f172a';
       }
       const pieSeries: Record<string, any> = {
         name: title.text || 'Pie',
@@ -600,7 +804,29 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
           length: 10,
           length2: 10,
         },
-        data: data.items || [],
+        data: (data.items || []).map((it, idx) => {
+          const baseHex = (colors && colors[idx % colors.length]) || '#6366F1';
+          if (seriesStyle.outlineOnly) {
+            return {
+              ...it,
+              itemStyle: {
+                color: baseHex + '24',
+                borderColor: baseHex,
+                borderWidth: 2,
+              },
+            };
+          }
+          if (seriesStyle.barOutline) {
+            return {
+              ...it,
+              itemStyle: {
+                borderColor: isDark ? '#f8fafc' : '#0f172a',
+                borderWidth: 1.5,
+              },
+            };
+          }
+          return it;
+        }),
       };
       if (seriesStyle.pieHalf) {
         pieSeries.endAngle = (seriesStyle.pieStartAngle ?? 90) - 180;
@@ -980,7 +1206,29 @@ export function buildEChartsOption(config: ChartConfig): Record<string, any> {
             ...toEChartsTextStyle(typography.dataLabel),
             color: dataLabel.position === 'outside' ? typography.dataLabel.color : '#ffffff',
           },
-          data: data.items || [],
+          data: (data.items || []).map((it, idx) => {
+          const baseHex = (colors && colors[idx % colors.length]) || '#6366F1';
+          if (seriesStyle.outlineOnly) {
+            return {
+              ...it,
+              itemStyle: {
+                color: baseHex + '24',
+                borderColor: baseHex,
+                borderWidth: 2,
+              },
+            };
+          }
+          if (seriesStyle.barOutline) {
+            return {
+              ...it,
+              itemStyle: {
+                borderColor: isDark ? '#f8fafc' : '#0f172a',
+                borderWidth: 1.5,
+              },
+            };
+          }
+          return it;
+        }),
         },
       ];
       break;

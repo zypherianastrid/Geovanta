@@ -65,7 +65,9 @@ const FindReplaceSection = ({
   L,
   onRecentColor
 }) => {
+  const sectionRef = useRef<HTMLDivElement | null>(null);
   const baseRef = useRef(null);
+  const ownCommitDocRef = useRef<any>(null);
   const selIdsRef = useRef(new Set());
   const stepRef = useRef(0);
   const triggerRef = useRef(null);
@@ -101,6 +103,7 @@ const FindReplaceSection = ({
      pemicu yang membuka seksi (fokus dikembalikan ke sana saat tutup). */
   useLayoutEffect(() => {
     if (!open) return;
+    ownCommitDocRef.current = null;
     triggerRef.current = document.activeElement;
     const base = committedDoc || { objects: [] };
     baseRef.current = base;
@@ -116,7 +119,17 @@ const FindReplaceSection = ({
     setTo('#ea580c');
     if (top) recomputeTotal(top.hex, sc);
     else setTotal(0);
+    requestAnimationFrame(() => sectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' }));
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !committedDoc) return;
+    if (committedDoc !== baseRef.current && committedDoc !== ownCommitDocRef.current) {
+      baseRef.current = committedDoc;
+      recomputeTotal(from, scope);
+    }
+    ownCommitDocRef.current = null;
+  }, [open, committedDoc]);
 
   /* Pratinjau live dari doc dasar (BUKAN dari doc yang sedang dipratinjau).
      onPreviewDoc/onCommitPreview sengaja tidak masuk deps: keduanya membaca
@@ -215,6 +228,7 @@ const FindReplaceSection = ({
     if (!base || !from || from === 'none' || total === 0 || replaced >= total) return;
     const res = findReplaceColor(base, from, to, scopeObj(), { limit: 1 });
     if (res.changed === 0) return;
+    ownCommitDocRef.current = res.doc;
     onPreviewDoc(res.doc);
     onCommitPreview('fr-one:' + ++stepRef.current);
     const unlinkedIds = unlinkedObjectIds(base, res.doc);
@@ -229,6 +243,7 @@ const FindReplaceSection = ({
     if (!base || !from || from === 'none' || total === 0) return;
     const res = findReplaceColor(base, from, to, scopeObj());
     if (res.changed === 0) return;
+    ownCommitDocRef.current = res.doc;
     onPreviewDoc(res.doc);
     onCommitPreview('fr-all:' + ++stepRef.current);
     const unlinkedIds = unlinkedObjectIds(base, res.doc);
@@ -254,7 +269,7 @@ const FindReplaceSection = ({
         : replaced > 0
           ? L.frOneOf.replace('{n}', String(replaced + 1)).replace('{m}', String(total))
           : L.frMatches.replace('{n}', String(total));
-  return <div className="fig-isec fade" data-testid="fr-section"><div className="fig-isec-title"><span>{L.frTitle}</span><button type="button" className="fig-ibtn" onClick={handleCancel} aria-label={L.frClose} data-testid="fr-close" data-tip="frClose"><Ico n="x" size={14} /></button></div><div className="space-y-3"><div><div className="fig-sub-lbl">{L.frFrom}</div><div className="flex items-center gap-2"><ColorField L={L} tip="frFrom" value={from || '#2563eb'} on={v => {
+  return <div ref={sectionRef} className="fig-isec fade" data-testid="fr-section"><div className="fig-isec-title"><span>{L.frTitle}</span><button type="button" className="fig-ibtn" onClick={handleCancel} aria-label={L.frClose} data-testid="fr-close" data-tip="frClose"><Ico n="x" size={14} /></button></div><div className="space-y-3"><div><div className="fig-sub-lbl">{L.frFrom}</div><div className="flex items-center gap-2"><ColorField L={L} tip="frFrom" value={from || '#2563eb'} on={v => {
             const nf = normalizePicked(v);
             setFrom(nf);
             setReplaced(0);

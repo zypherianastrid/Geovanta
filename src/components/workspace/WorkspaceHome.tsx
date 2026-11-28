@@ -45,6 +45,11 @@ const WorkspaceHome = ({
   const [storageModalOpen, setStorageModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const closeCardMenu = () => {
+    setOpenMenuId(null);
+    setMenuPos(null);
+  };
   const refreshWorkspace = async () => {
     try {
       const [list, stats] = await Promise.all([ProjectRepository.listProjects({
@@ -69,13 +74,29 @@ const WorkspaceHome = ({
     return () => window.removeEventListener('geovanta-workspace-refresh', onRefresh);
   }, [navTab, searchQuery, sortBy]);
   useEffect(() => {
+    if (!openMenuId) return;
     const closeMenu = e => {
-      if (openMenuId && (!e.target.closest || !e.target.closest('.ws-card-menu-wrap'))) {
-        setOpenMenuId(null);
+      if (!e.target?.closest || !e.target.closest('.ws-card-menu-wrap, .ws-card-dropdown')) {
+        closeCardMenu();
       }
     };
+    const onKey = e => {
+      if (e.key === 'Escape') closeCardMenu();
+    };
+    const onScrollOrResize = e => {
+      if (e?.target?.closest && e.target.closest('.ws-card-dropdown')) return;
+      closeCardMenu();
+    };
     document.addEventListener('pointerdown', closeMenu);
-    return () => document.removeEventListener('pointerdown', closeMenu);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+    };
   }, [openMenuId]);
   const handleQuickCreate = async (customName, w = 800, h = 600) => {
     try {
@@ -273,30 +294,42 @@ const WorkspaceHome = ({
                     handleRestoreFromTrash(proj);
                   }}>{L.wsRestoreProject}</button>}</div>{!isTrash && <button type="button" className={'ws-card-fav-btn' + (proj.favorite ? ' on' : '')} data-tip={proj.favorite ? 'veFavRemove' : 'veFavAdd'} aria-label={proj.favorite ? (lang === 'en' ? 'Remove from Favorites' : 'Hapus dari Favorit') : (lang === 'en' ? 'Add to Favorites' : 'Tambah ke Favorit')} onClick={e => handleToggleFavorite(proj, e)}><svg width="14" height="14" viewBox="0 0 24 24" fill={proj.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg></button>}</div><div className="ws-card-body"><div className="ws-card-title-row"><div className="ws-card-title" data-tip-text={proj.name} onClick={() => !isTrash && onOpenProject(proj.id)}>{proj.name}</div><div className="ws-card-menu-wrap"><button type="button" className="fig-ibtn ws-card-menu-btn" aria-label={L.wsCardMenuAria} data-tip="wsCardMenu" onClick={e => {
                       e.stopPropagation();
-                      setOpenMenuId(menuOpen ? null : proj.id);
-                    }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></svg></button>{menuOpen && <div className="ws-card-dropdown" onClick={e => e.stopPropagation()}>{!isTrash && <><button type="button" className="ws-menu-item" onClick={() => {
-                          setOpenMenuId(null);
+                      if (menuOpen) {
+                        closeCardMenu();
+                      } else {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const menuW = 208;
+                        const menuH = isTrash ? 104 : 228;
+                        const left = Math.max(8, Math.min(window.innerWidth - menuW - 8, rect.right - menuW));
+                        const top = rect.bottom + menuH + 10 > window.innerHeight
+                          ? Math.max(8, rect.top - menuH - 6)
+                          : rect.bottom + 6;
+                        setMenuPos({ top, left });
+                        setOpenMenuId(proj.id);
+                      }
+                    }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></svg></button>{menuOpen && menuPos && ReactDOM.createPortal(<div className="ws-card-dropdown" style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, right: 'auto', bottom: 'auto', zIndex: 9999 }} onClick={e => e.stopPropagation()}>{!isTrash && <><button type="button" className="ws-menu-item" onClick={() => {
+                          closeCardMenu();
                           onOpenProject(proj.id);
                         }}><Ico n="play" size={13} /><span>Open</span></button><button type="button" className="ws-menu-item" onClick={() => {
-                          setOpenMenuId(null);
+                          closeCardMenu();
                           setRenameTarget(proj);
                           setRenameDraft(proj.name);
                         }}><Ico n="pencil" size={13} /><span>Rename</span></button><button type="button" className="ws-menu-item" onClick={() => {
-                          setOpenMenuId(null);
+                          closeCardMenu();
                           handleDuplicate(proj);
                         }}><Ico n="copy" size={13} /><span>Duplicate</span></button><button type="button" className="ws-menu-item" onClick={() => {
-                          setOpenMenuId(null);
+                          closeCardMenu();
                           handleExportBackup(proj);
                         }}><Ico n="download" size={13} /><span>Export Backup (.geovanta)</span></button><div className="ws-menu-sep" /><button type="button" className="ws-menu-item warn" onClick={() => {
-                          setOpenMenuId(null);
+                          closeCardMenu();
                           handleMoveToTrash(proj);
                         }}><Ico n="trash" size={13} /><span>Move to Trash</span></button></>}{isTrash && <button type="button" className="ws-menu-item" onClick={() => {
-                        setOpenMenuId(null);
+                        closeCardMenu();
                         handleRestoreFromTrash(proj);
                       }}><Ico n="refresh" size={13} /><span>Restore Project</span></button>}<button type="button" className="ws-menu-item danger" onClick={() => {
-                        setOpenMenuId(null);
+                        closeCardMenu();
                         setDeleteTarget(proj);
-                      }}><Ico n="x" size={13} /><span>Delete Permanently</span></button></div>}</div></div><div className="ws-card-meta"><span>{L.wsEdited.replace('{d}', formatDateRel(proj.updatedAt, lang))}</span><span>·</span><span className="font-mono">{formatBytes(proj.storageSize || 0)}</span><span>·</span><span className="font-mono">v{proj.revision || 1}</span></div></div></div>;
+                      }}><Ico n="x" size={13} /><span>Delete Permanently</span></button></div>, document.body)}</div></div><div className="ws-card-meta"><span>{L.wsEdited.replace('{d}', formatDateRel(proj.updatedAt, lang))}</span><span>·</span><span className="font-mono">{formatBytes(proj.storageSize || 0)}</span><span>·</span><span className="font-mono">v{proj.revision || 1}</span></div></div></div>;
           })}</div>}</main></div>{navTab !== 'trash' && (
       <button
         type="button"

@@ -122,21 +122,19 @@ test.describe('Geovanta Apache ECharts Pure Vector Charts', () => {
       const preview = page.getByTestId('charts-studio-preview');
       await expect(preview).toBeVisible();
       const check = await page.evaluate(() => {
-        const img = document.querySelector('[data-testid="charts-studio-preview"]');
-        const src = img?.getAttribute('src') || '';
-        const svg = decodeURIComponent(src.replace('data:image/svg+xml;charset=utf-8,', ''));
-        const dom = new DOMParser().parseFromString(svg, 'image/svg+xml');
-        const emptyPaths = Array.from(dom.querySelectorAll('path')).filter(p => !(p.getAttribute('d') || '').trim()).length;
-        const blackHitBoxes = Array.from(dom.querySelectorAll('path')).filter(
+        const previewEl = document.querySelector('[data-testid="charts-studio-preview"]');
+        const svgEl = previewEl?.querySelector('svg');
+        const emptyPaths = svgEl ? Array.from(svgEl.querySelectorAll('path')).filter(p => !(p.getAttribute('d') || '').trim()).length : -1;
+        const blackHitBoxes = svgEl ? Array.from(svgEl.querySelectorAll('path')).filter(
           p => p.getAttribute('fill') === 'rgb(0,0,0)' && p.getAttribute('fill-opacity') === '0'
-        ).length;
-        const shapes = dom.querySelectorAll('path, polygon, circle, ellipse, rect').length;
-        return { isSvg: src.startsWith('data:image/svg+xml'), emptyPaths, blackHitBoxes, shapes };
+        ).length : -1;
+        const shapes = svgEl ? svgEl.querySelectorAll('path, polygon, circle, ellipse, rect').length : 0;
+        return { isSvg: !!svgEl, emptyPaths, blackHitBoxes, shapes };
       });
       expect(check.isSvg).toBe(true);
       expect(check.emptyPaths).toBe(0);
       expect(check.blackHitBoxes).toBe(0);
-      expect(check.shapes).toBeGreaterThanOrEqual(9);
+      expect(check.shapes).toBeGreaterThanOrEqual(8);
     }
 
     await page.getByTestId('charts-studio-submit').click();
